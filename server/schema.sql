@@ -42,6 +42,14 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, updated_at DESC);
 
+-- Per-dealer branding (logo shown on their customer reports). Kept in its own
+-- table so the (base64) logo isn't loaded with every dealer list.
+CREATE TABLE IF NOT EXISTS dealer_branding (
+  user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  logo       TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Global app settings (admin-controlled). Currently holds the cabinet
 -- min/max width/depth limits under key 'cabinetDims'. value is JSON text.
 CREATE TABLE IF NOT EXISTS app_settings (

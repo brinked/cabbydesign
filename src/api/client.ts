@@ -14,6 +14,8 @@ export interface ApiUser {
   phone: string;
   active: boolean;
   createdAt: string;
+  /** Data-URL logo for reports ('' if none). Populated only for the signed-in user. */
+  logo: string;
 }
 
 export interface DealerPrefs {
@@ -114,6 +116,7 @@ export const api = {
   // ---- dealer profile ----
   getPrefs: () => request<{ prefs: DealerPrefs }>('GET', '/profile/prefs'),
   setPrefs: (prefs: DealerPrefs) => request<{ prefs: DealerPrefs }>('PUT', '/profile/prefs', prefs),
+  setLogo: (logo: string) => request<{ logo: string }>('PUT', '/profile/logo', { logo }),
 
   // ---- jobs ----
   listJobs: () => request<{ jobs: JobSummary[] }>('GET', '/jobs'),

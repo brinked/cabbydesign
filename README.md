@@ -24,7 +24,7 @@ Other scripts: `npm run dev:web` / `npm run dev:server` run the two halves separ
 - **Sign in** — every user logs in with email + password (JWT session cookie). Two roles: `admin` and `dealer`.
 - **Admin → Dealers** — add / edit / enable-disable / delete dealers and reset their passwords (admin only).
 - **Admin → Cabinet size limits & Base pricing** — global min/max width/depth per cabinet and the base box pricing formulas (the dealer's *cost*). "Save for all dealers" pushes them to the server. (These are the existing Settings/Pricing modals, now admin-controlled and shared.)
-- **Profile** (each dealer) — their profit **margin %**, whether to **show or hide pricing** on the report, and whether the report shows **their cost** or **marked-up** prices. Also change password.
+- **Profile** (each dealer) — upload a **company logo** (shown on their customer reports), set their profit **margin %**, whether to **show or hide pricing** on the report, and whether the report shows **their cost** or **marked-up** prices. Also change password.
 - **My Jobs** (each dealer) — save the current design with the customer's **name, email, and address**, then reopen, rename, or delete saved jobs later. (File **Export/Import** still works as a local backup.)
 
 ## Production build & hosting

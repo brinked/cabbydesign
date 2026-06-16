@@ -12,9 +12,12 @@ export interface ApiUser {
   phone: string;
   active: boolean;
   createdAt: string;
+  /** Data-URL logo for the dealer's reports ('' if none). Only populated for
+   *  the signed-in user (me/login/profile), not the admin dealer list. */
+  logo: string;
 }
 
-export function shapeUser(u: UserRow): ApiUser {
+export function shapeUser(u: UserRow, logo = ''): ApiUser {
   return {
     id: u.id,
     name: u.name,
@@ -26,7 +29,16 @@ export function shapeUser(u: UserRow): ApiUser {
     phone: u.phone,
     active: !!u.active,
     createdAt: u.created_at,
+    logo,
   };
+}
+
+const getLogo = db.prepare('SELECT logo FROM dealer_branding WHERE user_id = ?');
+
+/** The dealer's logo data URL, or '' if none set. */
+export function logoFor(userId: number): string {
+  const row = getLogo.get(userId) as { logo: string } | undefined;
+  return row?.logo ?? '';
 }
 
 export interface ApiPrefs {

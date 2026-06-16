@@ -13,6 +13,7 @@ export default function Report() {
   const snapshot = useStore((s) => s.snapshot3d);
   const setTab = useStore((s) => s.setTab);
   const prefs = useSession((s) => s.prefs);
+  const logo = useSession((s) => s.user?.logo) ?? '';
   const fin = useFinish(design.finishId);
   const numbers = itemNumbers(design);
 
@@ -97,6 +98,7 @@ export default function Report() {
 
       {/* Cover */}
       <section className="report-page report-cover">
+        {logo && <img className="cover-logo" src={logo} alt="Company logo" />}
         <div className="cover-rule" />
         <h1>{design.name || 'Untitled Design'}</h1>
         <p className="cover-sub">

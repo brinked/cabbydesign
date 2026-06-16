@@ -1371,6 +1371,53 @@ button:disabled {
   font-weight: 600;
 }
 
+/* ---------- logo upload ---------- */
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.logo-preview {
+  width: 180px;
+  height: 90px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #fafbfc;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.logo-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.logo-empty {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.logo-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* logo on the printable report cover */
+.cover-logo {
+  max-width: 280px;
+  max-height: 110px;
+  object-fit: contain;
+  margin: 0 auto 18px;
+  display: block;
+}
+
 @media (max-width: 640px) {
   .form-grid {
     grid-template-columns: 1fr;

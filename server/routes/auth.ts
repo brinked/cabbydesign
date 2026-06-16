@@ -10,7 +10,7 @@ import {
   signSession,
   verifyPassword,
 } from '../auth.ts';
-import { prefsFor, shapeUser } from '../shape.ts';
+import { logoFor, prefsFor, shapeUser } from '../shape.ts';
 
 export const authRouter = Router();
 
@@ -38,7 +38,7 @@ authRouter.post('/login', (req, res) => {
     return;
   }
   setSessionCookie(res, signSession({ id: user.id, role: user.role }));
-  res.json({ user: shapeUser(user), prefs: prefsFor(user.id) });
+  res.json({ user: shapeUser(user, logoFor(user.id)), prefs: prefsFor(user.id) });
 });
 
 authRouter.post('/logout', (_req, res) => {
@@ -53,7 +53,7 @@ authRouter.get('/me', (req, res) => {
     res.json({ user: null });
     return;
   }
-  res.json({ user: shapeUser(req.user), prefs: prefsFor(req.user.id) });
+  res.json({ user: shapeUser(req.user, logoFor(req.user.id)), prefs: prefsFor(req.user.id) });
 });
 
 const changePwSchema = z.object({

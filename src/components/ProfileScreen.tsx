@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useSession } from '../state/session';
 
@@ -47,6 +47,8 @@ export default function ProfileScreen() {
 
       {error && <div className="warn">{error}</div>}
       {saved && <div className="ok-banner">Saved.</div>}
+
+      <LogoCard />
 
       <section className="card">
         <h2>Profit margin</h2>
@@ -127,6 +129,91 @@ export default function ProfileScreen() {
 
       <ChangePasswordCard />
     </main>
+  );
+}
+
+// ~1 MB cap (matches the server). Larger files are rejected before upload.
+const MAX_LOGO_BYTES = 1_000_000;
+
+function LogoCard() {
+  const user = useSession((s) => s.user);
+  const setLogo = useSession((s) => s.setLogo);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const logo = user?.logo ?? '';
+
+  function pick(file: File) {
+    setMsg(null);
+    if (!file.type.startsWith('image/')) {
+      setMsg({ ok: false, text: 'Please choose an image file (PNG, JPG, SVG…).' });
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setMsg({ ok: false, text: 'Image is too large — please use one under 1 MB.' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = String(reader.result);
+      setBusy(true);
+      try {
+        await setLogo(dataUrl);
+        setMsg({ ok: true, text: 'Logo updated. It will appear on your reports.' });
+      } catch (err) {
+        setMsg({ ok: false, text: err instanceof ApiError ? err.message : 'Could not save logo.' });
+      } finally {
+        setBusy(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function remove() {
+    setMsg(null);
+    setBusy(true);
+    try {
+      await setLogo('');
+      setMsg({ ok: true, text: 'Logo removed.' });
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof ApiError ? err.message : 'Could not remove logo.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>Company logo</h2>
+      <p className="card-sub">Shown at the top of the reports you generate for your customers. PNG or JPG works best.</p>
+      <div className="logo-row">
+        <div className="logo-preview">
+          {logo ? <img src={logo} alt="Company logo" /> : <span className="logo-empty">No logo yet</span>}
+        </div>
+        <div className="logo-actions">
+          <button className="btn-primary" onClick={() => fileRef.current?.click()} disabled={busy}>
+            {busy ? 'Saving…' : logo ? 'Replace logo' : 'Upload logo'}
+          </button>
+          {logo && (
+            <button className="btn-danger-ghost" onClick={remove} disabled={busy}>
+              Remove
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) pick(f);
+              e.target.value = '';
+            }}
+          />
+        </div>
+      </div>
+      {msg && <div className={msg.ok ? 'ok-banner' : 'warn'} style={{ marginTop: 12 }}>{msg.text}</div>}
+    </section>
   );
 }
 

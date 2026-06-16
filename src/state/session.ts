@@ -24,6 +24,7 @@ interface SessionState {
   logout: () => Promise<void>;
   setScreen: (screen: Screen) => void;
   setPrefs: (prefs: DealerPrefs) => Promise<void>;
+  setLogo: (logo: string) => Promise<void>;
   setCurrentJob: (id: number | null, name: string | null) => void;
   openSaveJob: (open: boolean) => void;
   /** Re-pull admin globals (dims + pricing) into the designer store. */
@@ -80,6 +81,12 @@ export const useSession = create<SessionState>()((set, get) => ({
   setPrefs: async (prefs) => {
     const { prefs: saved } = await api.setPrefs(prefs);
     set({ prefs: saved });
+  },
+
+  setLogo: async (logo) => {
+    const { logo: saved } = await api.setLogo(logo);
+    const user = get().user;
+    if (user) set({ user: { ...user, logo: saved } });
   },
 
   setCurrentJob: (id, name) => set({ currentJobId: id, currentJobName: name }),
