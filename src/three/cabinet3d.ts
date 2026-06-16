@@ -127,12 +127,12 @@ function applianceFaceW(w: number): number {
 /** Roll-top grill hood: rounded side profile extruded across the width. */
 function grillHood(gw: number, dh: number, hh: number, mat: THREE.Material): THREE.Mesh {
   const s = new THREE.Shape();
-  // side profile: x = depth from the front face, y = up. Smooth roll-top dome:
-  // the front rises vertically then arcs continuously over to the back.
+  // side profile: x = depth from the front face, y = up
   s.moveTo(0, 0);
-  s.lineTo(0, hh * 0.52);
-  s.quadraticCurveTo(0, hh, dh * 0.5, hh);
-  s.quadraticCurveTo(dh, hh, dh, hh * 0.5);
+  s.lineTo(0, hh * 0.35);
+  s.quadraticCurveTo(0, hh, dh * 0.42, hh);
+  s.lineTo(dh - 2, hh);
+  s.quadraticCurveTo(dh, hh, dh, hh - 2);
   s.lineTo(dh, 0);
   s.closePath();
   const geo = new THREE.ExtrudeGeometry(s, { depth: gw, bevelEnabled: false, curveSegments: 10 });
@@ -787,42 +787,34 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     const gw = applianceFaceW(w);
     const applH = 9;
     const faceY = kick + carcassH - REVEAL - applH / 2;
-    const faceZ = d - 0.2;
     const face = box(gw, applH, 1.5, mats.steel);
-    face.position.set(0, faceY, faceZ);
+    face.position.set(0, faceY, d - 0.2);
     g.add(face);
-    // brand badge plate on the left of the control panel
-    const badgeW = Math.min(7, gw * 0.2);
-    const badge = box(badgeW, 2.4, 0.4, new THREE.MeshStandardMaterial({ color: 0xb0281f, roughness: 0.45, metalness: 0.05 }));
-    badge.position.set(-gw / 2 + badgeW / 2 + 2, faceY + 0.4, faceZ + 0.85);
-    g.add(badge);
-    // control knobs, grouped to the right of the badge
-    addKnobs(badgeW * 0.5 + 1, faceY - 1, d + 0.55, Math.max(3, Math.min(6, Math.round(gw / 8))));
+    addKnobs(0, faceY - 1, d + 0.55, Math.max(3, Math.min(5, Math.round(gw / 8))));
     // grill body lip just above the cabinet top
     const lip = box(gw, 1.8, d - 3, mats.steel);
     lip.position.set(0, h + 0.9, d / 2);
     g.add(lip);
-    // tall roll-top hood
-    const hoodH = 10.5;
+    // roll-top hood
+    const hoodH = 8.5;
     const hoodD = d - 6;
     const hoodFrontZ = d - 2;
     const hood = grillHood(gw - 0.5, hoodD, hoodH, mats.steel);
     hood.position.set(0, h + 1.8, hoodFrontZ);
     g.add(hood);
     // thermometer on the hood face
-    const thermoY = h + 1.8 + hoodH * 0.6;
-    const thermoBezel = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.7, 20), mats.steel);
+    const thermoBezel = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.7, 18), mats.steel);
     thermoBezel.rotation.x = Math.PI / 2;
-    thermoBezel.position.set(0, thermoY, hoodFrontZ + 0.25);
+    thermoBezel.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.2);
     const thermoFace = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.22, 1.22, 0.78, 20),
+      new THREE.CylinderGeometry(1.05, 1.05, 0.75, 18),
       new THREE.MeshStandardMaterial({ color: 0xf4f5f2, roughness: 0.35 })
     );
     thermoFace.rotation.x = Math.PI / 2;
-    thermoFace.position.set(0, thermoY, hoodFrontZ + 0.3);
+    thermoFace.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.25);
     g.add(thermoBezel, thermoFace);
-    // tube handle across the hood front, set low
-    addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.24, hoodFrontZ + 1.7);
+    // handle across the hood front
+    addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.28, hoodFrontZ + 1.7);
   } else if (cat.front === 'griddle' && !isAppliance) {
     const gw = applianceFaceW(w);
     const applH = 7;
