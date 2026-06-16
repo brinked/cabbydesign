@@ -1,5 +1,7 @@
+import { Fragment } from 'react';
 import { TOEKICK_H, catalogById } from '../model/catalog';
 import { money } from '../model/pricing';
+import { appliancePrice } from '../model/appliances';
 import { PANEL_RATE_PER_SQFT, itemNumbers, itemOnIsland, itemPrice, reservesFor, useStore } from '../state/store';
 import { useSession } from '../state/session';
 import { MAX_PANEL_W } from '../three/cabinet3d';
@@ -12,6 +14,8 @@ export default function Report() {
   const pricing = useStore((s) => s.pricing);
   const snapshot = useStore((s) => s.snapshot3d);
   const setTab = useStore((s) => s.setTab);
+  const appliances = useStore((s) => s.appliances);
+  const applianceBrands = useStore((s) => s.applianceBrands);
   const prefs = useSession((s) => s.prefs);
   const taxRate = useSession((s) => s.taxRate);
   const logo = useSession((s) => s.user?.logo) ?? '';
@@ -20,7 +24,8 @@ export default function Report() {
 
   // Dealer pricing preferences. Default to showing marked-up pricing.
   const showPricing = prefs?.showPricing ?? true;
-  const isMarkedUp = (prefs?.priceMode ?? 'marked_up') === 'marked_up';
+  const priceMode = prefs?.priceMode ?? 'marked_up';
+  const isMarkedUp = priceMode === 'marked_up';
   // percent markup multiplies; flat markup adds a fixed $ to each cabinet line.
   const factor = isMarkedUp && prefs?.markupMode !== 'flat' ? 1 + (prefs?.marginPct ?? 0) / 100 : 1;
   const flatPerCab = isMarkedUp && prefs?.markupMode === 'flat' ? prefs?.flatAmount ?? 0 : 0;
@@ -83,11 +88,26 @@ export default function Report() {
   }
   const backSubtotal = Math.round((backArea / 144) * rate * 100) / 100;
 
+  // Appliances chosen on grill/fridge/burner cabinets. Priced at MSRP for the
+  // customer (marked_up) or the dealer's net cost (cost mode). The dealer's
+  // brand discount is their margin, so appliances skip the cabinet markup.
+  const applianceLines = [...design.items]
+    .sort((a, b) => (numbers.get(a.id) ?? 0) - (numbers.get(b.id) ?? 0))
+    .map((it) => ({
+      it,
+      cat: catalogById(it.catalogId),
+      n: numbers.get(it.id) ?? 0,
+      p: appliancePrice(it.appliance, appliances, applianceBrands, priceMode),
+    }))
+    .filter((l) => l.p.label); // only cabinets with an appliance selected
+  const applianceUnit = (msrp: number, net: number) => (isMarkedUp ? msrp : net);
+  const applianceSubtotal = applianceLines.reduce((s, l) => s + l.p.total, 0);
+
   // Marked-up subtotals (percent factor, plus a flat $ on each priced cabinet).
   const pricedCabCount = lines.filter((l) => l.cat.category !== 'appliance' && !l.error).length;
   const cabinetSubtotalMk = cabinetSubtotal * factor + flatPerCab * pricedCabCount;
   const panelSubtotalMk = (endSubtotal + backSubtotal) * factor;
-  const subtotalMk = cabinetSubtotalMk + panelSubtotalMk;
+  const subtotalMk = cabinetSubtotalMk + panelSubtotalMk + applianceSubtotal;
   const taxAmount = isMarkedUp && !taxExempt ? (subtotalMk * taxRate) / 100 : 0;
   const grandTotal = subtotalMk + taxAmount;
 
@@ -241,6 +261,51 @@ export default function Report() {
                 <tr>
                   <td colSpan={5}>Applied panels subtotal</td>
                   <td className="num">{money(panelSubtotalMk)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        )}
+
+        {applianceLines.length > 0 && (
+          <table className="schedule" style={{ marginTop: 22 }}>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Cabinet</th>
+                <th>Appliance</th>
+                {showPricing && <th className="num">Price</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {applianceLines.map((l) => (
+                <Fragment key={l.it.id}>
+                  <tr>
+                    <td>{l.n}</td>
+                    <td>{l.cat.name}</td>
+                    <td>{l.p.byCustomer ? `Customer-supplied: ${l.p.label}` : l.p.label}</td>
+                    {showPricing && (
+                      <td className="num">
+                        {l.p.byCustomer ? 'by customer' : money(applianceUnit(l.p.applianceMsrp, l.p.applianceNet))}
+                      </td>
+                    )}
+                  </tr>
+                  {l.p.liner && (
+                    <tr className="appliance-liner-row">
+                      <td></td>
+                      <td></td>
+                      <td>↳ Insulated liner — {l.p.liner.brand} {l.p.liner.model}</td>
+                      {showPricing && <td className="num">{money(applianceUnit(l.p.linerMsrp, l.p.linerNet))}</td>}
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+            {showPricing && (
+              <tfoot>
+                <tr>
+                  <td colSpan={3}>Appliances subtotal</td>
+                  <td className="num">{money(applianceSubtotal)}</td>
                 </tr>
               </tfoot>
             )}

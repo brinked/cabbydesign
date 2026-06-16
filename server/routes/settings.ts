@@ -10,6 +10,8 @@ export const settingsRouter = Router();
 const CABINET_DIMS_KEY = 'cabinetDims';
 const PRICING_KEY = 'pricing';
 const TAX_RATE_KEY = 'taxRate';
+const APPLIANCES_KEY = 'appliances';
+const APPLIANCE_BRANDS_KEY = 'applianceBrands';
 const DEFAULT_TAX_RATE = 6.5; // Florida
 
 const getSetting = db.prepare('SELECT value FROM app_settings WHERE key = ?');
@@ -102,4 +104,59 @@ settingsRouter.put('/tax', requireAdmin, (req, res) => {
   }
   upsertSetting.run(TAX_RATE_KEY, String(parsed.data.rate));
   res.json({ rate: parsed.data.rate });
+});
+
+// ---- Appliance inventory (admin-managed; readable by all logged-in users) ----
+function readArray(key: string): unknown[] {
+  const row = getSetting.get(key) as { value: string } | undefined;
+  if (!row) return [];
+  try {
+    const v = JSON.parse(row.value);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+const applianceSchema = z.object({
+  id: z.string().min(1).max(120),
+  category: z.enum(['grill', 'griddle', 'sideburner', 'powerburner', 'kamado', 'fridge', 'liner']),
+  brand: z.string().min(1).max(120),
+  model: z.string().min(1).max(120),
+  name: z.string().max(200).default(''),
+  msrp: z.number().min(0).max(1_000_000),
+  linerId: z.string().max(120).optional(),
+  active: z.boolean().optional(),
+});
+const appliancesSchema = z.array(applianceSchema).max(5000);
+
+settingsRouter.get('/appliances', (_req, res) => {
+  res.json({ appliances: readArray(APPLIANCES_KEY) });
+});
+
+settingsRouter.put('/appliances', requireAdmin, (req, res) => {
+  const parsed = appliancesSchema.safeParse(req.body?.appliances ?? req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid appliance inventory' });
+    return;
+  }
+  upsertSetting.run(APPLIANCES_KEY, JSON.stringify(parsed.data));
+  res.json({ appliances: parsed.data });
+});
+
+// Per-brand manufacturer discount (the dealer automatically gets half).
+const brandsSchema = z.record(z.string(), z.object({ discountPct: z.number().min(0).max(100) }));
+
+settingsRouter.get('/appliance-brands', (_req, res) => {
+  res.json({ brands: readJson(APPLIANCE_BRANDS_KEY) });
+});
+
+settingsRouter.put('/appliance-brands', requireAdmin, (req, res) => {
+  const parsed = brandsSchema.safeParse(req.body?.brands ?? req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid brand discounts' });
+    return;
+  }
+  upsertSetting.run(APPLIANCE_BRANDS_KEY, JSON.stringify(parsed.data));
+  res.json({ brands: parsed.data });
 });

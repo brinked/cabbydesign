@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CATALOG, CATEGORY_LABELS, COUNTER_T, catalogById } from '../model/catalog';
 import { money, tryFormula } from '../model/pricing';
-import type { CatalogItem, FrontKind } from '../model/types';
+import {
+  APPLIANCE_CATS,
+  APPLIANCE_CAT_LABELS,
+  applianceId,
+  appliancesToCsv,
+  parseAppliancesCsv,
+} from '../model/appliances';
+import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, PlacedItem } from '../model/types';
 import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, useStore } from '../state/store';
 import { api, ApiError } from '../api/client';
 import { CatalogThumb } from './CabinetImage';
@@ -156,6 +163,118 @@ function Stepper({
   );
 }
 
+/**
+ * Appliance picker shown on appliance-housing cabinets (grills, fridges,
+ * burners, kamado, griddle). Choose an inventory item, or declare the customer
+ * is supplying their own. Grills surface their recommended insulated liner.
+ */
+function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
+  const appliances = useStore((s) => s.appliances);
+  const updateItem = useStore((s) => s.updateItem);
+  const want = cat.applianceCat;
+
+  const options = useMemo(
+    () => appliances.filter((a) => a.category === want && a.active !== false),
+    [appliances, want]
+  );
+  // Group by brand for the <optgroup>s.
+  const byBrand = useMemo(() => {
+    const m = new Map<string, ApplianceItem[]>();
+    for (const a of options) (m.get(a.brand) ?? m.set(a.brand, []).get(a.brand)!).push(a);
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [options]);
+
+  const sel = it.appliance;
+  const mode: 'none' | 'inventory' | 'own' = sel?.mode ?? 'none';
+  const selected = sel?.mode === 'inventory' ? options.find((a) => a.id === sel.applianceId) : undefined;
+  const liner = selected?.linerId ? appliances.find((a) => a.id === selected.linerId) : undefined;
+
+  const set = (next: ApplianceSelection | undefined) => updateItem(it.id, { appliance: next });
+
+  return (
+    <div className="appliance-section">
+      <div className="stepper-row">
+        <span className="stepper-label">
+          {APPLIANCE_CAT_LABELS[want!]}
+          <span className="stepper-note">shown on the report</span>
+        </span>
+        <div className="seg">
+          <button className={mode === 'inventory' ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ mode: 'inventory', withLiner: true })}>
+            From inventory
+          </button>
+          <button className={mode === 'own' ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ mode: 'own', ownText: sel?.ownText ?? '' })}>
+            Customer's own
+          </button>
+          <button className={mode === 'none' ? 'seg-btn active' : 'seg-btn'} onClick={() => set(undefined)}>
+            None
+          </button>
+        </div>
+      </div>
+
+      {mode === 'inventory' && (
+        <>
+          <select
+            className="select appliance-select"
+            value={sel?.applianceId ?? ''}
+            onChange={(e) => set({ ...sel!, mode: 'inventory', applianceId: e.target.value || undefined })}
+          >
+            <option value="">— Select {APPLIANCE_CAT_LABELS[want!].toLowerCase()} —</option>
+            {byBrand.map(([brand, items]) => (
+              <optgroup key={brand} label={brand}>
+                {items.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.model}
+                    {a.name ? ` — ${a.name}` : ''} ({money(a.msrp)})
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          {options.length === 0 && (
+            <p className="card-sub" style={{ marginTop: 6 }}>
+              No {APPLIANCE_CAT_LABELS[want!].toLowerCase()} models in inventory yet. An admin can add them under Appliances.
+            </p>
+          )}
+          {selected && liner && (
+            <div className="seg appliance-liner" style={{ marginTop: 8 }}>
+              <button
+                className={sel?.withLiner !== false ? 'seg-btn active' : 'seg-btn'}
+                onClick={() => set({ ...sel!, withLiner: true })}
+                title={`${liner.brand} ${liner.model} — ${money(liner.msrp)}`}
+              >
+                + Insulated liner (recommended)
+              </button>
+              <button className={sel?.withLiner === false ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ ...sel!, withLiner: false })}>
+                Grill only
+              </button>
+            </div>
+          )}
+          {selected && (
+            <div className="price-line" style={{ marginTop: 6 }}>
+              {selected.brand} {selected.model}: <b>{money(selected.msrp)}</b>
+              {sel?.withLiner !== false && liner && (
+                <span className="price-sub">
+                  {' '}
+                  + liner {liner.model} {money(liner.msrp)}
+                </span>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {mode === 'own' && (
+        <input
+          className="appliance-own-input"
+          placeholder="Describe the appliance the customer will use"
+          value={sel?.ownText ?? ''}
+          onChange={(e) => set({ mode: 'own', ownText: e.target.value })}
+        />
+      )}
+    </div>
+  );
+}
+
 export function EditItemModal() {
   const editingId = useStore((s) => s.editingId);
   const design = useStore((s) => s.design);
@@ -247,6 +366,7 @@ export function EditItemModal() {
           </div>
         )}
       </div>
+      {cat.applianceCat && <ApplianceSection it={it} cat={cat} />}
       {island && cat.category !== 'appliance' && (
         <div className="price-line" style={{ marginTop: 4 }}>
           On island — finished back panel applied automatically.
@@ -490,6 +610,216 @@ export function SettingsModal() {
         })}
       </div>
       <SaveGlobalFooter onSave={() => api.setCabinetDims(useStore.getState().dims).then(() => undefined)} />
+    </Modal>
+  );
+}
+
+/** One editable inventory row. Local text mirrors commit on blur. */
+function ApplianceRow({
+  a,
+  liners,
+  onChange,
+  onRemove,
+}: {
+  a: ApplianceItem;
+  liners: ApplianceItem[];
+  onChange: (patch: Partial<ApplianceItem>) => void;
+  onRemove: () => void;
+}) {
+  const [brand, setBrand] = useState(a.brand);
+  const [model, setModel] = useState(a.model);
+  const [name, setName] = useState(a.name);
+  const [msrp, setMsrp] = useState(String(a.msrp));
+  useEffect(() => setBrand(a.brand), [a.brand]);
+  useEffect(() => setModel(a.model), [a.model]);
+  useEffect(() => setName(a.name), [a.name]);
+  useEffect(() => setMsrp(String(a.msrp)), [a.msrp]);
+
+  return (
+    <div className="appliance-row">
+      <select className="select" value={a.category} onChange={(e) => onChange({ category: e.target.value as ApplianceItem['category'] })}>
+        {APPLIANCE_CATS.map((c) => (
+          <option key={c} value={c}>
+            {APPLIANCE_CAT_LABELS[c]}
+          </option>
+        ))}
+      </select>
+      <input className="dim-input" value={brand} placeholder="Brand" onChange={(e) => setBrand(e.target.value)} onBlur={() => onChange({ brand: brand.trim() })} />
+      <input className="dim-input" value={model} placeholder="Model #" onChange={(e) => setModel(e.target.value)} onBlur={() => onChange({ model: model.trim() })} />
+      <input className="dim-input" value={name} placeholder="Description" onChange={(e) => setName(e.target.value)} onBlur={() => onChange({ name: name.trim() })} />
+      <input
+        className="dim-input"
+        value={msrp}
+        inputMode="decimal"
+        placeholder="MSRP"
+        onChange={(e) => setMsrp(e.target.value)}
+        onBlur={() => {
+          const v = parseFloat(msrp.replace(/[$,]/g, ''));
+          onChange({ msrp: Number.isFinite(v) && v >= 0 ? v : 0 });
+        }}
+      />
+      {a.category === 'grill' ? (
+        <select className="select" value={a.linerId ?? ''} onChange={(e) => onChange({ linerId: e.target.value || undefined })}>
+          <option value="">— no liner —</option>
+          {liners.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.brand} {l.model}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <span className="appliance-noliner">—</span>
+      )}
+      <button className="btn-danger-ghost" title="Remove" onClick={onRemove}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
+export function AppliancesModal() {
+  const open = useStore((s) => s.appliancesOpen);
+  const setOpen = useStore((s) => s.setAppliancesOpen);
+  const appliances = useStore((s) => s.appliances);
+  const brands = useStore((s) => s.applianceBrands);
+  const setAppliances = useStore((s) => s.setAppliances);
+  const setApplianceBrands = useStore((s) => s.setApplianceBrands);
+  const [csvMsg, setCsvMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Brands shown = those with a discount set plus every brand used in inventory.
+  const brandNames = useMemo(() => {
+    const s = new Set<string>(Object.keys(brands));
+    for (const a of appliances) if (a.brand) s.add(a.brand);
+    return [...s].sort((x, y) => x.localeCompare(y));
+  }, [brands, appliances]);
+  const liners = useMemo(() => appliances.filter((a) => a.category === 'liner'), [appliances]);
+
+  if (!open) return null;
+
+  const updateAppliance = (id: string, patch: Partial<ApplianceItem>) => {
+    let next = appliances.map((a) => (a.id === id ? { ...a, ...patch } : a));
+    // Keep ids in sync if brand/model changed and the new id is free.
+    if (patch.brand !== undefined || patch.model !== undefined) {
+      const a = next.find((x) => x.id === id)!;
+      const newId = applianceId(a.brand, a.model);
+      if (newId && newId !== id && !next.some((x) => x.id === newId)) {
+        next = next.map((x) => (x.id === id ? { ...x, id: newId } : x.linerId === id ? { ...x, linerId: newId } : x));
+      }
+    }
+    setAppliances(next);
+  };
+
+  const addRow = () =>
+    setAppliances([
+      ...appliances,
+      { id: `new-${appliances.length + 1}-${Math.max(1, Math.round(Date.now() % 1e6))}`, category: 'grill', brand: '', model: '', name: '', msrp: 0, active: true },
+    ]);
+
+  const removeRow = (id: string) =>
+    setAppliances(appliances.filter((a) => a.id !== id).map((a) => (a.linerId === id ? { ...a, linerId: undefined } : a)));
+
+  const setBrandPct = (brand: string, pct: number | undefined) => {
+    const next = { ...brands };
+    if (pct === undefined || Number.isNaN(pct)) delete next[brand];
+    else next[brand] = { discountPct: pct };
+    setApplianceBrands(next);
+  };
+
+  const importCsv = (text: string) => {
+    const { items, errors } = parseAppliancesCsv(text);
+    if (items.length === 0) {
+      setCsvMsg({ ok: false, text: errors[0] ?? 'No rows found in the file.' });
+      return;
+    }
+    setAppliances(items);
+    setCsvMsg({
+      ok: errors.length === 0,
+      text: errors.length === 0 ? `Imported ${items.length} items. Review, then Save for all dealers.` : `Imported ${items.length} items, ${errors.length} skipped: ${errors.slice(0, 3).join(' ')}`,
+    });
+  };
+
+  const exportCsv = () => {
+    const blob = new Blob([appliancesToCsv(appliances)], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'appliance-inventory.csv';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  return (
+    <Modal
+      title="Appliance inventory & brand discounts"
+      sub="Grills, griddles, burners, kamados, fridges and insulated liners that drop into outdoor cabinets. Customers see MSRP on the report; the dealer's cost is MSRP minus half the brand discount."
+      onClose={() => setOpen(false)}
+      wide
+    >
+      <h3 className="modal-h3">Brand discounts</h3>
+      <p className="card-sub">Enter the manufacturer discount you receive. Each dealer automatically gets half of it.</p>
+      <div className="brand-grid">
+        {brandNames.length === 0 && <span className="card-sub">Add inventory below, then set each brand's discount here.</span>}
+        {brandNames.map((b) => (
+          <label key={b} className="brand-cell">
+            <span>{b}</span>
+            <span className="suffix-input">
+              <DimCell value={brands[b]?.discountPct} placeholder={0} onCommit={(v) => setBrandPct(b, v)} />
+              <span className="suffix">%</span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      <h3 className="modal-h3" style={{ marginTop: 18 }}>
+        Inventory
+      </h3>
+      <div className="appliance-row appliance-row-head">
+        <span>Category</span>
+        <span>Brand</span>
+        <span>Model #</span>
+        <span>Description</span>
+        <span>MSRP</span>
+        <span>Liner (grills)</span>
+        <span></span>
+      </div>
+      <div className="appliance-list">
+        {appliances.map((a) => (
+          <ApplianceRow key={a.id} a={a} liners={liners} onChange={(patch) => updateAppliance(a.id, patch)} onRemove={() => removeRow(a.id)} />
+        ))}
+        {appliances.length === 0 && <p className="card-sub">No appliances yet. Add a row or import a CSV.</p>}
+      </div>
+
+      <div className="appliance-tools">
+        <button className="btn-ghost" onClick={addRow}>
+          + Add row
+        </button>
+        <label className="btn-ghost file-btn">
+          Import CSV
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) f.text().then(importCsv);
+              e.target.value = '';
+            }}
+          />
+        </label>
+        <button className="btn-ghost" onClick={exportCsv} disabled={appliances.length === 0}>
+          Export CSV
+        </button>
+        <span className="card-sub appliance-csv-help">
+          CSV columns: category, brand, model, name, msrp, liner_model
+        </span>
+      </div>
+      {csvMsg && <div className={csvMsg.ok ? 'ok-banner' : 'warn'} style={{ marginTop: 8 }}>{csvMsg.text}</div>}
+
+      <SaveGlobalFooter
+        onSave={async () => {
+          await api.setAppliances(useStore.getState().appliances);
+          await api.setApplianceBrands(useStore.getState().applianceBrands);
+        }}
+      />
     </Modal>
   );
 }

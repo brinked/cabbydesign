@@ -873,6 +873,108 @@ button:disabled {
   outline: none;
 }
 
+/* ---------- appliance picker (edit-item modal) ---------- */
+.appliance-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.appliance-select,
+.appliance-own-input {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.appliance-own-input {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.appliance-own-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.appliance-liner .seg-btn {
+  font-size: 12px;
+}
+
+/* ---------- appliance inventory (admin modal) ---------- */
+.modal-h3 {
+  margin: 6px 0 2px;
+  font-size: 14px;
+}
+
+.brand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px 14px;
+  margin-top: 8px;
+}
+
+.brand-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.brand-cell .suffix-input {
+  width: 86px;
+}
+
+.appliance-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr 1.4fr 0.8fr 1.2fr 28px;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.appliance-row-head {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.appliance-list {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.appliance-noliner {
+  color: var(--muted);
+  text-align: center;
+}
+
+.appliance-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.appliance-csv-help {
+  margin-left: auto;
+}
+
+.file-btn {
+  cursor: pointer;
+}
+
+.appliance-liner-row td {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 /* ---------- report ---------- */
 .report {
   max-width: 880px;

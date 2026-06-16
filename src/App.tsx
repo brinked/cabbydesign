@@ -8,7 +8,7 @@ import Login from './components/Login';
 import AdminPanel from './components/AdminPanel';
 import JobsScreen from './components/JobsScreen';
 import ProfileScreen from './components/ProfileScreen';
-import { AddItemModal, EditItemModal, PricingModal, RoughInModal, SettingsModal } from './components/Modals';
+import { AddItemModal, AppliancesModal, EditItemModal, PricingModal, RoughInModal, SettingsModal } from './components/Modals';
 import SaveJobModal from './components/SaveJobModal';
 import { SvgDefs } from './components/svg';
 import { useStore } from './state/store';
@@ -57,6 +57,7 @@ export default function App() {
       <RoughInModal />
       <PricingModal />
       <SettingsModal />
+      <AppliancesModal />
       <SaveJobModal />
     </div>
   );

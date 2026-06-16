@@ -25,6 +25,7 @@ export default function AdminPanel() {
   const [editing, setEditing] = useState<DealerWithPrefs | 'new' | null>(null);
   const setPricingOpen = useStore((s) => s.setPricingOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
+  const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
 
   async function refresh() {
     try {
@@ -103,6 +104,9 @@ export default function AdminPanel() {
           </button>
           <button className="btn-ghost" onClick={() => setPricingOpen(true)}>
             Base pricing
+          </button>
+          <button className="btn-ghost" onClick={() => setAppliancesOpen(true)}>
+            Appliances
           </button>
           <button className="btn-primary" onClick={() => setEditing('new')}>
             + Add dealer

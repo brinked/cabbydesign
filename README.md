@@ -48,6 +48,8 @@ The Express server auto-serves `dist/` when present, so the SPA and API share an
 - **Report tab** — print-ready design report: cover with 3D rendering, dimensioned floor plan, lettered elevations with callouts, and an item schedule with prices. "Print / Save as PDF" uses the browser's PDF export.
 - **Report tab** also honors the signed-in dealer's pricing preferences (hide pricing entirely, or show cost vs. marked-up prices).
 - **Pricing** (admin) — per-cabinet-type base price formulas using `W`, `D`, `H` in inches (e.g. `150 + 9.5*W + 2*D`). Set by the admin and shared with all dealers as their cost basis.
+- **Appliances** — grill, griddle, side-burner, power-burner, kamado and fridge cabinets each get an **appliance dropdown** in their settings popup: pick a model from the admin-managed **inventory** (brand, model #, MSRP), or choose **Customer's own** and type the appliance the customer is supplying. Grill cabinets also surface the grill's **recommended insulated liner** with a *grill + liner* / *grill only* toggle. Selected appliances appear in their own **Appliances** table on the report at MSRP, roll into the estimate total, and are taxed like cabinets.
+  - **Admin → Appliances** manages the global inventory and **per-brand discounts**: enter the manufacturer discount *you* receive for a brand and each dealer automatically gets **half** of it (your 30% → the dealer's 15%). The customer report shows MSRP; the dealer's internal "cost" price mode shows MSRP minus their discount. Inventory can be bulk-loaded via **CSV import** (columns: `category, brand, model, name, msrp, liner_model`) and exported back to CSV.
 - **Save job / Open** — designs save to the dealer's account with customer details (see **My Jobs**); `.cabdesign.json` export/import still works as a local backup, and work autosaves to the browser.
 
 ## Code map
@@ -56,6 +58,7 @@ The Express server auto-serves `dist/` when present, so the SPA and API share an
 | --- | --- |
 | `src/model/catalog.ts` | Cabinet catalog (sizes, ranges, default price formulas) and finishes — add new cabinet types here |
 | `src/model/pricing.ts` | Safe formula parser/evaluator (no `eval`) |
+| `src/model/appliances.ts` | Appliance inventory model: category labels, dealer-discount/price math, CSV import/export |
 | `src/model/geometry.ts` | Plan-view wall layout math (linear / L / U) |
 | `src/state/store.ts` | Zustand store: design state, drag re-packing, persistence |
 | `src/components/svg.tsx` | Parametric SVG cabinet fronts, plan symbols, dimension lines |

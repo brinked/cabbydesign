@@ -1,7 +1,7 @@
 // Typed client for the CabDesign API. All requests are same-origin (the Vite
 // dev server proxies /api to the Express backend), so the session cookie rides
 // along automatically with credentials: 'include'.
-import type { Design } from '../model/types';
+import type { ApplianceBrands, ApplianceItem, Design } from '../model/types';
 
 export interface ApiUser {
   id: number;
@@ -126,6 +126,14 @@ export const api = {
     request<{ pricing: Record<string, string> }>('PUT', '/settings/pricing', { pricing }),
   getTaxRate: () => request<{ rate: number }>('GET', '/settings/tax'),
   setTaxRate: (rate: number) => request<{ rate: number }>('PUT', '/settings/tax', { rate }),
+
+  // ---- admin: appliance inventory + per-brand discounts ----
+  getAppliances: () => request<{ appliances: ApplianceItem[] }>('GET', '/settings/appliances'),
+  setAppliances: (appliances: ApplianceItem[]) =>
+    request<{ appliances: ApplianceItem[] }>('PUT', '/settings/appliances', { appliances }),
+  getApplianceBrands: () => request<{ brands: ApplianceBrands }>('GET', '/settings/appliance-brands'),
+  setApplianceBrands: (brands: ApplianceBrands) =>
+    request<{ brands: ApplianceBrands }>('PUT', '/settings/appliance-brands', { brands }),
 
   // ---- dealer profile ----
   getPrefs: () => request<{ prefs: DealerPrefs }>('GET', '/profile/prefs'),

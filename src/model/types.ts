@@ -42,6 +42,50 @@ export type FrontKind =
 
 export type Category = 'base' | 'wall' | 'tall' | 'outdoor' | 'appliance' | 'trim';
 
+/** Appliance categories that fit into a housing cabinet. */
+export type ApplianceCat =
+  | 'grill'
+  | 'griddle'
+  | 'sideburner'
+  | 'powerburner'
+  | 'kamado'
+  | 'fridge'
+  | 'liner';
+
+/** One sellable appliance in the admin-managed inventory (model + MSRP). */
+export interface ApplianceItem {
+  /** Stable slug id. */
+  id: string;
+  category: ApplianceCat;
+  brand: string;
+  /** Manufacturer model number. */
+  model: string;
+  /** Short description shown beside the model. */
+  name: string;
+  /** Manufacturer's list price (what the customer pays on the report). */
+  msrp: number;
+  /** Grills only: id of the recommended insulated liner ('liner' item). */
+  linerId?: string;
+  /** Hidden from the dealer dropdowns when false. Defaults to true. */
+  active?: boolean;
+}
+
+/** Per-brand discount map. The percent is the manufacturer discount the admin
+ *  receives; the dealer automatically gets half of it. */
+export type ApplianceBrands = Record<string, { discountPct: number }>;
+
+/** A placed cabinet's appliance choice (persisted in the design JSON). */
+export interface ApplianceSelection {
+  /** 'inventory' = pick from the catalog; 'own' = customer-supplied (free text). */
+  mode: 'inventory' | 'own';
+  /** Selected inventory item id (mode 'inventory'). */
+  applianceId?: string;
+  /** Grill bundle: include the recommended insulated liner. */
+  withLiner?: boolean;
+  /** Free-text appliance description (mode 'own'). */
+  ownText?: string;
+}
+
 export interface CatalogItem {
   id: string;
   name: string;
@@ -74,6 +118,8 @@ export interface CatalogItem {
   perInch?: number;
   /** Short note shown in the catalog / editor (e.g. sizing guidance). */
   note?: string;
+  /** Appliance category this cabinet houses — enables the appliance dropdown. */
+  applianceCat?: ApplianceCat;
 }
 
 /** User override of a cabinet's allowed size range (Settings). */
@@ -124,6 +170,8 @@ export interface PlacedItem {
   endR: boolean;
   /** Pull-out trays added inside this cabinet (0..maxTrays). */
   trays: number;
+  /** Appliance chosen for this cabinet (appliance-housing cabinets only). */
+  appliance?: ApplianceSelection;
 }
 
 export type LayoutKind = 'linear' | 'l' | 'u';

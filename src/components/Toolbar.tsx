@@ -18,6 +18,7 @@ export default function Toolbar() {
   const setDesignMeta = useStore((s) => s.setDesignMeta);
   const setPricingOpen = useStore((s) => s.setPricingOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
+  const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
   const newDesign = useStore((s) => s.newDesign);
   const loadDesign = useStore((s) => s.loadDesign);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -128,6 +129,9 @@ export default function Toolbar() {
                 </button>
                 <button className="btn-ghost" onClick={() => setSettingsOpen(true)}>
                   Settings
+                </button>
+                <button className="btn-ghost" onClick={() => setAppliancesOpen(true)}>
+                  Appliances
                 </button>
               </>
             )}

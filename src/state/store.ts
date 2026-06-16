@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Design, DimOverride, LayoutKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
+import type { ApplianceBrands, ApplianceItem, Design, DimOverride, LayoutKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
 import { CATALOG, DEFAULT_RATES, TOEKICK_H, catalogById } from '../model/catalog';
 import { tryFormula } from '../model/pricing';
 import { cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
@@ -141,14 +141,22 @@ interface AppState {
   addToWallId: string | null;
   pricingOpen: boolean;
   settingsOpen: boolean;
+  appliancesOpen: boolean;
   /** catalogId -> formula override */
   pricing: Record<string, string>;
   /** catalogId -> size-range override */
   dims: Record<string, DimOverride>;
+  /** Admin-managed appliance inventory (grills, fridges, liners, …). */
+  appliances: ApplianceItem[];
+  /** Per-brand manufacturer discount (dealer gets half). */
+  applianceBrands: ApplianceBrands;
   snapshot3d: string | null;
 
   setTab: (tab: Tab) => void;
   setSettingsOpen: (open: boolean) => void;
+  setAppliancesOpen: (open: boolean) => void;
+  setAppliances: (appliances: ApplianceItem[]) => void;
+  setApplianceBrands: (brands: ApplianceBrands) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
   setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle'>>) => void;
   applyPreset: (layout: LayoutKind) => void;
@@ -404,12 +412,18 @@ export const useStore = create<AppState>()(
       addToWallId: null,
       pricingOpen: false,
       settingsOpen: false,
+      appliancesOpen: false,
       pricing: {},
       dims: {},
+      appliances: [],
+      applianceBrands: {},
       snapshot3d: null,
 
       setTab: (tab) => set({ tab }),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
+      setAppliancesOpen: (open) => set({ appliancesOpen: open }),
+      setAppliances: (appliances) => set({ appliances }),
+      setApplianceBrands: (applianceBrands) => set({ applianceBrands }),
       setDim: (catalogId, patch) =>
         set((s) => {
           const cur = s.dims[catalogId] ?? {};
