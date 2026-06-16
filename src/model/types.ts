@@ -35,6 +35,8 @@ export type FrontKind =
   | 'kamado'
   | 'pizza'
   | 'cartgrill'
+  | 'dishwasher'
+  | 'icemaker'
   | 'endcap'
   | 'filler';
 
@@ -55,6 +57,9 @@ export interface CatalogItem {
   stepW: number;
   minD?: number;
   maxD?: number;
+  /** Allowed height range (inches). Defaults to 12–96 in the editor when unset. */
+  minH?: number;
+  maxH?: number;
   /** Whether a countertop runs over this unit */
   counter: boolean;
   /** Appliance drawn above the counter line (grill head, burner lid...) */

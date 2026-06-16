@@ -186,7 +186,7 @@ export function EditItemModal() {
       <div className="stepper-list">
         <Stepper label="Width" value={it.w} step={1} min={dimRange.minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
         <Stepper label="Depth" value={it.d} step={3} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
-        <Stepper label="Height" value={it.h} step={1.5} min={12} max={96} onChange={(h) => updateItem(it.id, { h })} />
+        <Stepper label="Height" value={it.h} step={1.5} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
         {cat.front === 'filler' ? (
           <div className="stepper-row">
             <span className="stepper-label">

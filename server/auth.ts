@@ -10,6 +10,9 @@ export interface SessionUser {
   role: 'admin' | 'dealer';
 }
 
+/** Password every new dealer account starts with (they change it after login). */
+export const DEFAULT_DEALER_PASSWORD = 'ChangeMe123';
+
 // bcryptjs verifies legacy PHP `$2y$` hashes too (it normalizes the prefix).
 export function verifyPassword(plain: string, hash: string): boolean {
   // Normalize $2y$ (PHP) to $2a$ which bcryptjs understands identically.

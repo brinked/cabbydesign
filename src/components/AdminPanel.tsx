@@ -12,8 +12,11 @@ const BLANK: DealerInput = {
   address: '',
   phone: '',
   active: true,
+  taxExempt: false,
   password: '',
 };
+
+const DEFAULT_PASSWORD = 'ChangeMe123';
 
 export default function AdminPanel() {
   const [dealers, setDealers] = useState<DealerWithPrefs[] | null>(null);
@@ -46,15 +49,15 @@ export default function AdminPanel() {
   }
 
   async function resetPassword(d: DealerWithPrefs) {
-    const pw = prompt(`Set a new password for ${d.name} (min 8 characters):`);
+    const pw = prompt(`New password for ${d.name} — leave blank to reset to the default (${DEFAULT_PASSWORD}):`, '');
     if (pw == null) return;
-    if (pw.length < 8) {
+    if (pw.length > 0 && pw.length < 8) {
       alert('Password must be at least 8 characters.');
       return;
     }
     try {
-      await api.resetDealerPassword(d.id, pw);
-      alert(`Password updated for ${d.name}.`);
+      const { defaultUsed } = await api.resetDealerPassword(d.id, pw);
+      alert(`Password updated for ${d.name}${defaultUsed ? ` to the default (${DEFAULT_PASSWORD})` : ''}.`);
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'Could not reset password.');
     }
@@ -67,6 +70,16 @@ export default function AdminPanel() {
       refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not delete dealer.');
+    }
+  }
+
+  async function viewCert(d: DealerWithPrefs) {
+    try {
+      const { cert } = await api.getDealerCert(d.id);
+      const win = window.open();
+      if (win) win.document.write(`<iframe src="${cert}" style="border:0;width:100%;height:100%"></iframe>`);
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Could not open the certificate.');
     }
   }
 
@@ -84,6 +97,7 @@ export default function AdminPanel() {
           <p className="screen-sub">Manage who can sign in and use the design tool.</p>
         </div>
         <div className="screen-head-actions">
+          <TaxRateControl />
           <button className="btn-ghost" onClick={() => setSettingsOpen(true)}>
             Cabinet size limits
           </button>
@@ -115,7 +129,8 @@ export default function AdminPanel() {
               <th>Company</th>
               <th>Email</th>
               <th>Role</th>
-              <th>Margin</th>
+              <th>Markup</th>
+              <th>Tax</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -129,7 +144,15 @@ export default function AdminPanel() {
                 <td>{d.companyName || '—'}</td>
                 <td>{d.email}</td>
                 <td>{d.role === 'admin' ? <span className="pill pill-admin">admin</span> : 'dealer'}</td>
-                <td>{d.prefs.marginPct}%</td>
+                <td>{d.prefs.markupMode === 'flat' ? `$${d.prefs.flatAmount}` : `${d.prefs.marginPct}%`}</td>
+                <td>
+                  {d.prefs.taxExempt ? <span className="pill pill-ok">exempt</span> : <span className="pill">taxed</span>}
+                  {d.cert.present && (
+                    <button className="link-btn" title={d.cert.name || 'View certificate'} onClick={() => viewCert(d)}>
+                      cert
+                    </button>
+                  )}
+                </td>
                 <td>{d.active ? <span className="pill pill-ok">active</span> : <span className="pill">disabled</span>}</td>
                 <td className="row-actions">
                   <button className="btn-ghost" onClick={() => setEditing(d)}>
@@ -165,6 +188,41 @@ export default function AdminPanel() {
   );
 }
 
+function TaxRateControl() {
+  const taxRate = useSession((s) => s.taxRate);
+  const refreshGlobals = useSession((s) => s.refreshGlobals);
+  const [val, setVal] = useState(String(taxRate));
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    const rate = parseFloat(val);
+    if (Number.isNaN(rate) || rate < 0 || rate > 100) {
+      alert('Tax rate must be between 0 and 100.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.setTaxRate(rate);
+      await refreshGlobals();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Could not save tax rate.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="tax-control" title="Global sales-tax rate applied to non-exempt dealers">
+      <span>Sales tax</span>
+      <input className="tax-input" inputMode="decimal" value={val} onChange={(e) => setVal(e.target.value)} />
+      <span>%</span>
+      <button className="btn-ghost" onClick={save} disabled={busy || val === String(taxRate)}>
+        Save
+      </button>
+    </span>
+  );
+}
+
 function toInput(d: DealerWithPrefs): DealerInput {
   return {
     name: d.name,
@@ -175,6 +233,7 @@ function toInput(d: DealerWithPrefs): DealerInput {
     address: d.address,
     phone: d.phone,
     active: d.active,
+    taxExempt: d.prefs.taxExempt,
   };
 }
 
@@ -199,8 +258,8 @@ function DealerEditModal({
       setError('Name and email are required.');
       return;
     }
-    if (isNew && (!form.password || form.password.length < 8)) {
-      setError('Set an initial password of at least 8 characters.');
+    if (isNew && form.password && form.password.length < 8) {
+      setError('Password must be at least 8 characters (or leave blank for the default).');
       return;
     }
     setBusy(true);
@@ -269,7 +328,7 @@ function DealerEditModal({
                 type="text"
                 value={form.password ?? ''}
                 onChange={(e) => set({ password: e.target.value })}
-                placeholder="min 8 characters"
+                placeholder={`blank = ${DEFAULT_PASSWORD}`}
               />
             </label>
           )}
@@ -279,6 +338,29 @@ function DealerEditModal({
           <input type="checkbox" checked={form.active} onChange={(e) => set({ active: e.target.checked })} />
           <span>Active (can sign in)</span>
         </label>
+        <label className="check-row">
+          <input type="checkbox" checked={form.taxExempt} onChange={(e) => set({ taxExempt: e.target.checked })} />
+          <span>Tax exempt (no sales tax on this dealer's orders)</span>
+        </label>
+        {!isNew && dealer!.cert.present && (
+          <p className="card-sub" style={{ marginTop: 8 }}>
+            Resale certificate on file: <b>{dealer!.cert.name || 'certificate'}</b>.{' '}
+            <button
+              className="link-btn"
+              onClick={async () => {
+                try {
+                  const { cert } = await api.getDealerCert(dealer!.id);
+                  const win = window.open();
+                  if (win) win.document.write(`<iframe src="${cert}" style="border:0;width:100%;height:100%"></iframe>`);
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              View
+            </button>
+          </p>
+        )}
 
         <div className="modal-actions">
           <button className="btn-ghost" onClick={onClose}>

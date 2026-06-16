@@ -13,14 +13,21 @@ export default function Report() {
   const snapshot = useStore((s) => s.snapshot3d);
   const setTab = useStore((s) => s.setTab);
   const prefs = useSession((s) => s.prefs);
+  const taxRate = useSession((s) => s.taxRate);
   const logo = useSession((s) => s.user?.logo) ?? '';
   const fin = useFinish(design.finishId);
   const numbers = itemNumbers(design);
 
   // Dealer pricing preferences. Default to showing marked-up pricing.
   const showPricing = prefs?.showPricing ?? true;
-  const markup = prefs?.priceMode === 'cost' ? 1 : 1 + (prefs?.marginPct ?? 0) / 100;
-  const mk = (n: number) => money(n * markup);
+  const isMarkedUp = (prefs?.priceMode ?? 'marked_up') === 'marked_up';
+  // percent markup multiplies; flat markup adds a fixed $ to each cabinet line.
+  const factor = isMarkedUp && prefs?.markupMode !== 'flat' ? 1 + (prefs?.marginPct ?? 0) / 100 : 1;
+  const flatPerCab = isMarkedUp && prefs?.markupMode === 'flat' ? prefs?.flatAmount ?? 0 : 0;
+  const taxExempt = prefs?.taxExempt ?? false;
+  // panels mark up by percent only (flat is "per cabinet"); cabinets add the flat.
+  const panelMk = (n: number) => money(n * factor);
+  const cabMk = (n: number) => money(n * factor + flatPerCab);
 
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -76,7 +83,13 @@ export default function Report() {
   }
   const backSubtotal = Math.round((backArea / 144) * rate * 100) / 100;
 
-  const subtotal = cabinetSubtotal + endSubtotal + backSubtotal;
+  // Marked-up subtotals (percent factor, plus a flat $ on each priced cabinet).
+  const pricedCabCount = lines.filter((l) => l.cat.category !== 'appliance' && !l.error).length;
+  const cabinetSubtotalMk = cabinetSubtotal * factor + flatPerCab * pricedCabCount;
+  const panelSubtotalMk = (endSubtotal + backSubtotal) * factor;
+  const subtotalMk = cabinetSubtotalMk + panelSubtotalMk;
+  const taxAmount = isMarkedUp && !taxExempt ? (subtotalMk * taxRate) / 100 : 0;
+  const grandTotal = subtotalMk + taxAmount;
 
   return (
     <div className="report">
@@ -163,7 +176,7 @@ export default function Report() {
                   {fmtIn(l.it.w)} × {fmtIn(l.it.d)} × {fmtIn(l.it.h)}
                 </td>
                 {showPricing && (
-                  <td className="num">{l.cat.category === 'appliance' ? '—' : l.error ? 'formula error' : mk(l.price)}</td>
+                  <td className="num">{l.cat.category === 'appliance' ? '—' : l.error ? 'formula error' : cabMk(l.price)}</td>
                 )}
               </tr>
             ))}
@@ -179,7 +192,7 @@ export default function Report() {
             <tfoot>
               <tr>
                 <td colSpan={4}>Cabinets subtotal{hasErrors ? ' (some formulas need attention)' : ''}</td>
-                <td className="num">{mk(cabinetSubtotal)}</td>
+                <td className="num">{money(cabinetSubtotalMk)}</td>
               </tr>
             </tfoot>
           )}
@@ -208,8 +221,8 @@ export default function Report() {
                     {fmtIn(g.w)} × {fmtIn(g.h)}
                   </td>
                   <td className="num">{g.qty}</td>
-                  {showPricing && <td className="num">{mk(g.unit)}</td>}
-                  {showPricing && <td className="num">{mk(g.unit * g.qty)}</td>}
+                  {showPricing && <td className="num">{panelMk(g.unit)}</td>}
+                  {showPricing && <td className="num">{panelMk(g.unit * g.qty)}</td>}
                 </tr>
               ))}
               {backCount > 0 && (
@@ -219,7 +232,7 @@ export default function Report() {
                   <td>{(backArea / 144).toFixed(1)} sq ft total</td>
                   <td className="num">{backCount}</td>
                   {showPricing && <td className="num">—</td>}
-                  {showPricing && <td className="num">{mk(backSubtotal)}</td>}
+                  {showPricing && <td className="num">{panelMk(backSubtotal)}</td>}
                 </tr>
               )}
             </tbody>
@@ -227,7 +240,7 @@ export default function Report() {
               <tfoot>
                 <tr>
                   <td colSpan={5}>Applied panels subtotal</td>
-                  <td className="num">{mk(endSubtotal + backSubtotal)}</td>
+                  <td className="num">{money(panelSubtotalMk)}</td>
                 </tr>
               </tfoot>
             )}
@@ -238,9 +251,19 @@ export default function Report() {
           <table className="schedule" style={{ marginTop: 22 }}>
             <tfoot>
               <tr>
-                <td colSpan={5}>Estimate total</td>
+                <td colSpan={5}>Subtotal</td>
+                <td className="num">{money(subtotalMk)}</td>
+              </tr>
+              {isMarkedUp && !taxExempt && (
+                <tr>
+                  <td colSpan={5}>Sales tax ({taxRate}%)</td>
+                  <td className="num">{money(taxAmount)}</td>
+                </tr>
+              )}
+              <tr>
+                <td colSpan={5}>{isMarkedUp && !taxExempt ? 'Total' : 'Estimate total'}</td>
                 <td className="num">
-                  <b>{mk(subtotal)}</b>
+                  <b>{money(grandTotal)}</b>
                 </td>
               </tr>
             </tfoot>
@@ -249,7 +272,7 @@ export default function Report() {
 
         {showPricing && (
           <p className="report-note">
-            Applied end and back panels bill at {money(rate * markup)}/sq ft (panel height excludes the 4″ toe kick) in the{' '}
+            Applied end and back panels bill at {money(rate * factor)}/sq ft (panel height excludes the 4″ toe kick) in the{' '}
             {designName} ({design.doorStyle === 'shaker' ? 'shaker' : 'flat'}) design; island cabinets receive finished back
             panels automatically, split into panels of {MAX_PANEL_W}″ max. Appliances shown for visual reference are not
             priced.

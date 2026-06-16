@@ -554,6 +554,34 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
     case 'fridgep2':
       front = drawers(2, 0, fh, false);
       break;
+    case 'dishwasher':
+    case 'icemaker': {
+      const ctrlH = 4;
+      const ventH = cat.front === 'icemaker' ? 3.5 : 0;
+      const doorY = gap + ctrlH + gap;
+      const doorH = fh - doorY - ventH - gap;
+      front = (
+        <g>
+          {/* top control panel with a display */}
+          <rect x={gap} y={gap} width={w - gap * 2} height={ctrlH} rx={0.6} fill="url(#g-steel)" stroke={STEEL_LN} strokeWidth={0.3} />
+          <rect x={gap + 2} y={gap + 1} width={(w - gap * 2) * 0.28} height={ctrlH - 2} rx={0.4} fill={STEEL_DK} />
+          {/* door panel + handle */}
+          <rect x={gap} y={doorY} width={w - gap * 2} height={doorH} rx={0.8} fill="url(#g-steel)" stroke={STEEL_LN} strokeWidth={0.3} />
+          <rect x={gap} y={doorY} width={w - gap * 2} height={doorH} rx={0.8} fill="url(#p-brush)" opacity={0.4} />
+          <rect x={gap + 3} y={doorY + 2} width={w - gap * 2 - 6} height={1.4} rx={0.7} fill="url(#g-steel-h)" stroke={STEEL_LN} strokeWidth={0.12} filter="url(#f-handle)" />
+          {/* ice maker bottom vent grille */}
+          {cat.front === 'icemaker' && (
+            <g>
+              <rect x={gap + 2} y={fh - ventH - gap} width={w - gap * 2 - 4} height={ventH} rx={0.4} fill={STEEL_DK} />
+              {[0, 1, 2, 3].map((i) => (
+                <line key={i} x1={gap + 3.5} y1={fh - ventH - gap + 1 + i * 0.8} x2={w - gap - 3.5} y2={fh - ventH - gap + 1 + i * 0.8} stroke={STEEL_LN} strokeWidth={0.3} />
+              ))}
+            </g>
+          )}
+        </g>
+      );
+      break;
+    }
     case 'kamado':
       if (cat.category === 'appliance') {
         front = <KamadoEgg w={w} counter={false} standalone h={h} />;
@@ -687,6 +715,8 @@ export function CabinetTop({ cat, w, d, fin, hinge = 'left' }: { cat: CatalogIte
       case 'fridge2':
       case 'fridgep':
       case 'fridgep2':
+      case 'dishwasher':
+      case 'icemaker':
         return <rect x={3} y={d - 3} width={w - 6} height={1.6} fill={STEEL_DK} />;
       case 'corner':
       case 'susan': {

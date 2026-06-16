@@ -2,8 +2,21 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db, type UserRow } from '../db.ts';
-import { hashPassword, requireAdmin } from '../auth.ts';
-import { prefsFor, shapeUser } from '../shape.ts';
+import { DEFAULT_DEALER_PASSWORD, hashPassword, requireAdmin } from '../auth.ts';
+import { certDataFor, certInfoFor, prefsFor, shapeUser } from '../shape.ts';
+
+/** Apply the admin-only tax_exempt flag to a dealer's prefs row. */
+const ensurePrefsRow = db.prepare('INSERT OR IGNORE INTO dealer_prefs (user_id) VALUES (?)');
+const setTaxExempt = db.prepare("UPDATE dealer_prefs SET tax_exempt = ?, updated_at = datetime('now') WHERE user_id = ?");
+function applyTaxExempt(userId: number, exempt: boolean): void {
+  ensurePrefsRow.run(userId);
+  setTaxExempt.run(exempt ? 1 : 0, userId);
+}
+
+/** Full admin view of a dealer: account + prefs + certificate status. */
+function dealerView(u: UserRow) {
+  return { ...shapeUser(u), prefs: prefsFor(u.id), cert: certInfoFor(u.id) };
+}
 
 export const dealersRouter = Router();
 dealersRouter.use(requireAdmin);
@@ -19,7 +32,7 @@ const insertUser = db.prepare(`
 
 dealersRouter.get('/', (_req, res) => {
   const rows = listUsers.all() as UserRow[];
-  res.json({ dealers: rows.map((u) => ({ ...shapeUser(u), prefs: prefsFor(u.id) })) });
+  res.json({ dealers: rows.map(dealerView) });
 });
 
 const upsertSchema = z.object({
@@ -31,10 +44,12 @@ const upsertSchema = z.object({
   address: z.string().max(300).default(''),
   phone: z.string().max(40).default(''),
   active: z.boolean().default(true),
+  taxExempt: z.boolean().default(false),
 });
 
+// Password optional on create — blank means start with the default password.
 const createSchema = upsertSchema.extend({
-  password: z.string().min(8),
+  password: z.string().min(8).or(z.literal('')).optional(),
 });
 
 dealersRouter.post('/', (req, res) => {
@@ -56,11 +71,12 @@ dealersRouter.post('/', (req, res) => {
     company_slogan: d.companySlogan,
     address: d.address,
     phone: d.phone,
-    password_hash: hashPassword(d.password),
+    password_hash: hashPassword(d.password || DEFAULT_DEALER_PASSWORD),
     active: d.active ? 1 : 0,
   });
-  const row = getUser.get(info.lastInsertRowid) as UserRow;
-  res.status(201).json({ dealer: { ...shapeUser(row), prefs: prefsFor(row.id) } });
+  const id = Number(info.lastInsertRowid);
+  applyTaxExempt(id, d.taxExempt);
+  res.status(201).json({ dealer: dealerView(getUser.get(id) as UserRow) });
 });
 
 dealersRouter.put('/:id', (req, res) => {
@@ -104,11 +120,12 @@ dealersRouter.put('/:id', (req, res) => {
     phone: d.phone,
     active: d.active ? 1 : 0,
   });
-  const row = getUser.get(id) as UserRow;
-  res.json({ dealer: { ...shapeUser(row), prefs: prefsFor(row.id) } });
+  applyTaxExempt(id, d.taxExempt);
+  res.json({ dealer: dealerView(getUser.get(id) as UserRow) });
 });
 
-const resetPwSchema = z.object({ password: z.string().min(8) });
+// Reset a dealer's password. Blank/omitted resets to the default password.
+const resetPwSchema = z.object({ password: z.string().min(8).or(z.literal('')).optional() });
 
 dealersRouter.post('/:id/reset-password', (req, res) => {
   const id = Number(req.params.id);
@@ -122,11 +139,24 @@ dealersRouter.post('/:id/reset-password', (req, res) => {
     res.status(400).json({ error: 'Password must be at least 8 characters' });
     return;
   }
-  db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").run(
-    hashPassword(parsed.data.password),
-    id
-  );
-  res.json({ ok: true });
+  const pw = parsed.data.password || DEFAULT_DEALER_PASSWORD;
+  db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").run(hashPassword(pw), id);
+  res.json({ ok: true, defaultUsed: !parsed.data.password });
+});
+
+// Admin: view/download a dealer's uploaded resale certificate.
+dealersRouter.get('/:id/cert', (req, res) => {
+  const id = Number(req.params.id);
+  if (!getUser.get(id)) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+  const data = certDataFor(id);
+  if (!data) {
+    res.status(404).json({ error: 'No certificate uploaded' });
+    return;
+  }
+  res.json({ cert: data, ...certInfoFor(id) });
 });
 
 dealersRouter.delete('/:id', (req, res) => {

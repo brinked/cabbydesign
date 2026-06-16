@@ -6,26 +6,43 @@ export default function ProfileScreen() {
   const user = useSession((s) => s.user);
   const prefs = useSession((s) => s.prefs);
   const setPrefs = useSession((s) => s.setPrefs);
+  const taxRate = useSession((s) => s.taxRate);
 
   const [marginPct, setMarginPct] = useState(String(prefs?.marginPct ?? 0));
+  const [markupMode, setMarkupMode] = useState<'percent' | 'flat'>(prefs?.markupMode ?? 'percent');
+  const [flatAmount, setFlatAmount] = useState(String(prefs?.flatAmount ?? 0));
   const [showPricing, setShowPricing] = useState(prefs?.showPricing ?? true);
   const [priceMode, setPriceMode] = useState<'cost' | 'marked_up'>(prefs?.priceMode ?? 'marked_up');
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const taxExempt = prefs?.taxExempt ?? false;
+
+  const dirty = () => setSaved(false);
 
   async function save() {
     setError(null);
     setSaved(false);
-    setBusy(true);
     const margin = parseFloat(marginPct);
-    if (Number.isNaN(margin) || margin < 0) {
+    const flat = parseFloat(flatAmount);
+    if (markupMode === 'percent' && (Number.isNaN(margin) || margin < 0)) {
       setError('Enter a valid margin percentage (0 or more).');
-      setBusy(false);
       return;
     }
+    if (markupMode === 'flat' && (Number.isNaN(flat) || flat < 0)) {
+      setError('Enter a valid flat dollar amount (0 or more).');
+      return;
+    }
+    setBusy(true);
     try {
-      await setPrefs({ marginPct: margin, showPricing, priceMode });
+      await setPrefs({
+        marginPct: Number.isNaN(margin) ? 0 : margin,
+        flatAmount: Number.isNaN(flat) ? 0 : flat,
+        markupMode,
+        showPricing,
+        priceMode,
+        taxExempt, // ignored by the server (admin-only) but kept for the type
+      });
       setSaved(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save preferences.');
@@ -51,24 +68,65 @@ export default function ProfileScreen() {
       <LogoCard />
 
       <section className="card">
-        <h2>Profit margin</h2>
-        <p className="card-sub">
-          Your markup over cost. A 35% margin turns a $1,000 cost into $1,350 when “marked-up” pricing is shown.
+        <h2>Markup</h2>
+        <p className="card-sub">How your selling price is calculated from cost when “marked-up” pricing is shown.</p>
+        <div className="seg" style={{ maxWidth: 360, marginTop: 12 }}>
+          <button
+            className={markupMode === 'percent' ? 'seg-btn active' : 'seg-btn'}
+            onClick={() => {
+              setMarkupMode('percent');
+              dirty();
+            }}
+          >
+            Percentage
+          </button>
+          <button
+            className={markupMode === 'flat' ? 'seg-btn active' : 'seg-btn'}
+            onClick={() => {
+              setMarkupMode('flat');
+              dirty();
+            }}
+          >
+            Flat $ per cabinet
+          </button>
+        </div>
+        {markupMode === 'percent' ? (
+          <label className="form-field form-field-inline">
+            <span>Margin</span>
+            <span className="suffix-input">
+              <input
+                inputMode="decimal"
+                value={marginPct}
+                onChange={(e) => {
+                  setMarginPct(e.target.value);
+                  dirty();
+                }}
+              />
+              <span className="suffix">%</span>
+            </span>
+          </label>
+        ) : (
+          <label className="form-field form-field-inline">
+            <span>Flat markup</span>
+            <span className="suffix-input">
+              <span className="suffix">$</span>
+              <input
+                inputMode="decimal"
+                value={flatAmount}
+                onChange={(e) => {
+                  setFlatAmount(e.target.value);
+                  dirty();
+                }}
+              />
+              <span className="suffix">/ cabinet</span>
+            </span>
+          </label>
+        )}
+        <p className="card-sub" style={{ marginTop: 10 }}>
+          {markupMode === 'percent'
+            ? 'Example: a 35% margin turns a $1,000 cabinet into $1,350.'
+            : 'Example: a $200 flat markup adds $200 to each cabinet line.'}
         </p>
-        <label className="form-field form-field-inline">
-          <span>Margin</span>
-          <span className="suffix-input">
-            <input
-              inputMode="decimal"
-              value={marginPct}
-              onChange={(e) => {
-                setMarginPct(e.target.value);
-                setSaved(false);
-              }}
-            />
-            <span className="suffix">%</span>
-          </span>
-        </label>
       </section>
 
       <section className="card">
@@ -115,10 +173,21 @@ export default function ProfileScreen() {
               }}
             />
             <span>
-              <b>Marked-up pricing</b> — show prices with your margin applied.
+              <b>Marked-up pricing</b> — show prices with your markup applied.
             </span>
           </label>
         </div>
+        <p className="card-sub" style={{ marginTop: 12 }}>
+          Sales tax:{' '}
+          {taxExempt ? (
+            <b>Exempt</b>
+          ) : (
+            <>
+              <b>{taxRate}%</b> is added to marked-up totals
+            </>
+          )}
+          . {taxExempt ? 'Your account is marked tax-exempt by the administrator.' : 'Upload your resale certificate below if you should be exempt.'}
+        </p>
       </section>
 
       <div className="screen-actions">
@@ -127,6 +196,7 @@ export default function ProfileScreen() {
         </button>
       </div>
 
+      <ResaleCertCard />
       <ChangePasswordCard />
     </main>
   );
@@ -203,6 +273,113 @@ function LogoCard() {
             ref={fileRef}
             type="file"
             accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) pick(f);
+              e.target.value = '';
+            }}
+          />
+        </div>
+      </div>
+      {msg && <div className={msg.ok ? 'ok-banner' : 'warn'} style={{ marginTop: 12 }}>{msg.text}</div>}
+    </section>
+  );
+}
+
+const MAX_CERT_BYTES = 3_000_000;
+
+function ResaleCertCard() {
+  const cert = useSession((s) => s.cert);
+  const setCert = useSession((s) => s.setCert);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  function pick(file: File) {
+    setMsg(null);
+    const okType = file.type === 'application/pdf' || file.type.startsWith('image/');
+    if (!okType) {
+      setMsg({ ok: false, text: 'Please upload a PDF or image.' });
+      return;
+    }
+    if (file.size > MAX_CERT_BYTES) {
+      setMsg({ ok: false, text: 'File is too large — please use one under 3 MB.' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setBusy(true);
+      try {
+        await setCert(String(reader.result), file.name);
+        setMsg({ ok: true, text: 'Certificate uploaded. Your administrator can review it.' });
+      } catch (err) {
+        setMsg({ ok: false, text: err instanceof ApiError ? err.message : 'Could not upload certificate.' });
+      } finally {
+        setBusy(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function view() {
+    try {
+      const { cert: data } = await api.getCert();
+      const w = window.open();
+      if (w) w.document.write(`<iframe src="${data}" style="border:0;width:100%;height:100%"></iframe>`);
+    } catch {
+      setMsg({ ok: false, text: 'Could not open the certificate.' });
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    try {
+      await setCert('', '');
+      setMsg({ ok: true, text: 'Certificate removed.' });
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof ApiError ? err.message : 'Could not remove certificate.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>Resale tax certificate</h2>
+      <p className="card-sub">
+        Upload your resale/exemption certificate (PDF or image). Your administrator reviews it before marking your
+        account tax-exempt.
+      </p>
+      <div className="logo-row">
+        <div className="cert-status">
+          {cert?.present ? (
+            <>
+              <span className="pill pill-ok">on file</span>
+              <span className="cert-name">{cert.name || 'certificate'}</span>
+            </>
+          ) : (
+            <span className="logo-empty">No certificate uploaded</span>
+          )}
+        </div>
+        <div className="logo-actions">
+          <button className="btn-primary" onClick={() => fileRef.current?.click()} disabled={busy}>
+            {busy ? 'Saving…' : cert?.present ? 'Replace' : 'Upload'}
+          </button>
+          {cert?.present && (
+            <>
+              <button className="btn-ghost" onClick={view} disabled={busy}>
+                View
+              </button>
+              <button className="btn-danger-ghost" onClick={remove} disabled={busy}>
+                Remove
+              </button>
+            </>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/pdf,image/*"
             style={{ display: 'none' }}
             onChange={(e) => {
               const f = e.target.files?.[0];

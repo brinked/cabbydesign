@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db.ts';
 import { requireAuth } from '../auth.ts';
-import { logoFor, prefsFor } from '../shape.ts';
+import { certInfoFor, logoFor, prefsFor } from '../shape.ts';
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
@@ -12,13 +12,17 @@ const prefsSchema = z.object({
   marginPct: z.number().min(0).max(1000),
   showPricing: z.boolean(),
   priceMode: z.enum(['cost', 'marked_up']),
+  markupMode: z.enum(['percent', 'flat']),
+  flatAmount: z.number().min(0).max(100000),
+  // taxExempt is intentionally NOT accepted here — only an admin can set it.
 });
 
-// Ensure a prefs row exists, then update it.
+// Ensure a prefs row exists, then update it (tax_exempt left untouched).
 const ensurePrefs = db.prepare('INSERT OR IGNORE INTO dealer_prefs (user_id) VALUES (?)');
 const updatePrefs = db.prepare(`
   UPDATE dealer_prefs SET margin_pct = @marginPct, show_pricing = @showPricing,
-    price_mode = @priceMode, updated_at = datetime('now') WHERE user_id = @userId
+    price_mode = @priceMode, markup_mode = @markupMode, flat_amount = @flatAmount,
+    updated_at = datetime('now') WHERE user_id = @userId
 `);
 
 profileRouter.get('/prefs', (req, res) => {
@@ -38,8 +42,47 @@ profileRouter.put('/prefs', (req, res) => {
     marginPct: parsed.data.marginPct,
     showPricing: parsed.data.showPricing ? 1 : 0,
     priceMode: parsed.data.priceMode,
+    markupMode: parsed.data.markupMode,
+    flatAmount: parsed.data.flatAmount,
   });
   res.json({ prefs: prefsFor(userId) });
+});
+
+// ---- Resale tax certificate (image or PDF data URL, ~3 MB cap) ----
+const MAX_CERT_CHARS = 4_200_000; // ~3 MB
+const certSchema = z.object({
+  cert: z
+    .string()
+    .max(MAX_CERT_CHARS, 'File is too large — please use one under 3 MB.')
+    .refine((s) => s === '' || /^data:(image\/(png|jpe?g|gif|webp)|application\/pdf);base64,/.test(s), 'Must be a PDF or image.'),
+  name: z.string().max(200).default(''),
+});
+
+const upsertCert = db.prepare(`
+  INSERT INTO dealer_branding (user_id, resale_cert, resale_cert_name) VALUES (@userId, @cert, @name)
+  ON CONFLICT(user_id) DO UPDATE SET resale_cert = excluded.resale_cert,
+    resale_cert_name = excluded.resale_cert_name, updated_at = datetime('now')
+`);
+const getCertData = db.prepare('SELECT resale_cert, resale_cert_name FROM dealer_branding WHERE user_id = ?');
+
+profileRouter.put('/cert', (req, res) => {
+  const parsed = certSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid certificate' });
+    return;
+  }
+  upsertCert.run({ userId: req.user!.id, cert: parsed.data.cert, name: parsed.data.cert ? parsed.data.name : '' });
+  res.json({ cert: certInfoFor(req.user!.id) });
+});
+
+// Download/preview the signed-in dealer's own certificate.
+profileRouter.get('/cert', (req, res) => {
+  const row = getCertData.get(req.user!.id) as { resale_cert: string; resale_cert_name: string } | undefined;
+  if (!row?.resale_cert) {
+    res.status(404).json({ error: 'No certificate uploaded' });
+    return;
+  }
+  res.json({ cert: row.resale_cert, name: row.resale_cert_name });
 });
 
 // ---- Company logo (shown on the dealer's customer reports) ----

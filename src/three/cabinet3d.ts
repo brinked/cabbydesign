@@ -748,6 +748,59 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   }
 
+  // Built-in dishwasher / ice maker: stainless front, top control panel, tube
+  // handle, and (ice maker) a bottom vent grille.
+  if (cat.front === 'dishwasher' || cat.front === 'icemaker') {
+    const ffw = w - 0.5;
+    const fz = d + 0.45;
+    const yB = REVEAL;
+    const yT = h - REVEAL;
+    // top control panel strip with a small display + buttons
+    const ctrlH = 3;
+    const ctrl = box(ffw, ctrlH, 0.9, mats.steel);
+    ctrl.position.set(0, yT - ctrlH / 2, fz);
+    g.add(ctrl);
+    const display = box(ffw * 0.26, 1.2, 0.3, mats.dark);
+    display.position.set(-ffw * 0.16, yT - ctrlH / 2, fz + 0.5);
+    g.add(display);
+    for (let i = 0; i < 3; i++) {
+      const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.3, 12), mats.dark);
+      btn.rotation.x = Math.PI / 2;
+      btn.position.set(ffw * (0.14 + i * 0.1), yT - ctrlH / 2, fz + 0.45);
+      g.add(btn);
+    }
+    // door panel below the control strip (ice maker leaves room for a vent)
+    const doorTop = yT - ctrlH - GAP;
+    const iceVentH = 2.4;
+    const doorBot = cat.front === 'icemaker' ? yB + iceVentH + GAP : yB;
+    const door = box(ffw, doorTop - doorBot, 0.9, mats.steel);
+    door.position.set(0, (doorTop + doorBot) / 2, fz);
+    g.add(door);
+    // horizontal tube handle near the top of the door
+    const hlen = Math.min(ffw - 2, cat.front === 'icemaker' ? 9 : 16);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, hlen, 14), mats.steel);
+    bar.rotation.z = Math.PI / 2;
+    bar.position.set(0, doorTop - 1.6, fz + 1.5);
+    bar.castShadow = true;
+    g.add(bar);
+    for (const t of [-1, 1] as const) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.3, 8), mats.steel);
+      post.rotation.x = Math.PI / 2;
+      post.position.set(t * (hlen / 2 - 1), doorTop - 1.6, fz + 0.85);
+      g.add(post);
+    }
+    if (cat.front === 'icemaker') {
+      const grille = box(ffw, iceVentH, 0.5, mats.dark);
+      grille.position.set(0, yB + iceVentH / 2, fz - 0.05);
+      g.add(grille);
+      for (let i = 0; i < 4; i++) {
+        const slat = box(ffw - 1.5, 0.16, 0.3, mats.steel);
+        slat.position.set(0, yB + 0.5 + i * 0.5, fz + 0.23);
+        g.add(slat);
+      }
+    }
+  }
+
   // above-counter appliance gear
   const counterTop = BASE_H + COUNTER_T;
   const addKnobs = (cx: number, y: number, z: number, n: number) => {

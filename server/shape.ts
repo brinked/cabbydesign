@@ -45,6 +45,10 @@ export interface ApiPrefs {
   marginPct: number;
   showPricing: boolean;
   priceMode: 'cost' | 'marked_up';
+  markupMode: 'percent' | 'flat';
+  flatAmount: number;
+  /** Admin-controlled; the dealer cannot change this. */
+  taxExempt: boolean;
 }
 
 const getPrefs = db.prepare('SELECT * FROM dealer_prefs WHERE user_id = ?');
@@ -61,7 +65,29 @@ export function prefsFor(userId: number): ApiPrefs {
     marginPct: row.margin_pct,
     showPricing: !!row.show_pricing,
     priceMode: row.price_mode,
+    markupMode: row.markup_mode,
+    flatAmount: row.flat_amount,
+    taxExempt: !!row.tax_exempt,
   };
+}
+
+export interface ApiCertInfo {
+  name: string;
+  present: boolean;
+}
+
+const getCert = db.prepare('SELECT resale_cert, resale_cert_name FROM dealer_branding WHERE user_id = ?');
+
+/** Resale-certificate status (name + whether one is uploaded). */
+export function certInfoFor(userId: number): ApiCertInfo {
+  const row = getCert.get(userId) as { resale_cert: string; resale_cert_name: string } | undefined;
+  return { name: row?.resale_cert_name ?? '', present: !!row?.resale_cert };
+}
+
+/** The raw resale-certificate data URL ('' if none). */
+export function certDataFor(userId: number): string {
+  const row = getCert.get(userId) as { resale_cert: string } | undefined;
+  return row?.resale_cert ?? '';
 }
 
 export interface ApiJobSummary {

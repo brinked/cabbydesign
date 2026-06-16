@@ -22,8 +22,13 @@ CREATE TABLE IF NOT EXISTS dealer_prefs (
   margin_pct   REAL    NOT NULL DEFAULT 0,
   show_pricing INTEGER NOT NULL DEFAULT 1,
   -- 'cost'      = show the dealer's own (cost) pricing
-  -- 'marked_up' = show cost marked up by margin_pct
+  -- 'marked_up' = show cost marked up by the markup below
   price_mode   TEXT    NOT NULL DEFAULT 'marked_up' CHECK (price_mode IN ('cost', 'marked_up')),
+  -- 'percent' = margin_pct over cost; 'flat' = flat_amount added per cabinet
+  markup_mode  TEXT    NOT NULL DEFAULT 'percent' CHECK (markup_mode IN ('percent', 'flat')),
+  flat_amount  REAL    NOT NULL DEFAULT 0,
+  -- admin-controlled: exempt from sales tax (dealer has a resale certificate)
+  tax_exempt   INTEGER NOT NULL DEFAULT 0,
   updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -45,9 +50,12 @@ CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, updated_at DESC);
 -- Per-dealer branding (logo shown on their customer reports). Kept in its own
 -- table so the (base64) logo isn't loaded with every dealer list.
 CREATE TABLE IF NOT EXISTS dealer_branding (
-  user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  logo       TEXT NOT NULL DEFAULT '',
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  user_id      INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  logo         TEXT NOT NULL DEFAULT '',
+  -- resale tax certificate the dealer uploads (data URL: image or PDF)
+  resale_cert      TEXT NOT NULL DEFAULT '',
+  resale_cert_name TEXT NOT NULL DEFAULT '',
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Global app settings (admin-controlled). Currently holds the cabinet

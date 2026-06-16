@@ -22,9 +22,18 @@ export interface DealerPrefs {
   marginPct: number;
   showPricing: boolean;
   priceMode: 'cost' | 'marked_up';
+  markupMode: 'percent' | 'flat';
+  flatAmount: number;
+  /** Admin-controlled; dealers see it read-only. */
+  taxExempt: boolean;
 }
 
-export type DealerWithPrefs = ApiUser & { prefs: DealerPrefs };
+export interface CertInfo {
+  name: string;
+  present: boolean;
+}
+
+export type DealerWithPrefs = ApiUser & { prefs: DealerPrefs; cert: CertInfo };
 
 export interface JobSummary {
   id: number;
@@ -77,6 +86,7 @@ export interface DealerInput {
   address: string;
   phone: string;
   active: boolean;
+  taxExempt: boolean;
   password?: string;
 }
 
@@ -90,9 +100,9 @@ export interface JobInput {
 
 export const api = {
   // ---- auth ----
-  me: () => request<{ user: ApiUser | null; prefs?: DealerPrefs }>('GET', '/auth/me'),
+  me: () => request<{ user: ApiUser | null; prefs?: DealerPrefs; cert?: CertInfo }>('GET', '/auth/me'),
   login: (email: string, password: string) =>
-    request<{ user: ApiUser; prefs: DealerPrefs }>('POST', '/auth/login', { email, password }),
+    request<{ user: ApiUser; prefs: DealerPrefs; cert: CertInfo }>('POST', '/auth/login', { email, password }),
   logout: () => request<{ ok: true }>('POST', '/auth/logout'),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ ok: true }>('POST', '/auth/change-password', { currentPassword, newPassword }),
@@ -102,9 +112,11 @@ export const api = {
   createDealer: (input: DealerInput) => request<{ dealer: DealerWithPrefs }>('POST', '/dealers', input),
   updateDealer: (id: number, input: DealerInput) =>
     request<{ dealer: DealerWithPrefs }>('PUT', `/dealers/${id}`, input),
+  // password '' resets to the default password (ChangeMe123)
   resetDealerPassword: (id: number, password: string) =>
-    request<{ ok: true }>('POST', `/dealers/${id}/reset-password`, { password }),
+    request<{ ok: true; defaultUsed: boolean }>('POST', `/dealers/${id}/reset-password`, { password }),
   deleteDealer: (id: number) => request<{ ok: true }>('DELETE', `/dealers/${id}`),
+  getDealerCert: (id: number) => request<{ cert: string; name: string; present: boolean }>('GET', `/dealers/${id}/cert`),
 
   // ---- admin: global cabinet dimension limits + base pricing formulas ----
   getCabinetDims: () => request<{ dims: CabinetDims }>('GET', '/settings/cabinet-dims'),
@@ -112,11 +124,15 @@ export const api = {
   getPricing: () => request<{ pricing: Record<string, string> }>('GET', '/settings/pricing'),
   setPricing: (pricing: Record<string, string>) =>
     request<{ pricing: Record<string, string> }>('PUT', '/settings/pricing', { pricing }),
+  getTaxRate: () => request<{ rate: number }>('GET', '/settings/tax'),
+  setTaxRate: (rate: number) => request<{ rate: number }>('PUT', '/settings/tax', { rate }),
 
   // ---- dealer profile ----
   getPrefs: () => request<{ prefs: DealerPrefs }>('GET', '/profile/prefs'),
   setPrefs: (prefs: DealerPrefs) => request<{ prefs: DealerPrefs }>('PUT', '/profile/prefs', prefs),
   setLogo: (logo: string) => request<{ logo: string }>('PUT', '/profile/logo', { logo }),
+  setCert: (cert: string, name: string) => request<{ cert: CertInfo }>('PUT', '/profile/cert', { cert, name }),
+  getCert: () => request<{ cert: string; name: string }>('GET', '/profile/cert'),
 
   // ---- jobs ----
   listJobs: () => request<{ jobs: JobSummary[] }>('GET', '/jobs'),
