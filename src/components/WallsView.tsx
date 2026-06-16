@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import type { FinishOption, PlacedItem, Wall } from '../model/types';
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, FINISHES, catalogById } from '../model/catalog';
 import { isReserveExempt, type CornerReserve } from '../model/geometry';
-import { footprintW, laneItems, reservesFor, roughInConflict, spaceLeft, useStore } from '../state/store';
+import { footprintW, laneItems, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
 import { ElevationCabinet } from './CabinetImage';
 import { NumberField } from './NumberField';
 import { DimH, DimV, RoughInGlyph, fmtIn } from './svg';
@@ -52,6 +52,7 @@ export function WallElevationSvg({
   const select = useStore((s) => s.select);
   const design = useStore((s) => s.design);
   const openRoughIn = useStore((s) => s.openRoughIn);
+  const updateRoughIn = useStore((s) => s.updateRoughIn);
   const editingRoughInId = useStore((s) => s.editingRoughInId);
   const wallRoughIns = design.roughIns.filter((r) => r.wallId === wall.id);
 
@@ -126,6 +127,68 @@ export function WallElevationSvg({
     drag.current = null;
     if (d.moved) reflowAll();
     else openEditor(it.id);
+  }
+
+  // --- rough-in (plumbing / electrical) drag: 2D move with live dimensions ---
+  const roughDrag = useRef<{
+    id: string;
+    startClientX: number;
+    startClientY: number;
+    startX: number;
+    startY: number;
+    scale: number;
+    moved: boolean;
+  } | null>(null);
+  const [draggingRoughId, setDraggingRoughId] = useState<string | null>(null);
+
+  function onRoughDown(e: React.PointerEvent, r: (typeof wallRoughIns)[number]) {
+    if (!interactive) return;
+    e.stopPropagation();
+    const svg = (e.currentTarget as SVGGElement).ownerSVGElement;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    // viewBox is letterboxed (preserveAspectRatio meet) → one uniform scale.
+    const scale = Math.min(rect.width / viewW, rect.height / viewH);
+    roughDrag.current = { id: r.id, startClientX: e.clientX, startClientY: e.clientY, startX: r.x, startY: r.y, scale, moved: false };
+    try {
+      (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* no active pointer (e.g. synthetic events) — drag still works */
+    }
+    select(null);
+  }
+
+  function onRoughMove(e: React.PointerEvent, r: (typeof wallRoughIns)[number]) {
+    const d = roughDrag.current;
+    if (!d || d.id !== r.id) return;
+    const dxPx = e.clientX - d.startClientX;
+    const dyPx = e.clientY - d.startClientY;
+    if (!d.moved) {
+      if (Math.abs(dxPx) < 3 && Math.abs(dyPx) < 3) return;
+      d.moved = true;
+      setDraggingRoughId(r.id);
+    }
+    // horizontal: clamp to wall, then to the host cabinet's clearance band so it
+    // always clears the cabinet ends (and applied end panels) by 1″ / 2″.
+    let cx = d.startX + dxPx / d.scale;
+    cx = Math.max(r.w / 2, Math.min(cx, wall.length - r.w / 2));
+    const host = roughInHost(design, { ...r, x: cx });
+    if (host) {
+      const band = roughInBand(host, r.w);
+      if (band.lo <= band.hi) cx = Math.max(band.lo, Math.min(cx, band.hi));
+    }
+    // vertical: height of center off the floor; dragging up raises it.
+    let cy = d.startY - dyPx / d.scale;
+    cy = Math.max(r.h / 2, Math.min(cy, wall.height - r.h / 2));
+    updateRoughIn(r.id, { x: Math.round(cx * 8) / 8, y: Math.round(cy * 8) / 8 });
+  }
+
+  function onRoughUp(e: React.PointerEvent, r: (typeof wallRoughIns)[number]) {
+    const d = roughDrag.current;
+    if (!d || d.id !== r.id) return;
+    roughDrag.current = null;
+    setDraggingRoughId(null);
+    if (!d.moved) openRoughIn(r.id); // a click (no drag) opens the numeric editor
   }
 
   return (
@@ -232,28 +295,37 @@ export function WallElevationSvg({
         );
       })}
 
-      {/* plumbing / electrical rough-ins */}
+      {/* plumbing / electrical rough-ins — draggable in 2D */}
       {wallRoughIns.map((r) => {
         const conflict = roughInConflict(design, r);
         const gx = r.x - r.w / 2;
         const gy = floorY - r.y - r.h / 2;
-        const sel = editingRoughInId === r.id;
+        const dragging = draggingRoughId === r.id;
+        const sel = editingRoughInId === r.id || dragging;
         return (
-          <g
-            key={r.id}
-            transform={`translate(${gx} ${gy})`}
-            style={{ cursor: interactive ? 'pointer' : 'default' }}
-            onPointerDown={(e) => {
-              if (!interactive) return;
-              e.stopPropagation();
-              select(null);
-              openRoughIn(r.id);
-            }}
-          >
-            <RoughInGlyph kind={r.kind} w={r.w} h={r.h} conflict={conflict} />
-            {sel && interactive && (
-              <rect x={-1} y={-1} width={r.w + 2} height={r.h + 2} fill="none" stroke="#5b5bd6" strokeWidth={0.6} strokeDasharray="2 1.5" rx={1} />
+          <g key={r.id}>
+            {/* live distance read-outs while dragging: height off floor + from wall */}
+            {dragging && (
+              <g className="rough-dims">
+                <line x1={gx} y1={floorY} x2={gx} y2={floorY - r.y} stroke="#5b5bd6" strokeWidth={0.3} strokeDasharray="1.5 1" />
+                <line x1={0} y1={floorY - r.y} x2={r.x} y2={floorY - r.y} stroke="#5b5bd6" strokeWidth={0.3} strokeDasharray="1.5 1" />
+                <DimV y1={floorY - r.y} y2={floorY} x={gx - 3} label={`${fmtIn(r.y)} ↑`} />
+                <DimH x1={0} x2={r.x} y={floorY - r.y - 2} label={`${fmtIn(r.x)} →`} />
+              </g>
             )}
+            <g
+              data-roughin={r.id}
+              transform={`translate(${gx} ${gy})`}
+              style={{ cursor: interactive ? (dragging ? 'grabbing' : 'grab') : 'default' }}
+              onPointerDown={(e) => onRoughDown(e, r)}
+              onPointerMove={(e) => onRoughMove(e, r)}
+              onPointerUp={(e) => onRoughUp(e, r)}
+            >
+              <RoughInGlyph kind={r.kind} w={r.w} h={r.h} conflict={conflict} />
+              {sel && interactive && (
+                <rect x={-1} y={-1} width={r.w + 2} height={r.h + 2} fill="none" stroke="#5b5bd6" strokeWidth={0.6} strokeDasharray="2 1.5" rx={1} />
+              )}
+            </g>
           </g>
         );
       })}

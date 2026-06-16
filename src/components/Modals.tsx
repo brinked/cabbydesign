@@ -307,8 +307,9 @@ export function RoughInModal() {
       </div>
       {conflict && (
         <div className="warn">
-          ⚠ Conflict — this stub-out isn’t directly behind a single cabinet. A hole can’t be cut in the gap between two
-          cabinets; move it so its full width sits behind one cabinet.
+          ⚠ Conflict — this stub-out must sit fully behind one cabinet and clear each cabinet end by at least 1″ (2″ where
+          there’s an applied end panel). Move it so its full width fits inside a cabinet with that clearance. Tip: you can
+          drag it directly on the wall elevation.
         </div>
       )}
       <div className="stepper-list">

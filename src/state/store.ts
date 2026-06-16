@@ -54,21 +54,52 @@ const ROUGHIN_DEFAULTS: Record<RoughInKind, { w: number; h: number; y: number }>
   electrical: { w: 4.5, h: 4.5, y: 24 },
 };
 
+/** Minimum clearance a rough-in must keep from a cabinet end (inches). */
+export const ROUGHIN_CLEAR = 1;
+/** Larger clearance required when that end carries an applied end panel. */
+export const ROUGHIN_CLEAR_PANEL = 2;
+
 /**
- * A stub-out must sit directly behind a single cabinet (you can't drill a hole
- * in the open gap between two cabinets). True when its full width is NOT
- * contained within one cabinet's footprint on the same wall.
+ * The cabinet a rough-in sits behind — its full width must be contained within
+ * one cabinet's footprint on the same wall (you can't drill into the gap
+ * between two cabinets). Prefers a floor-lane (base) cabinet. Returns null when
+ * the stub isn't fully behind any single cabinet.
  */
-export function roughInConflict(design: Design, r: RoughIn): boolean {
+export function roughInHost(design: Design, r: RoughIn): PlacedItem | null {
   const x1 = r.x - r.w / 2;
   const x2 = r.x + r.w / 2;
-  const behind = design.items.some((it) => {
+  const contains = design.items.filter((it) => {
     if (it.wallId !== r.wallId) return false;
     if (catalogById(it.catalogId).front === 'filler') return false; // can't host a stub
     const fpw = footprintW(it);
     return it.x - 0.01 <= x1 && it.x + fpw + 0.01 >= x2;
   });
-  return !behind;
+  return contains.find((it) => catalogById(it.catalogId).lane === 'floor') ?? contains[0] ?? null;
+}
+
+/**
+ * Allowed horizontal range for a rough-in's center inside its host cabinet,
+ * keeping it clear of each end by ROUGHIN_CLEAR (or ROUGHIN_CLEAR_PANEL when
+ * that end has an applied end panel — so the finished panel is cleared too).
+ */
+export function roughInBand(host: PlacedItem, w: number): { lo: number; hi: number } {
+  const fpw = footprintW(host);
+  const leftClear = host.endL ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR;
+  const rightClear = host.endR ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR;
+  return { lo: host.x + leftClear + w / 2, hi: host.x + fpw - rightClear - w / 2 };
+}
+
+/**
+ * A stub-out conflicts when it isn't fully behind a single cabinet, or when it
+ * sits within the required end clearance (it would break into the cabinet side
+ * / applied end panel).
+ */
+export function roughInConflict(design: Design, r: RoughIn): boolean {
+  const host = roughInHost(design, r);
+  if (!host) return true;
+  const { lo, hi } = roughInBand(host, r.w);
+  if (lo > hi) return true; // cabinet too narrow to host with clearance
+  return r.x < lo - 0.01 || r.x > hi + 0.01;
 }
 
 /** Renames from the pre-Starboard finish palette. */
@@ -578,7 +609,15 @@ export const useStore = create<AppState>()(
         set((s) => {
           const wall = s.design.walls.find((w) => w.id === wallId);
           const def = ROUGHIN_DEFAULTS[kind];
-          const r: RoughIn = { id: uid('rough'), wallId, kind, x: Math.round((wall?.length ?? 60) / 2), y: def.y, w: def.w, h: def.h };
+          // Drop it centered behind the first base cabinet (within end clearance)
+          // so it starts valid; fall back to wall center if there's none yet.
+          let x = Math.round((wall?.length ?? 60) / 2);
+          const host = laneItems(s.design.items, wallId, 'floor').find((it) => catalogById(it.catalogId).front !== 'filler');
+          if (host) {
+            const band = roughInBand(host, def.w);
+            if (band.lo <= band.hi) x = Math.round(((band.lo + band.hi) / 2) * 8) / 8;
+          }
+          const r: RoughIn = { id: uid('rough'), wallId, kind, x, y: def.y, w: def.w, h: def.h };
           return { design: { ...s.design, roughIns: [...s.design.roughIns, r] }, editingRoughInId: r.id };
         }),
       updateRoughIn: (id, patch) =>
