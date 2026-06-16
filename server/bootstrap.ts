@@ -4,6 +4,21 @@
 // access. Remove the env vars once you've set a real password from the UI.
 import { db, type UserRow } from './db.ts';
 import { hashPassword } from './auth.ts';
+import { importDealers } from './seed.ts';
+
+/**
+ * Seed dealers from importdealers.txt on startup (idempotent — existing emails
+ * are skipped). Runs in the live process against the real database, so it works
+ * reliably on hosts where the persistent disk only mounts at runtime.
+ * Set SKIP_DEALER_IMPORT=1 to disable.
+ */
+export function bootstrapDealers(): void {
+  if (process.env.SKIP_DEALER_IMPORT === '1') return;
+  const result = importDealers();
+  if (result && result.added > 0) {
+    console.log(`[bootstrap] imported ${result.added} dealer(s) (${result.skipped} already present).`);
+  }
+}
 
 export function bootstrapAdmin(): void {
   const email = process.env.ADMIN_EMAIL?.trim();

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { config } from './config.ts';
 import { loadSession } from './auth.ts';
 import './db.ts'; // ensure schema is applied at boot
-import { bootstrapAdmin } from './bootstrap.ts';
+import { bootstrapAdmin, bootstrapDealers } from './bootstrap.ts';
 import { authRouter } from './routes/auth.ts';
 import { dealersRouter } from './routes/dealers.ts';
 import { settingsRouter } from './routes/settings.ts';
@@ -64,6 +64,7 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ error: 'Internal server error' });
 });
 
+bootstrapDealers();
 bootstrapAdmin();
 
 app.listen(config.port, () => {

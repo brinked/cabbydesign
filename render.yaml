@@ -15,9 +15,8 @@ services:
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm run server
     healthCheckPath: /api/health
-    # Seed dealers from importdealers.txt on each deploy (idempotent — existing
-    # accounts are skipped). Remove this line once you no longer need it.
-    preDeployCommand: npm run import-dealers
+    # Dealers are seeded from importdealers.txt on server startup (idempotent),
+    # so no pre-deploy step is needed. Set SKIP_DEALER_IMPORT=1 to disable.
     envVars:
       - key: NODE_ENV
         value: production
