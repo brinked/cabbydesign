@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CabDesign — User Manual</title>
+    <style>
+      :root {
+        --ink: #1f2430;
+        --muted: #5b6472;
+        --accent: #5b5bd6;
+        --line: #e3e6ea;
+        --bg: #f4f5f8;
+        --warn-bg: #fff8e6;
+        --warn-bd: #f0d28a;
+        --tip-bg: #eef2ff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.6;
+      }
+      .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px 80px; }
+      header.cover {
+        background: linear-gradient(135deg, #2b2e63, #5b5bd6);
+        color: #fff;
+        padding: 64px 24px 56px;
+        text-align: center;
+      }
+      header.cover h1 { font-size: 44px; margin: 0 0 6px; letter-spacing: -0.5px; }
+      header.cover p { font-size: 17px; opacity: 0.9; margin: 0; }
+      .brand-tag { font-size: 13px; text-transform: uppercase; letter-spacing: 0.2em; opacity: 0.8; margin-bottom: 18px; }
+      nav.toc {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 22px 28px;
+        margin: 36px 0;
+        box-shadow: 0 6px 24px rgba(25, 31, 50, 0.06);
+      }
+      nav.toc h2 { margin: 0 0 12px; font-size: 18px; }
+      nav.toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 32px; }
+      nav.toc a { color: var(--accent); text-decoration: none; }
+      nav.toc a:hover { text-decoration: underline; }
+      section { margin: 44px 0; scroll-margin-top: 16px; }
+      h2.sec {
+        font-size: 26px;
+        border-bottom: 3px solid var(--accent);
+        padding-bottom: 8px;
+        margin-bottom: 18px;
+      }
+      h3 { font-size: 19px; margin: 28px 0 8px; }
+      p { margin: 10px 0; }
+      figure {
+        margin: 20px 0;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+        box-shadow: 0 4px 16px rgba(25, 31, 50, 0.06);
+      }
+      figure img { width: 100%; display: block; border-radius: 8px; }
+      figcaption { font-size: 13px; color: var(--muted); margin-top: 10px; text-align: center; }
+      ul, ol { padding-left: 22px; }
+      li { margin: 5px 0; }
+      code, kbd {
+        background: #eceef3;
+        border-radius: 5px;
+        padding: 1px 6px;
+        font-family: 'Cascadia Code', Consolas, monospace;
+        font-size: 0.92em;
+      }
+      .callout {
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin: 18px 0;
+        border: 1px solid;
+      }
+      .callout.tip { background: var(--tip-bg); border-color: #c7ccf5; }
+      .callout.warn { background: var(--warn-bg); border-color: var(--warn-bd); }
+      .callout .label { font-weight: 700; display: block; margin-bottom: 2px; }
+      table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14.5px; }
+      th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      th { background: #eef0f4; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      .pill { display: inline-block; background: var(--accent); color: #fff; border-radius: 999px; padding: 1px 10px; font-size: 12px; font-weight: 600; }
+      hr { border: 0; border-top: 1px solid var(--line); margin: 40px 0; }
+      @media print {
+        body { background: #fff; }
+        header.cover { background: #2b2e63 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        nav.toc { break-after: page; }
+        section { break-inside: avoid-page; }
+        figure { break-inside: avoid; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="cover">
+      <div class="brand-tag">CabDesign</div>
+      <h1>Outdoor Kitchen &amp; Cabinet Designer</h1>
+      <p>Complete user manual — design, price, render, and report</p>
+    </header>
+
+    <div class="wrap">
+      <nav class="toc">
+        <h2>Contents</h2>
+        <ol>
+          <li><a href="#overview">The interface</a></li>
+          <li><a href="#start">Starting a design</a></li>
+          <li><a href="#walls">Walls &amp; runs</a></li>
+          <li><a href="#adding">Adding cabinets</a></li>
+          <li><a href="#editing">Editing a cabinet</a></li>
+          <li><a href="#catalog">Cabinet types</a></li>
+          <li><a href="#topview">Top View &amp; drawing walls</a></li>
+          <li><a href="#corners">Corners (important!)</a></li>
+          <li><a href="#panels">Applied panels &amp; fillers</a></li>
+          <li><a href="#islands">Islands</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="#settings">Settings (size limits)</a></li>
+          <li><a href="#render">3D view &amp; photo render</a></li>
+          <li><a href="#report">The report</a></li>
+          <li><a href="#saving">Saving &amp; sharing</a></li>
+          <li><a href="#tips">Tips &amp; best practices</a></li>
+        </ol>
+      </nav>
+
+      <section id="overview">
+        <h2 class="sec">1. The interface</h2>
+        <p>
+          CabDesign has four views, switched with the tabs at the top center:
+          <strong>Walls</strong> (front elevations), <strong>Top View</strong> (the floor plan),
+          <strong>3D</strong> (an orbitable rendering), and <strong>Report</strong> (a printable estimate).
+          The top-right of the toolbar holds the global controls: <strong>door style</strong>,
+          <strong>finish color</strong>, <strong>Pricing</strong>, <strong>Settings</strong>, and
+          <strong>Save / Open / New</strong>.
+        </p>
+        <figure>
+          <img src="img/walls.png" alt="Walls tab" />
+          <figcaption>The <strong>Walls</strong> tab — one elevation card per wall, with live dimensions and a per-segment breakdown along the bottom.</figcaption>
+        </figure>
+        <p>Your work autosaves to the browser, so you can close and come back to it.</p>
+      </section>
+
+      <section id="start">
+        <h2 class="sec">2. Starting a design</h2>
+        <ol>
+          <li>Type a <strong>Project name</strong> (and optional <strong>Client</strong>) in the top-left fields.</li>
+          <li>Pick a <strong>door style</strong> — <em>Shaker (groove)</em> for the routed-groove HDPE look (called <strong>Vibe</strong> on the report), or <em>Euro / flat</em> for a plain slab (called <strong>Euro</strong>).</li>
+          <li>Pick a <strong>finish color</strong> from the Starboard ST palette (Black, Mocha, Nutmeg, Indigo, Slate, White/White, and more).</li>
+        </ol>
+        <div class="callout tip"><span class="label">Tip</span>The door style and finish apply to the whole design and update every view instantly.</div>
+      </section>
+
+      <section id="walls">
+        <h2 class="sec">3. Walls &amp; runs</h2>
+        <p>
+          Each wall is a card on the <strong>Walls</strong> tab. In the card header you can rename it and set its
+          <strong>Length</strong>, <strong>Height</strong>, and <strong>Thickness</strong>. Click any field and type a value
+          (it commits when you press Enter or click away; values round to the nearest ¼″).
+        </p>
+        <ul>
+          <li><strong>+ Add wall / run</strong> adds another wall. With 2+ walls you can switch the layout shape from the Top View.</li>
+          <li>Set <strong>Thickness to 0</strong> (or tick <strong>Island</strong>) to make an invisible <a href="#islands">island</a> run.</li>
+          <li>The zoom control in the card header lets you magnify a long wall and scroll along it.</li>
+        </ul>
+      </section>
+
+      <section id="adding">
+        <h2 class="sec">4. Adding cabinets</h2>
+        <p>Click <strong>+ Add</strong> on a wall card to open the catalog. Cabinets are grouped into tabs: Base, Wall, Tall, Outdoor Kitchen, Fillers &amp; Trim, and Appliances. Every tile is a live 3D preview in your chosen finish and door style.</p>
+        <figure>
+          <img src="img/catalog.png" alt="Catalog picker" />
+          <figcaption>The catalog picker. The header shows the <strong>largest opening</strong> available on the wall.</figcaption>
+        </figure>
+        <figure>
+          <img src="img/catalog-outdoor.png" alt="Outdoor catalog" />
+          <figcaption>The <strong>Outdoor Kitchen</strong> tab — grill, large 4-door grill, griddle, side &amp; power burners, propane pull-outs, fridge, kamado, and sink cabinets.</figcaption>
+        </figure>
+        <div class="callout tip"><span class="label">Auto-fit</span>If a cabinet's default width won't fit, it's added at the largest width that <em>does</em> fit (down to its minimum). A cabinet is dropped into the largest open gap on the wall, so removing a cabinet in the middle of a run leaves a gap you can fill.</div>
+      </section>
+
+      <section id="editing">
+        <h2 class="sec">5. Editing a cabinet</h2>
+        <p>Click a cabinet (in the Walls or Top View) to open its editor. Use the −/+ steppers or type a value directly.</p>
+        <figure>
+          <img src="img/edit.png" alt="Edit cabinet dialog" />
+          <figcaption>The cabinet editor, with the live price broken down at the bottom.</figcaption>
+        </figure>
+        <ul>
+          <li><strong>Width / Depth / Height</strong> — within the cabinet's allowed range (see <a href="#settings">Settings</a>). Arrows step 1″; typing accepts any ¼″ value.</li>
+          <li><strong>Pull-out trays</strong> — up to 2, on 1-door, 2-door, 1-door-1-drawer, and 2-door-1-drawer cabinets ($159 each).</li>
+          <li><strong>Applied ends</strong> — finished end panels on the Left/Right (adds 0.75″ to the width each). See <a href="#panels">Applied panels</a>.</li>
+          <li><strong>Hinge side</strong> — flips the door/handle for single-door cabinets and blind corners.</li>
+          <li><strong>Outset of wall</strong> — pulls the cabinet off the wall (fillers compute this automatically).</li>
+          <li><strong>Duplicate</strong> copies the cabinet next to itself; <strong>Remove</strong> deletes it.</li>
+        </ul>
+      </section>
+
+      <section id="catalog">
+        <h2 class="sec">6. Cabinet types</h2>
+        <table>
+          <thead><tr><th>Category</th><th>Includes</th></tr></thead>
+          <tbody>
+            <tr><td>Base</td><td>1-door, 2-door, 1-door 1-drawer, 2-door 1-drawer, 3- &amp; 4-drawer banks, sink, lazy-susan corner, blind corner, trash pull-out, trash pull-out + drawer</td></tr>
+            <tr><td>Wall</td><td>1-door, 2-door, open shelf (mounted above the counter)</td></tr>
+            <tr><td>Tall</td><td>pantry, utility / broom</td></tr>
+            <tr><td>Outdoor Kitchen</td><td>grill, large 4-door grill (+$100), griddle, side burner, power burner, propane pull-out, propane pull-out + drawer, fridge, kamado, outdoor sink</td></tr>
+            <tr><td>Fillers &amp; Trim</td><td>base filler, wall filler (1″–8″, $10/in), end-cap support cabinet</td></tr>
+            <tr><td>Appliances</td><td>freestanding grill, kamado on cart, pizza oven (visual only — not priced)</td></tr>
+          </tbody>
+        </table>
+        <p>Grill, griddle, and burner cabinets are drawn as proper <strong>drop-ins</strong>: the appliance sets into the top of the cabinet with an apron and doors below, and the countertop stops at each side.</p>
+        <div class="callout tip"><span class="label">End-cap support cabinet</span>Use this to support the countertop where a fridge would otherwise be the last unit in a run — countertops need support, and a fridge alone can't provide it.</div>
+      </section>
+
+      <section id="topview">
+        <h2 class="sec">7. Top View &amp; drawing walls</h2>
+        <p>The Top View is the floor plan, with a full per-item dimension breakdown along each wall plus the overall length.</p>
+        <figure>
+          <img src="img/topview.png" alt="Top view" />
+          <figcaption>Top View of a straight run. Each segment — cabinet, filler, and applied panel — is dimensioned, and they sum to the wall length.</figcaption>
+        </figure>
+        <h3>Navigating</h3>
+        <ul>
+          <li><strong>Drag a cabinet</strong> along its wall to move it; <strong>click</strong> it to edit.</li>
+          <li><strong>Drag a wall slab</strong> to move the whole run; wall ends snap together at corners.</li>
+          <li><strong>Scroll</strong> to zoom (toward the cursor); <strong>drag empty space</strong> to pan. Use the −/⤢/+ buttons to zoom out, fit, or zoom in.</li>
+        </ul>
+        <h3>Building the layout</h3>
+        <figure>
+          <img src="img/drawwall.png" alt="Draw wall tool" />
+          <figcaption>The toolbar: <strong>Select / Move</strong>, <strong>Draw wall</strong>, and one-click <strong>Auto-arrange</strong> presets.</figcaption>
+        </figure>
+        <ul>
+          <li><strong>Auto-arrange</strong> → Galley / L-shape / U-shape instantly positions your walls.</li>
+          <li><strong>Draw wall</strong> → click-drag to draw a wall anywhere; angles snap to 45° and ends snap to existing walls.</li>
+          <li>Select a wall to reveal a properties bar (name, length, height, thickness, island, <strong>↻ 45°</strong> rotate, <strong>⇄ Flip</strong>, and Remove).</li>
+        </ul>
+      </section>
+
+      <section id="corners">
+        <h2 class="sec">8. Corners — please read</h2>
+        <p>
+          Where two walls meet, cabinets from both runs would physically collide in the corner. CabDesign prevents this
+          automatically by reserving a <strong>dead corner</strong> — a hatched, blocked-off zone that regular cabinets
+          cannot enter.
+        </p>
+        <figure>
+          <img src="img/corner-elevation.png" alt="Dead corner hatching in elevation" />
+          <figcaption>In the Walls view the reserved corner is shown as a hatched <strong>“corner”</strong> zone. Regular cabinets stop short of it.</figcaption>
+        </figure>
+        <figure>
+          <img src="img/corner-plan.png" alt="Dead corner in plan" />
+          <figcaption>In plan, both walls hold their cabinets back from the corner so nothing overlaps.</figcaption>
+        </figure>
+        <h3>How the reserve is sized</h3>
+        <p>
+          Each wall reserves enough to clear the <strong>depth of the nearest cabinet on the other wall</strong>
+          (at least a standard 24″), <strong>plus 3″ for a corner filler</strong>. So a standard run reserves about 27″,
+          and a deep 27″ grill makes the perpendicular wall reserve about 30″. It recalculates whenever you change a
+          cabinet's depth.
+        </p>
+        <h3>Your three corner options</h3>
+        <ul>
+          <li><span class="pill">Dead corner</span> Leave the reserved zone empty — the default, safe option.</li>
+          <li><span class="pill">Blind corner</span> Add a <strong>Blind Corner Base</strong> — it drops into the reserved zone, with a working door on one side and a blind panel toward the corner.</li>
+          <li><span class="pill">Corner cabinet</span> Add a <strong>Corner Base (Lazy Susan)</strong> — it fills the corner and is accessible.</li>
+        </ul>
+        <div class="callout warn">
+          <span class="label">Fillers belong in the corner</span>
+          Real corner installations need a <strong>filler</strong> between the corner and the first cabinet so the doors and
+          drawers clear the adjoining wall. That's why each wall reserves an extra 3″. <strong>Base and wall fillers are
+          allowed to be placed into the reserved corner zone</strong> — drag a filler from the Fillers &amp; Trim tab into the
+          hatched space to close the gap. (Regular cabinets cannot enter it; only corner cabinets, blind corners, and fillers can.)
+        </div>
+        <div class="callout tip"><span class="label">Who owns the corner?</span>By default the corner stays dead on both sides. If you place a blind/corner cabinet on a wall, that wall owns the corner and the adjoining wall yields. To swap which wall runs into the corner, use <strong>⇄ Flip</strong> or reorder/redraw the walls.</div>
+      </section>
+
+      <section id="panels">
+        <h2 class="sec">9. Applied panels &amp; fillers</h2>
+        <h3>Applied end panels</h3>
+        <p>
+          Turn on <strong>Applied ends → Left / Right</strong> in the cabinet editor to add a finished end panel where a
+          cabinet end is exposed (e.g., at the end of a run). Each adds 0.75″ to the cabinet's overall width and is priced
+          at <strong>$36/sq ft</strong> (panel height excludes the 4″ toe kick).
+        </p>
+        <h3>Applied back panels (islands)</h3>
+        <p>
+          Cabinets on an <a href="#islands">island</a> automatically receive a finished <strong>back panel</strong> (the back
+          is exposed). Panels are split into pieces of 48″ maximum and priced the same $36/sq ft. On the report, back
+          panels are summed into a single line.
+        </p>
+        <h3>Fillers</h3>
+        <p>
+          Base and wall fillers (1″–8″ wide, $10/inch) are shallow 4″ pieces that <strong>auto-outset</strong> so their
+          face lines up flush with the neighboring cabinet fronts. Use them to take up leftover space in a run or to fill
+          corner clearance.
+        </p>
+      </section>
+
+      <section id="islands">
+        <h2 class="sec">10. Islands</h2>
+        <p>
+          To make an island or peninsula, set a wall's <strong>Thickness to 0</strong> or tick the <strong>Island</strong>
+          box. The physical wall disappears (it shows as a dashed guide in the Top View that you can still drag), and every
+          cabinet on it gets a finished applied back panel automatically. Combine with applied ends on the outer cabinets
+          for a fully finished freestanding island.
+        </p>
+      </section>
+
+      <section id="pricing">
+        <h2 class="sec">11. Pricing</h2>
+        <p>Open <strong>Pricing</strong> (top toolbar) to view and edit the price formula for every cabinet. Formulas use <code>W</code>, <code>D</code>, and <code>H</code> in inches.</p>
+        <figure>
+          <img src="img/pricing.png" alt="Pricing formulas" />
+          <figcaption>Every cabinet's box formula, editable, with the price at its default size.</figcaption>
+        </figure>
+        <ul>
+          <li>The standard box price is <code>W*D + 500</code>.</li>
+          <li><strong>Drawers are baked into the formula:</strong> +$150 per top drawer, +$200 per larger drawer. So a 1-door-1-drawer is <code>W*D + 650</code>, a 3-drawer bank is <code>W*D + 1050</code>, a 4-drawer is <code>W*D + 1250</code>.</li>
+          <li>The large 4-door grill adds $100 (<code>W*D + 600</code>).</li>
+          <li><strong>Priced on top automatically:</strong> pull-out trays ($159 each), applied end &amp; back panels ($36/sq ft), and fillers ($10/inch).</li>
+          <li>Appliances are visual only and not priced.</li>
+        </ul>
+        <p>Edit any formula to override it; the <kbd>↺</kbd> button resets it to default.</p>
+      </section>
+
+      <section id="settings">
+        <h2 class="sec">12. Settings — size limits</h2>
+        <p>Open <strong>Settings</strong> to set the allowed <strong>minimum/maximum width and depth</strong> for each cabinet. Leave a field blank to use the default (shown as the placeholder). These limits constrain the editor's steppers.</p>
+        <figure>
+          <img src="img/settings.png" alt="Settings — size limits" />
+          <figcaption>Per-cabinet size limits. Overrides persist in your browser.</figcaption>
+        </figure>
+      </section>
+
+      <section id="render">
+        <h2 class="sec">13. 3D view &amp; photo render</h2>
+        <p>The <strong>3D</strong> tab builds an orbitable model of your design from the same data. Drag to orbit, scroll to zoom, right-drag to pan.</p>
+        <figure>
+          <img src="img/view3d.png" alt="3D view" />
+          <figcaption>The real-time 3D view.</figcaption>
+        </figure>
+        <ul>
+          <li><strong>Quick snapshot</strong> grabs the current view for the report instantly.</li>
+          <li><strong>✨ Photo render</strong> produces a ray-traced photographic image from your current camera angle — it refines progressively; download it or send it to the report.</li>
+        </ul>
+        <div class="callout tip"><span class="label">Tip</span>For an island/counter look, set the wall height to ~36–40″ so the 3D scene reads as a kitchen rather than a tall room.</div>
+      </section>
+
+      <section id="report">
+        <h2 class="sec">14. The report</h2>
+        <p>The <strong>Report</strong> tab assembles a printable package: a cover (with your saved 3D render), the floor plan, lettered wall elevations with callout numbers, and an itemized estimate.</p>
+        <figure>
+          <img src="img/report.png" alt="Report estimate" />
+          <figcaption>The estimate: cabinets, then applied panels (end panels grouped by size with quantities and the cabinet numbers they belong to; back panels summed), then the total.</figcaption>
+        </figure>
+        <p>Click <strong>Print / Save as PDF</strong> to produce the deliverable using your browser's print dialog.</p>
+      </section>
+
+      <section id="saving">
+        <h2 class="sec">15. Saving &amp; sharing</h2>
+        <ul>
+          <li><strong>Save</strong> downloads the design as a <code>.cabdesign.json</code> file.</li>
+          <li><strong>Open</strong> loads a saved file.</li>
+          <li><strong>New</strong> starts a fresh design (your current one stays in the browser until replaced).</li>
+        </ul>
+      </section>
+
+      <section id="tips">
+        <h2 class="sec">16. Tips &amp; best practices</h2>
+        <ul>
+          <li>Build the wall layout first (Auto-arrange or Draw wall), then fill each wall with cabinets.</li>
+          <li>At every corner, decide: dead corner, blind corner, or lazy susan — and add a <strong>filler</strong> for door/drawer clearance.</li>
+          <li>Don't end a run with a fridge alone — add an <strong>end-cap support cabinet</strong> so the countertop is supported.</li>
+          <li>Use <strong>applied ends</strong> on exposed cabinet sides and let <strong>islands</strong> add back panels automatically.</li>
+          <li>Set realistic <strong>size limits</strong> in Settings so nobody specs a cabinet you can't build.</li>
+          <li>Save a <strong>photo render</strong> to the report before printing for a polished client presentation.</li>
+        </ul>
+      </section>
+    </div>
+  </body>
+</html>

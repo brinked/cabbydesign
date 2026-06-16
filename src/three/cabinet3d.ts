@@ -1,0 +1,938 @@
+import * as THREE from 'three';
+import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
+import type { CatalogItem, DoorStyle, FinishOption, HingeSide } from '../model/types';
+
+export const STEEL_3D = 0xc9ced2;
+
+export function box(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+export function canvasTexture(size: number, draw: (ctx: CanvasRenderingContext2D, s: number) => void): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d')!;
+  draw(ctx, size);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Subtle procedural marble/quartz for countertops. */
+export function marbleTexture(base: string): THREE.CanvasTexture {
+  const t = canvasTexture(512, (ctx, s) => {
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, s, s);
+    for (let i = 0; i < 60; i++) {
+      const x = Math.random() * s;
+      const y = Math.random() * s;
+      const r = 20 + Math.random() * 60;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(120,122,128,${0.03 + Math.random() * 0.04})`);
+      g.addColorStop(1, 'rgba(120,122,128,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    for (let i = 0; i < 7; i++) {
+      ctx.strokeStyle = `rgba(110,112,120,${0.10 + Math.random() * 0.12})`;
+      ctx.lineWidth = 0.8 + Math.random() * 1.4;
+      ctx.beginPath();
+      let x = Math.random() * s;
+      let y = 0;
+      ctx.moveTo(x, y);
+      while (y < s) {
+        x += (Math.random() - 0.5) * 60;
+        y += 25 + Math.random() * 45;
+        ctx.quadraticCurveTo(x + (Math.random() - 0.5) * 40, y - 25, x, y);
+      }
+      ctx.stroke();
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+export interface CabMats {
+  body: THREE.Material;
+  panel: THREE.Material;
+  inner: THREE.Material;
+  groove: THREE.Material;
+  kick: THREE.Material;
+  counter: THREE.MeshPhysicalMaterial;
+  counterTex: THREE.CanvasTexture;
+  steel: THREE.Material;
+  dark: THREE.Material;
+  egg: THREE.Material;
+  carcass: THREE.Material;
+}
+
+export function createMats(fin: FinishOption): CabMats {
+  const counterTex = marbleTexture('#edeae3');
+  return {
+    body: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), roughness: 0.55, clearcoat: 0.18, clearcoatRoughness: 0.6 }),
+    panel: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.5, clearcoat: 0.22, clearcoatRoughness: 0.55 }),
+    inner: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.6, clearcoat: 0.15, clearcoatRoughness: 0.6 }),
+    groove: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.inner).multiplyScalar(0.72), roughness: 0.85 }),
+    kick: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.body), roughness: 0.8 }),
+    counterTex,
+    counter: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.counter), map: counterTex, roughness: 0.22, clearcoat: 0.5, clearcoatRoughness: 0.25 }),
+    steel: new THREE.MeshStandardMaterial({ color: STEEL_3D, metalness: 0.9, roughness: 0.28 }),
+    dark: new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.6 }),
+    egg: new THREE.MeshPhysicalMaterial({ color: 0x1f3a2e, roughness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.2 }),
+    carcass: new THREE.MeshPhysicalMaterial({ color: 0xeceef0, roughness: 0.55, clearcoat: 0.12, clearcoatRoughness: 0.6 }),
+  };
+}
+
+export function disposeMats(m: CabMats): void {
+  for (const mat of [m.body, m.panel, m.inner, m.groove, m.kick, m.counter, m.steel, m.dark, m.egg, m.carcass]) mat.dispose();
+  m.counterTex.dispose();
+}
+
+export interface CabDims {
+  w: number;
+  d: number;
+  h: number;
+  hinge: HingeSide;
+  style: DoorStyle;
+  endL: boolean;
+  endR: boolean;
+  /** Finished applied panel(s) on the back (islands) — auto, split at ≤48". */
+  backPanel?: boolean;
+  /** Corner/susan footprint orientation, derived from placement so it stays
+   *  fixed in its corner; when set, `hinge` is free to pick the handle side. */
+  cornerSide?: 1 | -1;
+}
+
+/** Max width of one applied panel; wider runs are split into multiple panels. */
+export const MAX_PANEL_W = 48;
+
+/** Reveal per cabinet side — adjacent cabinets read with the same 1/8″ gap as a door pair. */
+const REVEAL = 0.0625;
+const GAP = 0.125; // between doors / drawer fronts
+
+/** Applied end panel thickness — adds to the cabinet's overall width. */
+export const END_PANEL_T = 0.75;
+
+/** Cabinet panel stile wrapping each side of a set-in grill/griddle face. */
+const GRILL_STILE = 2;
+
+/** Width of the recessed appliance face inside its picture frame. */
+function applianceFaceW(w: number): number {
+  return w - REVEAL * 2 - (GRILL_STILE + GAP) * 2;
+}
+
+/** Roll-top grill hood: rounded side profile extruded across the width. */
+function grillHood(gw: number, dh: number, hh: number, mat: THREE.Material): THREE.Mesh {
+  const s = new THREE.Shape();
+  // side profile: x = depth from the front face, y = up
+  s.moveTo(0, 0);
+  s.lineTo(0, hh * 0.35);
+  s.quadraticCurveTo(0, hh, dh * 0.42, hh);
+  s.lineTo(dh - 2, hh);
+  s.quadraticCurveTo(dh, hh, dh, hh - 2);
+  s.lineTo(dh, 0);
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, { depth: gw, bevelEnabled: false, curveSegments: 10 });
+  // extrusion z → width (x), profile x → depth (−z, so the front sits at z=0)
+  geo.rotateY(Math.PI / 2);
+  geo.translate(-gw / 2, 0, 0);
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+/**
+ * Routed groove ring (HDPE shaker look): four dark strips sitting just proud
+ * of a face that spans w×h in the local XY plane, face at z=+faceZ.
+ */
+function grooveRing(w: number, h: number, faceZ: number, mats: CabMats): THREE.Group {
+  const g = new THREE.Group();
+  const R = 2.4; // groove centerline inset from the door edge
+  const sw = 0.42; // groove width
+  const t = 0.05;
+  const z = faceZ + t / 2 - 0.01;
+  const horiz = new THREE.BoxGeometry(w - 2 * R + sw, sw, t);
+  const vert = new THREE.BoxGeometry(sw, h - 2 * R + sw, t);
+  const top = new THREE.Mesh(horiz, mats.groove);
+  top.position.set(0, h / 2 - R, z);
+  const bot = new THREE.Mesh(horiz, mats.groove);
+  bot.position.set(0, -h / 2 + R, z);
+  const left = new THREE.Mesh(vert, mats.groove);
+  left.position.set(-w / 2 + R, 0, z);
+  const right = new THREE.Mesh(vert, mats.groove);
+  right.position.set(w / 2 - R, 0, z);
+  g.add(top, bot, left, right);
+  return g;
+}
+
+/** Corner cabinets keep a 24" return (base) on each side so adjacent cabinets line up flush. */
+export const CORNER_RETURN = 24;
+/** Return depth for a corner cabinet — matches adjacent cabinet depth on its lane
+ *  (base = 24", wall = 12"), so its legs line up with the neighbouring cabinets. */
+export function cornerReturn(cat: CatalogItem): number {
+  return cat.lane === 'upper' ? 12 : CORNER_RETURN;
+}
+/** Depth of the 45° chamfer leg given the cabinet depth and its return. */
+export function cornerChamfer(d: number, ret: number = CORNER_RETURN): number {
+  return Math.max(6, d - ret);
+}
+
+/**
+ * Chamfered (pentagon-footprint) carcass for a diagonal corner cabinet: a box
+ * with the front-room corner cut at 45°. Built from a footprint shape in
+ * (x = width, y = depth) extruded to the cabinet height. Returns a mesh whose
+ * bottom sits at y=0, depth at z∈[0,d], width at x∈[−w/2, w/2].
+ */
+function cornerCarcass(w: number, d: number, h: number, c: number, mat: THREE.Material, side: 1 | -1): THREE.Mesh {
+  const s = new THREE.Shape();
+  if (side === 1) {
+    // chamfer the front-right corner (room corner when wall corner is at the left end)
+    s.moveTo(-w / 2, 0);
+    s.lineTo(w / 2, 0);
+    s.lineTo(w / 2, d - c);
+    s.lineTo(w / 2 - c, d);
+    s.lineTo(-w / 2, d);
+  } else {
+    // chamfer the front-left corner
+    s.moveTo(-w / 2, 0);
+    s.lineTo(w / 2, 0);
+    s.lineTo(w / 2, d);
+    s.lineTo(-w / 2 + c, d);
+    s.lineTo(-w / 2, d - c);
+  }
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, { depth: h, bevelEnabled: false });
+  geo.rotateX(Math.PI / 2); // shape Y (depth) → +z, extrude → −y
+  const m = new THREE.Mesh(geo, mat);
+  m.position.y = h; // lift so the bottom sits on the floor
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+/**
+ * L-shaped (pie-cut) lazy-susan carcass: two 24"-deep legs along the walls with
+ * a square notch cut from the front-room inner corner. side 1 = corner at the
+ * left end, −1 = corner at the right end.
+ */
+function susanCarcass(w: number, d: number, h: number, legD: number, mat: THREE.Material, side: 1 | -1): THREE.Mesh {
+  const s = new THREE.Shape();
+  if (side === 1) {
+    s.moveTo(-w / 2, 0);
+    s.lineTo(w / 2, 0);
+    s.lineTo(w / 2, legD);
+    s.lineTo(-w / 2 + legD, legD);
+    s.lineTo(-w / 2 + legD, d);
+    s.lineTo(-w / 2, d);
+  } else {
+    s.moveTo(-w / 2, 0);
+    s.lineTo(w / 2, 0);
+    s.lineTo(w / 2, d);
+    s.lineTo(w / 2 - legD, d);
+    s.lineTo(w / 2 - legD, legD);
+    s.lineTo(-w / 2, legD);
+  }
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, { depth: h, bevelEnabled: false });
+  geo.rotateX(Math.PI / 2);
+  const m = new THREE.Mesh(geo, mat);
+  m.position.y = h;
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+const KICK_RECESS = 1; // toe-kick inset from the room-facing faces (matches standard cabinets)
+
+/** Recessed toe-kick block under a diagonal corner cabinet; sits at y∈[0, kick]. */
+function cornerKick(w: number, d: number, kick: number, c: number, mat: THREE.Material, side: 1 | -1): THREE.Mesh {
+  const R = KICK_RECESS;
+  const s = new THREE.Shape();
+  if (side === 1) {
+    s.moveTo(-w / 2, 0);
+    s.lineTo(w / 2, 0);
+    s.lineTo(w / 2, d - c);
+    s.lineTo(w / 2 - c + R, d - R);
+    s.lineTo(-w / 2, d - R);
+  } else {
+    s.moveTo(-w / 2, 0);
+    s.lineTo(w / 2, 0);
+    s.lineTo(w / 2, d - R);
+    s.lineTo(-w / 2 + c - R, d - R);
+    s.lineTo(-w / 2, d - c);
+  }
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, { depth: kick, bevelEnabled: false });
+  geo.rotateX(Math.PI / 2);
+  const m = new THREE.Mesh(geo, mat);
+  m.position.y = kick;
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+/** Recessed L-shaped toe-kick block under a lazy-susan cabinet; sits at y∈[0, kick]. */
+function susanKick(w: number, d: number, kick: number, legD: number, mat: THREE.Material, side: 1 | -1): THREE.Mesh {
+  const R = KICK_RECESS;
+  const s = new THREE.Shape();
+  if (side === 1) {
+    s.moveTo(-w / 2, 0);
+    s.lineTo(w / 2, 0);
+    s.lineTo(w / 2, legD - R);
+    s.lineTo(-w / 2 + legD - R, legD - R);
+    s.lineTo(-w / 2 + legD - R, d - R);
+    s.lineTo(-w / 2, d - R);
+  } else {
+    s.moveTo(-w / 2, 0);
+    s.lineTo(w / 2, 0);
+    s.lineTo(w / 2, d - R);
+    s.lineTo(w / 2 - legD + R, d - R);
+    s.lineTo(w / 2 - legD + R, legD - R);
+    s.lineTo(-w / 2, legD - R);
+  }
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, { depth: kick, bevelEnabled: false });
+  geo.rotateX(Math.PI / 2);
+  const m = new THREE.Mesh(geo, mat);
+  m.position.y = kick;
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+/** One-piece HDPE door/drawer face: flat slab, optionally with a groove ring. */
+function doorFace(w: number, h: number, style: DoorStyle, mats: CabMats): THREE.Group {
+  const g = new THREE.Group();
+  g.add(box(w, h, 0.7, mats.panel));
+  if (style === 'shaker' && w >= 8 && h >= 8) {
+    g.add(grooveRing(w, h, 0.35, mats));
+  }
+  return g;
+}
+
+/** Fronts that carry a dropped-in sink basin + faucet. */
+export function isSinkFront(front: CatalogItem['front']): boolean {
+  return front === 'sink' || front === 'sink2' || front === 'sink1' || front === 'sink1f';
+}
+
+/** Basin opening (in cabinet-local inches): width, depth, center-from-wall, bowl depth.
+ *  Shared by the 3D cabinet (the bowl) and the counter (the cut-out hole). */
+export function sinkBasin(w: number, d: number): { bw: number; bd: number; zc: number; bowlH: number } {
+  const bw = Math.max(10, Math.min(w - 7, 26));
+  const bd = Math.max(8, Math.min(d - 9, 16));
+  return { bw, bd, zc: d * 0.52, bowlH: 6.5 };
+}
+
+/** Vertical extent of gear drawn above the carcass (for sprite bounding boxes). */
+export function gearAbove(cat: CatalogItem): number {
+  if (cat.topGearH) return cat.topGearH + (cat.counter ? COUNTER_T : 0);
+  if (isSinkFront(cat.front)) return COUNTER_T + 12;
+  return 0;
+}
+
+/**
+ * Builds a single cabinet/appliance as a Group in local coordinates:
+ * x centered on the cabinet width, y up from the floor (0), z from the wall
+ * face (0) out the front (d). Counter slabs are NOT included — they are
+ * drawn per run by the caller.
+ */
+export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats): THREE.Group {
+  const g = new THREE.Group();
+  const { w, d, h, hinge, style, endL, endR, backPanel } = dims;
+  const isAppliance = cat.category === 'appliance';
+  const isFridge = cat.front === 'fridge' || cat.front === 'fridge2' || cat.front === 'fridgep' || cat.front === 'fridgep2';
+  const fridgeDrawers = cat.front === 'fridge2' || cat.front === 'fridgep2';
+  const fridgePanel = cat.front === 'fridgep' || cat.front === 'fridgep2'; // cabinet-matched fronts
+  const steelFridge = isFridge && !fridgePanel; // stainless fridge
+  const steel = isAppliance || steelFridge;
+  const kick = cat.lane === 'floor' && !isAppliance ? TOEKICK_H : 0;
+  const carcassH = h - kick;
+
+  const isCorner = cat.front === 'corner';
+  const isSusan = cat.front === 'susan';
+  const isOpen = cat.front === 'open'; // open shelving — no door, exposed shelves
+  // chamfer faces the room: side 1 (corner at left end) vs −1 (corner at right end).
+  // Prefer the placement-derived side so the carcass stays put in its corner and
+  // the hinge toggle only moves the (single) handle.
+  const cornerSide: 1 | -1 = dims.cornerSide ?? (hinge === 'right' ? -1 : 1);
+  const legRet = cornerReturn(cat); // 24" base / 12" wall
+  if (isCorner) {
+    // chamfered (angled-front) carcass on a recessed toe kick
+    const c = cornerChamfer(d, legRet);
+    const carc = cornerCarcass(w, d, carcassH, c, mats.carcass, cornerSide);
+    carc.position.y += kick;
+    g.add(carc);
+    if (kick > 0) g.add(cornerKick(w, d, kick, c, mats.kick, cornerSide));
+  } else if (isSusan) {
+    // L-shaped pie-cut carcass (notched front corner) on a recessed toe kick
+    const carc = susanCarcass(w, d, carcassH, legRet, mats.carcass, cornerSide);
+    carc.position.y += kick;
+    g.add(carc);
+    if (kick > 0) g.add(susanKick(w, d, kick, legRet, mats.kick, cornerSide));
+  } else if (isOpen) {
+    // open shelving — a finished shell (sides/top/bottom/back) with exposed
+    // shelves and no door. Built in the cabinet's body finish.
+    const T = 0.75;
+    const yB = kick;
+    const add = (bw: number, bh: number, bd: number, x: number, y: number, z: number, mat: THREE.Material = mats.body) => {
+      const m = box(bw, bh, bd, mat);
+      m.position.set(x, y, z);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      g.add(m);
+    };
+    add(w, T, d, 0, yB + T / 2, d / 2); // bottom
+    add(w, T, d, 0, yB + carcassH - T / 2, d / 2); // top
+    add(T, carcassH, d, -w / 2 + T / 2, yB + carcassH / 2, d / 2); // left
+    add(T, carcassH, d, w / 2 - T / 2, yB + carcassH / 2, d / 2); // right
+    add(w, carcassH, T, 0, yB + carcassH / 2, T / 2, mats.inner); // interior back
+    const nShelves = Math.max(1, Math.round(carcassH / 11) - 1);
+    for (let i = 1; i <= nShelves; i++) {
+      const sy = yB + (carcassH * i) / (nShelves + 1);
+      add(w - T * 2, T, d - 1.5, 0, sy, d / 2); // shelf, set back slightly from the front
+    }
+    if (kick > 0) {
+      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, d - 1, mats.kick);
+      kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, d / 2 - 0.5);
+      g.add(kickMesh);
+    }
+  } else {
+    // carcass — white box like the real product; colored fronts go on top
+    const carcass = box(w, carcassH, d, steel ? mats.steel : mats.carcass);
+    carcass.position.set(0, kick + carcassH / 2, d / 2);
+    g.add(carcass);
+    if (kick > 0) {
+      // Full cabinet width and finish-matched: kicks are applied as long strips,
+      // so adjacent cabinets read as one seamless band.
+      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, d - 1, steelFridge ? mats.steel : mats.kick);
+      kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, d / 2 - 0.5);
+      g.add(kickMesh);
+    }
+  }
+
+  // front faces — one-piece HDPE doors (grooved shaker or euro flat) + steel handle
+  if (!steel && !isAppliance) {
+    type Front = { dx: number; dy: number; w: number; h: number; handle: 'v-left' | 'v-right' | 'h-center' | 'none'; slab?: boolean };
+    const fronts: Front[] = [];
+    const fw = w - REVEAL * 2;
+    const fh = carcassH - REVEAL * 2;
+    const half = (fw - GAP) / 2;
+    const oneDoorHandle: 'v-left' | 'v-right' = hinge === 'left' ? 'v-right' : 'v-left';
+    switch (cat.front) {
+      case 'door2':
+      case 'kamado':
+        if (w >= 24) {
+          fronts.push({ dx: -half / 2 - GAP / 2, dy: 0, w: half, h: fh, handle: 'v-right' });
+          fronts.push({ dx: half / 2 + GAP / 2, dy: 0, w: half, h: fh, handle: 'v-left' });
+        } else fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: oneDoorHandle });
+        break;
+      case 'fridgep':
+        // panel-ready fridge: one cabinet-matched door
+        fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: oneDoorHandle });
+        break;
+      case 'fridgep2': {
+        // panel-ready fridge: two cabinet-matched drawer fronts
+        const rh = (fh - GAP) / 2;
+        fronts.push({ dx: 0, dy: fh / 2 - rh / 2, w: fw, h: rh, handle: 'h-center' });
+        fronts.push({ dx: 0, dy: -fh / 2 + rh / 2, w: fw, h: rh, handle: 'h-center' });
+        break;
+      }
+      case 'open':
+        break; // open shelving — no door, shell built above
+      case 'corner':
+      case 'susan':
+        break; // corner cabinets built separately below
+      case 'sink':
+      case 'sink2':
+      case 'sink1':
+      case 'sink1f': {
+        const twoDoor = (cat.front === 'sink' || cat.front === 'sink2') && w >= 24;
+        const falseFront = cat.front === 'sink' || cat.front === 'sink1f';
+        const top = falseFront ? fh * 0.2 : 0;
+        if (falseFront) fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'h-center' });
+        const doorH = fh - (falseFront ? top + GAP : 0);
+        const doorDy = falseFront ? -top / 2 - GAP / 2 : 0;
+        if (twoDoor) {
+          fronts.push({ dx: -half / 2 - GAP / 2, dy: doorDy, w: half, h: doorH, handle: 'v-right' });
+          fronts.push({ dx: half / 2 + GAP / 2, dy: doorDy, w: half, h: doorH, handle: 'v-left' });
+        } else {
+          fronts.push({ dx: 0, dy: doorDy, w: fw, h: doorH, handle: oneDoorHandle });
+        }
+        break;
+      }
+      case 'grill':
+      case 'grill4':
+      case 'griddle':
+      case 'burner': {
+        // The appliance face is recessed into the top of the cabinet. The
+        // cabinet front picture-frames it: apron below, panel stiles wrapping
+        // both sides, doors at the bottom.
+        const isGrill = cat.front === 'grill' || cat.front === 'grill4';
+        const applH = isGrill ? 9 : 7;
+        const apronH = 4.5;
+        const doorH = fh - applH - apronH - GAP * 2;
+        if (cat.front === 'grill4') {
+          // two double-door pairs: handles meet in the middle of each pair
+          const n = 4;
+          const dw = (fw - GAP * (n - 1)) / n;
+          for (let i = 0; i < n; i++) {
+            fronts.push({
+              dx: -fw / 2 + dw / 2 + i * (dw + GAP),
+              dy: -fh / 2 + doorH / 2,
+              w: dw,
+              h: doorH,
+              handle: i % 2 === 0 ? 'v-right' : 'v-left',
+            });
+          }
+        } else if (w >= 24) {
+          fronts.push({ dx: -half / 2 - GAP / 2, dy: -fh / 2 + doorH / 2, w: half, h: doorH, handle: 'v-right' });
+          fronts.push({ dx: half / 2 + GAP / 2, dy: -fh / 2 + doorH / 2, w: half, h: doorH, handle: 'v-left' });
+        } else {
+          fronts.push({ dx: 0, dy: -fh / 2 + doorH / 2, w: fw, h: doorH, handle: oneDoorHandle });
+        }
+        // apron band below the appliance
+        fronts.push({ dx: 0, dy: -fh / 2 + doorH + GAP + apronH / 2, w: fw, h: apronH, handle: 'none', slab: true });
+        // side stiles wrapping the appliance face
+        const stileY = fh / 2 - applH / 2;
+        fronts.push({ dx: -fw / 2 + GRILL_STILE / 2, dy: stileY, w: GRILL_STILE, h: applH, handle: 'none', slab: true });
+        fronts.push({ dx: fw / 2 - GRILL_STILE / 2, dy: stileY, w: GRILL_STILE, h: applH, handle: 'none', slab: true });
+        break;
+      }
+      case 'blind':
+      case 'blindl':
+      case 'blindr': {
+        const doorW = Math.max(12, w - 24) - GAP;
+        const slabW = fw - doorW - GAP;
+        // Which side the blind (dead) panel sits on. blindl/blindr fix it; the
+        // legacy 'blind' derives it from hinge. The working door sits opposite.
+        const blindOnLeft = cat.front === 'blindl' || (cat.front === 'blind' && hinge === 'right');
+        const doorDx = blindOnLeft ? fw / 2 - doorW / 2 : -fw / 2 + doorW / 2;
+        const slabDx = blindOnLeft ? -fw / 2 + slabW / 2 : fw / 2 - slabW / 2;
+        // handle side on the working door — the rehinge (hinge) toggle moves it
+        const blindHandle: 'v-left' | 'v-right' = hinge === 'left' ? 'v-left' : 'v-right';
+        fronts.push({ dx: doorDx, dy: 0, w: doorW, h: fh, handle: blindHandle });
+        fronts.push({ dx: slabDx, dy: 0, w: slabW, h: fh, handle: 'none', slab: true });
+        break;
+      }
+      case 'drawers3': {
+        const top = fh * 0.24;
+        const rest = (fh - top) / 2;
+        fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'h-center' });
+        fronts.push({ dx: 0, dy: fh / 2 - top - rest / 2, w: fw, h: rest - GAP, handle: 'h-center' });
+        fronts.push({ dx: 0, dy: fh / 2 - top - rest - rest / 2, w: fw, h: rest - GAP, handle: 'h-center' });
+        break;
+      }
+      case 'drawers4':
+        for (let i = 0; i < 4; i++) {
+          const rh = fh / 4;
+          fronts.push({ dx: 0, dy: fh / 2 - rh * i - rh / 2, w: fw, h: rh - GAP, handle: 'h-center' });
+        }
+        break;
+      case 'doordrawer': {
+        const top = fh * 0.28;
+        fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'h-center' });
+        fronts.push({ dx: 0, dy: -top / 2 - GAP / 2, w: fw, h: fh - top - GAP, handle: oneDoorHandle });
+        break;
+      }
+      case 'door2drawer': {
+        const top = fh * 0.2;
+        const doorH = fh - top - GAP;
+        const doorHalf = (fw - GAP) / 2;
+        fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'h-center' });
+        fronts.push({ dx: -doorHalf / 2 - GAP / 2, dy: -top / 2 - GAP / 2, w: doorHalf, h: doorH, handle: 'v-right' });
+        fronts.push({ dx: doorHalf / 2 + GAP / 2, dy: -top / 2 - GAP / 2, w: doorHalf, h: doorH, handle: 'v-left' });
+        break;
+      }
+      case 'trashdrawer':
+      case 'propanedrawer': {
+        const top = fh * 0.2;
+        fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'h-center' });
+        fronts.push({
+          dx: 0,
+          dy: -top / 2 - GAP / 2,
+          w: fw,
+          h: fh - top - GAP,
+          handle: cat.front === 'trashdrawer' ? 'h-center' : oneDoorHandle,
+        });
+        break;
+      }
+      case 'trash':
+        fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: 'h-center' });
+        break;
+      case 'endcap':
+      case 'filler':
+        // finished panel in the cabinet design, no door hardware
+        fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: 'none' });
+        break;
+      default:
+        fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: oneDoorHandle });
+    }
+    for (const fr of fronts) {
+      const fg = doorFace(fr.w, fr.h, fr.slab ? 'flat' : style, mats);
+      if (fr.handle !== 'none') {
+        const isV = fr.handle !== 'h-center';
+        const len = isV ? Math.min(7, fr.h * 0.45) : Math.min(9, fr.w * 0.5);
+        const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
+        bar.castShadow = true;
+        if (isV) {
+          bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + 1.6 : fr.w / 2 - 1.6;
+          // handle sits in the upper third of the door (per design reference)
+          bar.position.y = fr.h / 2 - len / 2 - 1.4;
+        } else {
+          bar.rotation.z = Math.PI / 2;
+        }
+        bar.position.z = 1.1;
+        fg.add(bar);
+      }
+      fg.position.set(fr.dx, kick + carcassH / 2 + fr.dy, d + 0.4);
+      g.add(fg);
+    }
+
+    // lazy-susan corner cabinet: door flush on the 45° chamfer face
+    if (cat.front === 'corner') {
+      const c = cornerChamfer(d, legRet);
+      const span = c * Math.SQRT2 - GAP * 2; // door width along the diagonal
+      const door = doorFace(span, fh, style, mats);
+      door.rotation.y = cornerSide * (Math.PI / 4); // face the room corner
+      const nrm = 0.4;
+      // midpoint of the chamfer face, nudged outward along its (±x, +z) normal
+      door.position.set(cornerSide * (w / 2 - c / 2) + cornerSide * nrm * 0.707, kick + carcassH / 2, d - c / 2 + nrm * 0.707);
+      const len = Math.min(7, fh * 0.45);
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
+      bar.castShadow = true;
+      bar.position.set(cornerSide * (-span / 2 + 1.7), fh / 2 - len / 2 - 1.4, 1.1);
+      door.add(bar);
+      g.add(door);
+    }
+
+    // L-shaped lazy susan: two doors meeting at the notch corner (bi-fold look)
+    if (cat.front === 'susan') {
+      const legD = legRet;
+      const midH = kick + carcassH / 2;
+      const len = Math.min(7, fh * 0.45);
+      const addBar = (door: THREE.Object3D, localX: number) => {
+        const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
+        bar.castShadow = true;
+        bar.position.set(localX, fh / 2 - len / 2 - 1.4, 1.1);
+        door.add(bar);
+      };
+      // A bi-fold susan has ONE pull on its lead door; the other door follows.
+      // The handle sits opposite the hinge side (hinge left → handle on the
+      // right-hand door), and always on that door's outer edge (away from notch).
+      const handleOnLegA = hinge === 'right';
+      // door 1 — leg-A inner front, faces +z
+      const doorW1 = Math.max(8, w - legD);
+      const d1 = doorFace(doorW1 - GAP, fh, style, mats);
+      d1.position.set(cornerSide * (legD / 2), midH, legD + 0.4);
+      if (handleOnLegA) addBar(d1, cornerSide * (doorW1 / 2 - 1.7));
+      g.add(d1);
+      // door 2 — notch inner face, faces ±x
+      const doorW2 = Math.max(8, d - legD);
+      const d2 = doorFace(doorW2 - GAP, fh, style, mats);
+      d2.rotation.y = cornerSide * (Math.PI / 2);
+      d2.position.set(cornerSide * (legD - w / 2) + cornerSide * 0.4, midH, (legD + d) / 2);
+      if (!handleOnLegA) addBar(d2, cornerSide * (-doorW2 / 2 + 1.7));
+      g.add(d2);
+    }
+  }
+
+  // applied end panels — finished door-style panel on exposed run ends
+  if (!isAppliance) {
+    const addPanel = (faceW: number, px: number, pz: number, rotY: number) => {
+      const pg = new THREE.Group();
+      pg.add(box(faceW, carcassH, END_PANEL_T, mats.panel));
+      if (style === 'shaker' && carcassH >= 8 && faceW >= 8) {
+        pg.add(grooveRing(faceW, carcassH, END_PANEL_T / 2, mats));
+      }
+      pg.rotation.y = rotY; // local +z (panel face) rotated to point outward
+      pg.position.set(px, kick + carcassH / 2, pz);
+      g.add(pg);
+    };
+    if (cat.front === 'susan') {
+      // L-shape: each end caps the exposed TIP of a leg, not the full side (one
+      // side is only the leg depth, the other sits against the wall).
+      const legD = legRet;
+      const legAtipLeft = cornerSide === -1; // own-wall leg tip is left vs right
+      // own-wall leg tip — left/right end of the run, like a normal cabinet
+      if (legAtipLeft ? endL : endR) {
+        const sx = legAtipLeft ? -1 : 1;
+        addPanel(legD, sx * (w / 2 + END_PANEL_T / 2), legD / 2, sx * (Math.PI / 2));
+      }
+      // perpendicular (deep) leg tip — faces forward along the adjoining wall
+      if (legAtipLeft ? endR : endL) {
+        const cx = cornerSide === -1 ? w / 2 - legD / 2 : -w / 2 + legD / 2;
+        addPanel(legD, cx, d + END_PANEL_T / 2, 0);
+      }
+    } else {
+      for (const side of [-1, 1] as const) {
+        if ((side === -1 && !endL) || (side === 1 && !endR)) continue;
+        addPanel(d, side * (w / 2 + END_PANEL_T / 2), d / 2, side * (Math.PI / 2));
+      }
+    }
+  }
+
+  // applied back panel(s) for islands — finished back, split into ≤48" panels
+  if (!isAppliance && backPanel) {
+    const n = Math.max(1, Math.ceil(w / MAX_PANEL_W));
+    const panelW = (w - GAP * (n - 1)) / n;
+    for (let i = 0; i < n; i++) {
+      const pg = new THREE.Group();
+      pg.add(box(panelW, carcassH, END_PANEL_T, mats.panel));
+      if (style === 'shaker' && carcassH >= 8 && panelW >= 8) {
+        pg.add(grooveRing(panelW, carcassH, END_PANEL_T / 2, mats));
+      }
+      pg.rotation.y = Math.PI; // groove face points out the back (-z)
+      pg.position.set(-w / 2 + panelW / 2 + i * (panelW + GAP), kick + carcassH / 2, -END_PANEL_T / 2);
+      g.add(pg);
+    }
+  }
+
+  // stainless fridge — proud door/drawer fronts, tubular handles, bottom vent grille
+  if (steelFridge) {
+    const ffw = w - REVEAL * 2;
+    const yB = kick + REVEAL;
+    const yT = kick + carcassH - REVEAL;
+    const grilleH = 2.4;
+    const areaB = yB + grilleH + GAP; // bottom of the door/drawer area
+    const tubeHandle = (len: number, vertical: boolean) => {
+      const grp = new THREE.Group();
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, len, 14), mats.steel);
+      if (!vertical) bar.rotation.z = Math.PI / 2;
+      bar.position.z = 1.5;
+      bar.castShadow = true;
+      grp.add(bar);
+      for (const t of [-1, 1] as const) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.3, 8), mats.steel);
+        post.rotation.x = Math.PI / 2;
+        if (vertical) post.position.set(0, t * (len / 2 - 1), 0.85);
+        else post.position.set(t * (len / 2 - 1), 0, 0.85);
+        grp.add(post);
+      }
+      return grp;
+    };
+    const addFront = (yc: number, ph: number, orient: 'v' | 'h', hSide: 1 | -1) => {
+      const panel = box(ffw, ph, 0.9, mats.steel); // sits proud with a thin reveal around it
+      panel.castShadow = true;
+      panel.position.set(0, yc, d + 0.45);
+      if (orient === 'v') {
+        const hd = tubeHandle(ph * 0.7, true);
+        hd.position.set(hSide * (ffw / 2 - 1.8), 0, 0.45);
+        panel.add(hd);
+      } else {
+        const hd = tubeHandle(Math.min(ffw * 0.5, 12), false);
+        hd.position.set(0, ph / 2 - 1.6, 0.45);
+        panel.add(hd);
+      }
+      g.add(panel);
+    };
+    if (fridgeDrawers) {
+      const rh = (yT - areaB - GAP) / 2;
+      addFront(yT - rh / 2, rh, 'h', 1);
+      addFront(areaB + rh / 2, rh, 'h', 1);
+    } else {
+      // handle opposite the hinge
+      addFront((yT + areaB) / 2, yT - areaB, 'v', hinge === 'left' ? 1 : -1);
+    }
+    // bottom vent grille (dark recess with stainless slats)
+    const grille = box(ffw, grilleH, 0.5, mats.dark);
+    grille.position.set(0, yB + grilleH / 2, d + 0.4);
+    g.add(grille);
+    for (let i = 0; i < 4; i++) {
+      const slat = box(ffw - 1.5, 0.16, 0.3, mats.steel);
+      slat.position.set(0, yB + 0.5 + i * 0.5, d + 0.68);
+      g.add(slat);
+    }
+  }
+
+  // above-counter appliance gear
+  const counterTop = BASE_H + COUNTER_T;
+  const addKnobs = (cx: number, y: number, z: number, n: number) => {
+    const gap = 4.5;
+    const start = cx - ((n - 1) * gap) / 2;
+    for (let i = 0; i < n; i++) {
+      const x = start + i * gap;
+      // steel bezel + dark knob + pointer mark
+      const bezel = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.5, 16), mats.steel);
+      bezel.rotation.x = Math.PI / 2;
+      bezel.position.set(x, y, z + 0.25);
+      const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.05, 1, 14), mats.dark);
+      knob.rotation.x = Math.PI / 2;
+      knob.position.set(x, y, z + 0.85);
+      const mark = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.8, 0.2), mats.steel);
+      mark.position.set(x, y + 0.35, z + 1.3);
+      bezel.castShadow = knob.castShadow = true;
+      g.add(bezel, knob, mark);
+    }
+  };
+  const addHoodHandle = (width: number, y: number, z: number) => {
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, width, 10), mats.steel);
+    bar.rotation.z = Math.PI / 2;
+    bar.position.set(0, y, z);
+    bar.castShadow = true;
+    g.add(bar);
+    for (const side of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 2.4, 8), mats.steel);
+      post.rotation.x = Math.PI / 2;
+      post.position.set((side * width) / 2.4, y, z - 1.2);
+      g.add(post);
+    }
+  };
+  if ((cat.front === 'grill' || cat.front === 'grill4') && !isAppliance) {
+    // Built-in grill set into the cabinet: recessed stainless control face
+    // framed by the cabinet, roll-top hood resting on the body above.
+    const gw = applianceFaceW(w);
+    const applH = 9;
+    const faceY = kick + carcassH - REVEAL - applH / 2;
+    const face = box(gw, applH, 1.5, mats.steel);
+    face.position.set(0, faceY, d - 0.2);
+    g.add(face);
+    addKnobs(0, faceY - 1, d + 0.55, Math.max(3, Math.min(5, Math.round(gw / 8))));
+    // grill body lip just above the cabinet top
+    const lip = box(gw, 1.8, d - 3, mats.steel);
+    lip.position.set(0, h + 0.9, d / 2);
+    g.add(lip);
+    // roll-top hood
+    const hoodH = 8.5;
+    const hoodD = d - 6;
+    const hoodFrontZ = d - 2;
+    const hood = grillHood(gw - 0.5, hoodD, hoodH, mats.steel);
+    hood.position.set(0, h + 1.8, hoodFrontZ);
+    g.add(hood);
+    // thermometer on the hood face
+    const thermoBezel = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.7, 18), mats.steel);
+    thermoBezel.rotation.x = Math.PI / 2;
+    thermoBezel.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.2);
+    const thermoFace = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.05, 1.05, 0.75, 18),
+      new THREE.MeshStandardMaterial({ color: 0xf4f5f2, roughness: 0.35 })
+    );
+    thermoFace.rotation.x = Math.PI / 2;
+    thermoFace.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.25);
+    g.add(thermoBezel, thermoFace);
+    // handle across the hood front
+    addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.28, hoodFrontZ + 1.7);
+  } else if (cat.front === 'griddle' && !isAppliance) {
+    const gw = applianceFaceW(w);
+    const applH = 7;
+    const faceY = kick + carcassH - REVEAL - applH / 2;
+    const face = box(gw, applH, 1.5, mats.steel);
+    face.position.set(0, faceY, d - 0.2);
+    g.add(face);
+    addKnobs(0, faceY - 1, d + 0.55, 3);
+    const lip = box(gw, 1.4, d - 4, mats.steel);
+    lip.position.set(0, h + 0.7, d / 2);
+    g.add(lip);
+    const lid = grillHood(gw - 0.5, d - 7, 3.4, mats.steel);
+    lid.position.set(0, h + 1.4, d - 2.5);
+    g.add(lid);
+    addHoodHandle(Math.min(16, gw - 8), h + 2.6, d - 2.5 + 1.5);
+  } else if (cat.front === 'burner' && !isAppliance) {
+    // Drop-in side/power burner: recessed control face, lip and rounded lid.
+    const gw = applianceFaceW(w);
+    const applH = 7;
+    const faceY = kick + carcassH - REVEAL - applH / 2;
+    const face = box(gw, applH, 1.5, mats.steel);
+    face.position.set(0, faceY, d - 0.2);
+    g.add(face);
+    addKnobs(0, faceY - 1, d + 0.55, Math.max(1, Math.min(2, Math.round(gw / 10))));
+    const lip = box(gw, 1.4, d - 4, mats.steel);
+    lip.position.set(0, h + 0.7, d / 2);
+    g.add(lip);
+    const lid = grillHood(gw - 0.5, d - 7, 3, mats.steel);
+    lid.position.set(0, h + 1.4, d - 2.5);
+    g.add(lid);
+    addHoodHandle(Math.min(12, gw - 5), h + 2.5, d - 2.5 + 1.4);
+  } else if (cat.front === 'kamado' && !isAppliance) {
+    const r = Math.min(w / 2 - 4, 12);
+    const egg = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), mats.egg);
+    egg.scale.y = 1.15;
+    egg.castShadow = true;
+    egg.position.set(0, counterTop + r * 0.7, d / 2);
+    g.add(egg);
+  } else if (isSinkFront(cat.front)) {
+    // dropped-in stainless basin (the counter is cut out over it in scene3d)
+    const { bw, bd, zc, bowlH } = sinkBasin(w, d);
+    const stl = mats.steel;
+    const T = 0.4;
+    const botY = counterTop - bowlH;
+    const midY = counterTop - bowlH / 2;
+    const addB = (bw2: number, bh2: number, bd2: number, x: number, y: number, z: number) => {
+      const m = box(bw2, bh2, bd2, stl);
+      m.position.set(x, y, z);
+      m.castShadow = m.receiveShadow = true;
+      g.add(m);
+    };
+    addB(bw, T, bd, 0, botY, zc); // bottom
+    addB(bw, bowlH, T, 0, midY, zc - bd / 2 + T / 2); // back wall
+    addB(bw, bowlH, T, 0, midY, zc + bd / 2 - T / 2); // front wall
+    addB(T, bowlH, bd, -bw / 2 + T / 2, midY, zc); // left wall
+    addB(T, bowlH, bd, bw / 2 - T / 2, midY, zc); // right wall
+    // thin rim around the opening to finish the cut edge
+    addB(bw + 0.8, 0.25, T, 0, counterTop + 0.1, zc - bd / 2 - 0.2);
+    addB(bw + 0.8, 0.25, T, 0, counterTop + 0.1, zc + bd / 2 + 0.2);
+    addB(T, 0.25, bd + 1.2, -bw / 2 - 0.2, counterTop + 0.1, zc);
+    addB(T, 0.25, bd + 1.2, bw / 2 + 0.2, counterTop + 0.1, zc);
+    // drain
+    const drain = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.2, 14), mats.dark);
+    drain.position.set(0, botY + 0.25, zc);
+    g.add(drain);
+    // gooseneck faucet behind the basin
+    const zF = Math.max(2.2, zc - bd / 2 - 1.6);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.15, 1.0, 16), stl);
+    base.position.set(0, counterTop + 0.5, zF);
+    base.castShadow = true;
+    g.add(base);
+    const riserH = 6;
+    const riser = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, riserH, 14), stl);
+    riser.position.set(0, counterTop + 1 + riserH / 2, zF);
+    riser.castShadow = true;
+    g.add(riser);
+    const topY = counterTop + 1 + riserH;
+    const R = 2.4;
+    const neck = new THREE.Mesh(new THREE.TorusGeometry(R, 0.42, 12, 20, Math.PI), stl);
+    neck.rotation.y = Math.PI / 2; // arc into the Y-Z plane (up and forward)
+    neck.position.set(0, topY, zF + R);
+    neck.castShadow = true;
+    g.add(neck);
+    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.28, 1.6, 12), stl);
+    tip.position.set(0, topY - 0.7, zF + 2 * R);
+    g.add(tip);
+    // lever handle on the base
+    const lever = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 3, 10), stl);
+    lever.rotation.z = Math.PI / 2.4;
+    lever.position.set(1.5, counterTop + 2, zF);
+    lever.castShadow = true;
+    g.add(lever);
+  }
+
+  // standalone appliances
+  if (isAppliance) {
+    if (cat.front === 'kamado') {
+      const r = Math.min(w / 2 - 3, 14);
+      const egg = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), mats.egg);
+      egg.scale.y = 1.15;
+      egg.castShadow = true;
+      egg.position.set(0, h - 14 - r * 0.2, d / 2);
+      g.add(egg);
+    } else if (cat.front === 'pizza') {
+      const r = Math.min(w / 2 - 2, 16);
+      const dome = new THREE.Mesh(
+        new THREE.SphereGeometry(r, 24, 18, 0, Math.PI * 2, 0, Math.PI / 2),
+        new THREE.MeshStandardMaterial({ color: 0xb8643c, roughness: 0.6 })
+      );
+      dome.castShadow = true;
+      dome.position.set(0, h * 0.55, d / 2);
+      g.add(dome);
+    } else if (cat.front === 'cartgrill') {
+      const hood = box(w * 0.62, 9, d - 4, mats.steel);
+      hood.position.set(0, h - 4.5, d / 2);
+      g.add(hood);
+    }
+  }
+
+  return g;
+}

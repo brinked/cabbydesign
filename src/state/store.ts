@@ -1,0 +1,631 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { Design, DimOverride, LayoutKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
+import { CATALOG, DEFAULT_RATES, TOEKICK_H, catalogById } from '../model/catalog';
+import { tryFormula } from '../model/pricing';
+import { cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
+
+/** Applied panels (ends + island backs) bill at this rate per square foot. */
+export const PANEL_RATE_PER_SQFT = 36;
+
+/** Catalog ids that were renamed/removed — remap (or drop) on load. */
+const CATALOG_MIGRATE: Record<string, string> = { 'base-doordrawer': 'base-1door1drawer', 'base-blind': 'base-blindr' };
+const VALID_IDS = new Set(CATALOG.map((c) => c.id));
+
+/** Effective allowed size range for a cabinet, with user Settings overrides. */
+export function effectiveDims(
+  catId: string,
+  dims: Record<string, DimOverride>
+): { minW: number; maxW: number; minD: number; maxD: number } {
+  const cat = catalogById(catId);
+  const o = dims[catId] ?? {};
+  return {
+    minW: o.minW ?? cat.minW,
+    maxW: o.maxW ?? cat.maxW,
+    minD: o.minD ?? cat.minD ?? 12,
+    maxD: o.maxD ?? cat.maxD ?? 36,
+  };
+}
+
+export type Tab = 'design' | 'plan' | '3d' | 'report';
+
+let counter = 0;
+export function uid(prefix: string): string {
+  counter = (counter + 1) % 1e6;
+  return `${prefix}-${Date.now().toString(36)}-${counter}`;
+}
+
+function defaultDesign(): Design {
+  return {
+    name: 'My Outdoor Kitchen',
+    client: '',
+    layout: 'linear',
+    finishId: 'indigo',
+    doorStyle: 'shaker',
+    walls: [{ id: uid('wall'), name: 'Front Wall', length: 110, height: 96, x: 0, y: 0, angle: 0, thickness: 5, ghost: false }],
+    items: [],
+    roughIns: [],
+  };
+}
+
+/** Default size of a freshly added rough-in (inches). */
+const ROUGHIN_DEFAULTS: Record<RoughInKind, { w: number; h: number; y: number }> = {
+  plumbing: { w: 10, h: 8, y: 12 },
+  electrical: { w: 4.5, h: 4.5, y: 24 },
+};
+
+/**
+ * A stub-out must sit directly behind a single cabinet (you can't drill a hole
+ * in the open gap between two cabinets). True when its full width is NOT
+ * contained within one cabinet's footprint on the same wall.
+ */
+export function roughInConflict(design: Design, r: RoughIn): boolean {
+  const x1 = r.x - r.w / 2;
+  const x2 = r.x + r.w / 2;
+  const behind = design.items.some((it) => {
+    if (it.wallId !== r.wallId) return false;
+    if (catalogById(it.catalogId).front === 'filler') return false; // can't host a stub
+    const fpw = footprintW(it);
+    return it.x - 0.01 <= x1 && it.x + fpw + 0.01 >= x2;
+  });
+  return !behind;
+}
+
+/** Renames from the pre-Starboard finish palette. */
+const FINISH_MIGRATE: Record<string, string> = { gray: 'slate', navy: 'indigo', teak: 'nutmeg' };
+
+/** Fill in fields added since older saves: wall placement, hinge, ends, door style. */
+export function normalizeDesign(raw: Design): Design {
+  const layout: LayoutKind = raw.layout ?? 'linear';
+  let walls = raw.walls ?? [];
+  if (walls.some((w) => typeof (w as Partial<Wall>).x !== 'number')) {
+    const placements = presetPlacements(layout, walls);
+    walls = walls.map((w, i) => ({ ...w, ...placements[i] }));
+  }
+  walls = walls.map((w) => ({ ...w, thickness: w.thickness ?? 5, ghost: w.ghost ?? false }));
+  const items = (raw.items ?? [])
+    .map((it) => ({ ...it, catalogId: CATALOG_MIGRATE[it.catalogId] ?? it.catalogId }))
+    .filter((it) => VALID_IDS.has(it.catalogId))
+    .map((it) => ({
+      ...it,
+      hinge: it.hinge ?? 'left',
+      endL: it.endL ?? false,
+      endR: it.endR ?? false,
+      trays: it.trays ?? 0,
+    }));
+  const finishId = FINISH_MIGRATE[raw.finishId] ?? raw.finishId;
+  const wallIds = new Set(walls.map((w) => w.id));
+  const roughIns = (raw.roughIns ?? []).filter((r) => wallIds.has(r.wallId));
+  const result = { ...defaultDesign(), ...raw, finishId, doorStyle: raw.doorStyle ?? 'shaker', walls, items, roughIns };
+  alignFillers(result);
+  return result;
+}
+
+interface AppState {
+  design: Design;
+  tab: Tab;
+  selectedId: string | null;
+  editingId: string | null;
+  editingRoughInId: string | null;
+  addToWallId: string | null;
+  pricingOpen: boolean;
+  settingsOpen: boolean;
+  /** catalogId -> formula override */
+  pricing: Record<string, string>;
+  /** catalogId -> size-range override */
+  dims: Record<string, DimOverride>;
+  snapshot3d: string | null;
+
+  setTab: (tab: Tab) => void;
+  setSettingsOpen: (open: boolean) => void;
+  setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
+  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle'>>) => void;
+  applyPreset: (layout: LayoutKind) => void;
+  addWall: () => void;
+  addWallAt: (placement: { x: number; y: number; angle: number; length: number }) => void;
+  removeWall: (id: string) => void;
+  updateWall: (id: string, patch: Partial<Omit<Wall, 'id'>>) => void;
+  flipWall: (id: string) => void;
+  rotateWall: (id: string, deltaDeg: number) => void;
+  addItem: (wallId: string, catalogId: string) => boolean;
+  updateItem: (id: string, patch: Partial<Omit<PlacedItem, 'id' | 'catalogId'>>) => void;
+  removeItem: (id: string) => void;
+  duplicateItem: (id: string) => void;
+  moveItem: (id: string, x: number) => void;
+  reflowAll: () => void;
+  addRoughIn: (wallId: string, kind: RoughInKind) => void;
+  updateRoughIn: (id: string, patch: Partial<Omit<RoughIn, 'id' | 'wallId'>>) => void;
+  removeRoughIn: (id: string) => void;
+  openRoughIn: (id: string | null) => void;
+  select: (id: string | null) => void;
+  openEditor: (id: string | null) => void;
+  openAdd: (wallId: string | null) => void;
+  setPricingOpen: (open: boolean) => void;
+  setFormula: (catalogId: string, formula: string | null) => void;
+  setSnapshot: (dataUrl: string | null) => void;
+  newDesign: () => void;
+  loadDesign: (design: Design) => void;
+}
+
+/** Items in the same lane on a wall, sorted by x. */
+export function laneItems(items: PlacedItem[], wallId: string, lane: 'floor' | 'upper'): PlacedItem[] {
+  return items
+    .filter((it) => it.wallId === wallId && catalogById(it.catalogId).lane === lane)
+    .sort((a, b) => a.x - b.x);
+}
+
+const END_PANEL_T = 0.75;
+
+/** Overall width an item occupies on the wall: cabinet + applied end panels. */
+export function footprintW(it: PlacedItem): number {
+  return it.w + (it.endL ? END_PANEL_T : 0) + (it.endR ? END_PANEL_T : 0);
+}
+
+/** True when the item's wall is an island (back is exposed → back panels). */
+export function itemOnIsland(design: Design, it: PlacedItem): boolean {
+  return design.walls.find((w) => w.id === it.wallId)?.ghost ?? false;
+}
+
+export interface ItemPrice {
+  /** Box price from the formula (drawers/add-ons baked in) or filler per-inch. */
+  cabinet: number;
+  /** Pull-out tray cost. */
+  trays: number;
+  /** Applied end-panel cost (left/right). */
+  ends: number;
+  /** Applied back-panel cost (island only). */
+  back: number;
+  total: number;
+  error?: string;
+}
+
+const ZERO_PRICE: ItemPrice = { cabinet: 0, trays: 0, ends: 0, back: 0, total: 0 };
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Full line price: box formula (W×D+$500 with drawers & flat add-ons baked into
+ * the formula) + pull-out trays + applied panels. Fillers price per inch of
+ * width. End/back panels bill at PANEL_RATE_PER_SQFT with panel height
+ * excluding the 4" toe kick.
+ */
+export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string, string>): ItemPrice {
+  const cat = catalogById(it.catalogId);
+  if (cat.category === 'appliance') return ZERO_PRICE;
+  // fillers: priced per inch of width only
+  if (cat.perInch) {
+    const c = round2(cat.perInch * it.w);
+    return { ...ZERO_PRICE, cabinet: c, total: c };
+  }
+  const formula = pricing[cat.id] ?? cat.formula;
+  const { price, error } = tryFormula(formula, { W: it.w, D: it.d, H: it.h });
+  if (error) return { ...ZERO_PRICE, error };
+  const hasKick = cat.lane === 'floor';
+  const panelH = Math.max(0, it.h - (hasKick ? TOEKICK_H : 0));
+  const sqft = (wIn: number) => (wIn * panelH) / 144;
+  const trays = (it.trays ?? 0) * DEFAULT_RATES.tray;
+  const nEnds = (it.endL ? 1 : 0) + (it.endR ? 1 : 0);
+  const ends = nEnds * sqft(it.d) * PANEL_RATE_PER_SQFT;
+  const back = itemOnIsland(design, it) ? sqft(it.w) * PANEL_RATE_PER_SQFT : 0;
+  const total = price + trays + ends + back;
+  return {
+    cabinet: round2(price),
+    trays: round2(trays),
+    ends: round2(ends),
+    back: round2(back),
+    total: round2(total),
+  };
+}
+
+/** Stable callout numbers: by wall order, then lane (floor first), then x. */
+export function itemNumbers(design: Design): Map<string, number> {
+  const map = new Map<string, number>();
+  let n = 1;
+  for (const wall of design.walls) {
+    for (const lane of ['floor', 'upper'] as const) {
+      for (const it of laneItems(design.items, wall.id, lane)) {
+        map.set(it.id, n++);
+      }
+    }
+  }
+  return map;
+}
+
+export function reservesFor(design: Design): Map<string, { start: number; end: number }> {
+  return cornerReserves(design.walls, design.items, catalogById);
+}
+
+export function spaceLeft(design: Design, wallId: string, lane: 'floor' | 'upper'): number {
+  const wall = design.walls.find((w) => w.id === wallId);
+  if (!wall) return 0;
+  const r = lane === 'floor' ? reservesFor(design).get(wallId) ?? { start: 0, end: 0 } : { start: 0, end: 0 };
+  const used = laneItems(design.items, wallId, lane).reduce((s, it) => s + footprintW(it), 0);
+  return wall.length - r.start - r.end - used;
+}
+
+/**
+ * Largest contiguous opening (and its left edge) where a new cabinet could be
+ * placed on a lane — accounting for corner reserves and any cabinets already
+ * occupying space (including corner cabinets pinned to a wall end). This is the
+ * width that actually matters for adding a cabinet, vs spaceLeft's running
+ * total which can be split across gaps.
+ */
+export function largestOpening(design: Design, wallId: string, lane: 'floor' | 'upper'): { x: number; w: number } {
+  const wall = design.walls.find((w) => w.id === wallId);
+  if (!wall) return { x: 0, w: 0 };
+  const r = lane === 'floor' ? reservesFor(design).get(wallId) ?? { start: 0, end: 0 } : { start: 0, end: 0 };
+  const lo = r.start;
+  const hi = wall.length - r.end;
+  const occ = laneItems(design.items, wallId, lane)
+    .map((it) => [it.x, it.x + footprintW(it)] as [number, number])
+    .sort((a, b) => a[0] - b[0]);
+  let best = { x: lo, w: 0 };
+  let cur = lo;
+  const consider = (a: number, b: number) => {
+    const wdt = b - a;
+    if (wdt > best.w) best = { x: a, w: wdt };
+  };
+  for (const [a, b] of occ) {
+    if (a > cur) consider(cur, Math.min(a, hi));
+    cur = Math.max(cur, b);
+    if (cur >= hi) break;
+  }
+  if (cur < hi) consider(cur, hi);
+  return best;
+}
+
+/** Where (and how wide) a given catalog item can be added on a wall lane. */
+export function openingFor(design: Design, wallId: string, cat: { front: string; lane: 'floor' | 'upper' }): { x: number; w: number } {
+  // corner/blind cabinets drop into a reserved dead-corner zone (start or end)
+  if (cat.front === 'corner' || cat.front === 'susan' || cat.front === 'blind') {
+    const wall = design.walls.find((w) => w.id === wallId);
+    if (!wall) return { x: 0, w: 0 };
+    const r = reservesFor(design).get(wallId) ?? { start: 0, end: 0 };
+    const lane = laneItems(design.items, wallId, cat.lane);
+    const cornerAt = (atStart: boolean) =>
+      lane.some((it) => {
+        if (!isCornerFront(catalogById(it.catalogId))) return false;
+        return atStart ? it.x <= 2 : it.x + footprintW(it) >= wall.length - 2;
+      });
+    // prefer an open reserved corner; the cabinet is exempt so it may fill it
+    if (r.start > 0 && !cornerAt(true)) return { x: 0, w: wall.length };
+    if (r.end > 0 && !cornerAt(false)) return { x: wall.length, w: wall.length };
+    // no free corner zone → append at the trailing end
+    const cursor = lane.reduce((m, it) => Math.max(m, it.x + footprintW(it)), 0);
+    return { x: cursor, w: wall.length - cursor };
+  }
+  return largestOpening(design, wallId, cat.lane);
+}
+
+/**
+ * Re-pack a lane: sort by center, then sweep so nothing overlaps, everything
+ * stays on the wall, and non-corner cabinets stay out of reserved corner
+ * zones. Order is preserved from x.
+ */
+function packLane(items: PlacedItem[], wallLength: number, lo: number, hi: number): void {
+  const sorted = [...items].sort((a, b) => a.x + footprintW(a) / 2 - (b.x + footprintW(b) / 2));
+  const exempt = (it: PlacedItem) => isReserveExempt(catalogById(it.catalogId));
+  // Left-to-right sweep
+  let cursor = 0;
+  for (const it of sorted) {
+    const itemLo = exempt(it) ? 0 : lo;
+    it.x = Math.max(it.x, itemLo, cursor);
+    cursor = it.x + footprintW(it);
+  }
+  // Right-to-left sweep: pull back inside the wall / reserve bounds
+  let limit = Infinity;
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const it = sorted[i];
+    const itemHi = exempt(it) ? wallLength : hi;
+    it.x = Math.max(0, Math.min(it.x, itemHi - footprintW(it), limit - footprintW(it)));
+    limit = it.x;
+  }
+}
+
+/** Re-pack every wall (corner reserves depend on neighbouring walls, so pack globally). */
+function packAll(design: Design): void {
+  const reserves = cornerReserves(design.walls, design.items, catalogById);
+  for (const wall of design.walls) {
+    const r = reserves.get(wall.id) ?? { start: 0, end: 0 };
+    packLane(laneItems(design.items, wall.id, 'floor'), wall.length, r.start, wall.length - r.end);
+    packLane(laneItems(design.items, wall.id, 'upper'), wall.length, 0, wall.length);
+  }
+}
+
+/**
+ * Fillers are shallow; pull each forward so its front face lines up flush with
+ * the adjacent cabinet (outset = neighbour front depth − filler depth).
+ */
+function alignFillers(design: Design): void {
+  for (const wall of design.walls) {
+    for (const lane of ['floor', 'upper'] as const) {
+      const items = laneItems(design.items, wall.id, lane);
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (catalogById(it.catalogId).front !== 'filler') continue;
+        let front = 0;
+        for (const nb of [items[i - 1], items[i + 1]]) {
+          if (!nb) continue;
+          if (catalogById(nb.catalogId).front === 'filler') continue;
+          front = Math.max(front, nb.outset + nb.d);
+        }
+        if (front === 0) front = lane === 'floor' ? 24 : 12; // standalone fallback
+        it.outset = Math.max(0, Math.round((front - it.d) * 100) / 100);
+      }
+    }
+  }
+}
+
+function withPack(design: Design): Design {
+  const next = { ...design, items: design.items.map((it) => ({ ...it })) };
+  packAll(next);
+  alignFillers(next);
+  return next;
+}
+
+export const useStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      design: defaultDesign(),
+      tab: 'design',
+      selectedId: null,
+      editingId: null,
+      editingRoughInId: null,
+      addToWallId: null,
+      pricingOpen: false,
+      settingsOpen: false,
+      pricing: {},
+      dims: {},
+      snapshot3d: null,
+
+      setTab: (tab) => set({ tab }),
+      setSettingsOpen: (open) => set({ settingsOpen: open }),
+      setDim: (catalogId, patch) =>
+        set((s) => {
+          const cur = s.dims[catalogId] ?? {};
+          const next: DimOverride = { ...cur, ...patch };
+          // drop keys that match the catalog default / are blank
+          for (const k of Object.keys(next) as (keyof DimOverride)[]) {
+            if (next[k] === undefined || Number.isNaN(next[k] as number)) delete next[k];
+          }
+          const dims = { ...s.dims };
+          if (Object.keys(next).length === 0) delete dims[catalogId];
+          else dims[catalogId] = next;
+          return { dims };
+        }),
+      setDesignMeta: (patch) => set((s) => ({ design: { ...s.design, ...patch } })),
+
+      applyPreset: (layout) =>
+        set((s) => {
+          const placements = presetPlacements(layout, s.design.walls);
+          const walls = s.design.walls.map((w, i) => ({ ...w, ...placements[i] }));
+          return { design: withPack({ ...s.design, walls, layout }) };
+        }),
+
+      addWall: () =>
+        set((s) => {
+          const n = s.design.walls.length + 1;
+          const names = ['Front Wall', 'Left Wall', 'Right Wall', 'Back Wall'];
+          let y = 0;
+          for (const w of s.design.walls) {
+            const { p0, p1 } = wallEndpoints(w);
+            y = Math.max(y, p0.y, p1.y);
+          }
+          const wall: Wall = {
+            id: uid('wall'),
+            name: names[n - 1] ?? `Wall ${n}`,
+            length: 96,
+            height: s.design.walls[0]?.height ?? 96,
+            x: 0,
+            y: y + 130,
+            angle: 0,
+            thickness: 5,
+            ghost: false,
+          };
+          return { design: { ...s.design, walls: [...s.design.walls, wall] } };
+        }),
+
+      addWallAt: ({ x, y, angle, length }) =>
+        set((s) => {
+          let wall: Wall = {
+            id: uid('wall'),
+            name: `Wall ${s.design.walls.length + 1}`,
+            length: Math.round(length),
+            height: s.design.walls[0]?.height ?? 96,
+            x: Math.round(x * 4) / 4,
+            y: Math.round(y * 4) / 4,
+            angle: Math.round(angle),
+            thickness: 5,
+            ghost: false,
+          };
+          // Orient the new wall so any corner it forms closes properly.
+          for (const other of s.design.walls) {
+            if (cornerNeedsFlip(wall, other)) {
+              const { p1 } = wallEndpoints(wall);
+              wall = { ...wall, x: Math.round(p1.x * 4) / 4, y: Math.round(p1.y * 4) / 4, angle: (wall.angle + 180) % 360 };
+              break;
+            }
+          }
+          return { design: { ...s.design, walls: [...s.design.walls, wall] } };
+        }),
+
+      removeWall: (id) =>
+        set((s) => {
+          const walls = s.design.walls.filter((w) => w.id !== id);
+          const items = s.design.items.filter((it) => it.wallId !== id);
+          return { design: withPack({ ...s.design, walls, items }) };
+        }),
+
+      updateWall: (id, patch) =>
+        set((s) => {
+          const walls = s.design.walls.map((w) => {
+            if (w.id !== id) return w;
+            const next = { ...w, ...patch };
+            // thickness 0 ⟹ island; un-islanding restores a default thickness
+            if (patch.thickness !== undefined && patch.thickness <= 0) next.ghost = true;
+            if (patch.ghost === false && (next.thickness ?? 0) <= 0) next.thickness = 5;
+            if (patch.ghost === true) next.thickness = 0;
+            return next;
+          });
+          return { design: withPack({ ...s.design, walls }) };
+        }),
+
+      rotateWall: (id, deltaDeg) =>
+        set((s) => {
+          const wall = s.design.walls.find((w) => w.id === id);
+          if (!wall) return s;
+          // rotate about the wall's center so it pivots in place
+          const rad0 = (wall.angle * Math.PI) / 180;
+          const cx = wall.x + (Math.cos(rad0) * wall.length) / 2;
+          const cy = wall.y + (Math.sin(rad0) * wall.length) / 2;
+          const angle = ((wall.angle + deltaDeg) % 360 + 360) % 360;
+          const rad = (angle * Math.PI) / 180;
+          const nx = cx - (Math.cos(rad) * wall.length) / 2;
+          const ny = cy - (Math.sin(rad) * wall.length) / 2;
+          const walls = s.design.walls.map((w) =>
+            w.id === id ? { ...w, x: Math.round(nx * 4) / 4, y: Math.round(ny * 4) / 4, angle } : w
+          );
+          return { design: withPack({ ...s.design, walls }) };
+        }),
+
+      flipWall: (id) =>
+        set((s) => {
+          const wall = s.design.walls.find((w) => w.id === id);
+          if (!wall) return s;
+          const { p1 } = wallEndpoints(wall);
+          const walls = s.design.walls.map((w) =>
+            w.id === id
+              ? { ...w, x: Math.round(p1.x * 4) / 4, y: Math.round(p1.y * 4) / 4, angle: (w.angle + 180) % 360 }
+              : w
+          );
+          // Mirror item positions so cabinets stay at the same physical spot.
+          const items = s.design.items.map((it) =>
+            it.wallId === id ? { ...it, x: wall.length - it.x - it.w } : it
+          );
+          return { design: withPack({ ...s.design, walls, items }) };
+        }),
+
+      addItem: (wallId, catalogId) => {
+        const s = get();
+        const cat = catalogById(catalogId);
+        const wall = s.design.walls.find((w) => w.id === wallId);
+        if (!wall) return false;
+        const { minW } = effectiveDims(catalogId, s.dims);
+        // find the largest opening (handles gaps next to pinned corner cabinets)
+        const slot = openingFor(s.design, wallId, cat);
+        if (slot.w < minW - 0.001) return false;
+        // use the default width, or shrink to the largest that fits (≥ min)
+        const w = Math.max(minW, Math.min(cat.w, Math.floor(slot.w * 4) / 4));
+        // corner cabinets at the wall's far end chamfer toward the other side
+        const isCornerCab = cat.front === 'corner' || cat.front === 'susan' || cat.front === 'blind';
+        const hinge: 'left' | 'right' = isCornerCab && slot.x > 1 ? 'right' : 'left';
+        const item: PlacedItem = {
+          id: uid('item'),
+          wallId,
+          catalogId,
+          x: slot.x,
+          w,
+          d: cat.d,
+          h: cat.h,
+          outset: 0,
+          mount: cat.mount ?? 0,
+          hinge,
+          endL: false,
+          endR: false,
+          trays: 0,
+        };
+        set({ design: withPack({ ...s.design, items: [...s.design.items, item] }), selectedId: item.id });
+        return true;
+      },
+
+      updateItem: (id, patch) =>
+        set((s) => {
+          const items = s.design.items.map((it) => (it.id === id ? { ...it, ...patch } : it));
+          return { design: withPack({ ...s.design, items }) };
+        }),
+
+      removeItem: (id) =>
+        set((s) => ({
+          design: withPack({ ...s.design, items: s.design.items.filter((it) => it.id !== id) }),
+          selectedId: s.selectedId === id ? null : s.selectedId,
+          editingId: s.editingId === id ? null : s.editingId,
+        })),
+
+      duplicateItem: (id) => {
+        const s = get();
+        const src = s.design.items.find((it) => it.id === id);
+        if (!src) return;
+        const cat = catalogById(src.catalogId);
+        if (spaceLeft(s.design, src.wallId, cat.lane) < footprintW(src)) return;
+        const copy: PlacedItem = { ...src, id: uid('item'), x: src.x + footprintW(src) };
+        set({
+          design: withPack({ ...s.design, items: [...s.design.items, copy] }),
+          selectedId: copy.id,
+          editingId: null,
+        });
+      },
+
+      moveItem: (id, x) =>
+        set((s) => ({
+          design: {
+            ...s.design,
+            items: s.design.items.map((it) => (it.id === id ? { ...it, x } : it)),
+          },
+        })),
+
+      reflowAll: () => set((s) => ({ design: withPack(s.design) })),
+
+      addRoughIn: (wallId, kind) =>
+        set((s) => {
+          const wall = s.design.walls.find((w) => w.id === wallId);
+          const def = ROUGHIN_DEFAULTS[kind];
+          const r: RoughIn = { id: uid('rough'), wallId, kind, x: Math.round((wall?.length ?? 60) / 2), y: def.y, w: def.w, h: def.h };
+          return { design: { ...s.design, roughIns: [...s.design.roughIns, r] }, editingRoughInId: r.id };
+        }),
+      updateRoughIn: (id, patch) =>
+        set((s) => ({
+          design: { ...s.design, roughIns: s.design.roughIns.map((r) => (r.id === id ? { ...r, ...patch } : r)) },
+        })),
+      removeRoughIn: (id) =>
+        set((s) => ({
+          design: { ...s.design, roughIns: s.design.roughIns.filter((r) => r.id !== id) },
+          editingRoughInId: s.editingRoughInId === id ? null : s.editingRoughInId,
+        })),
+      openRoughIn: (id) => set({ editingRoughInId: id }),
+
+      select: (id) => set({ selectedId: id }),
+      openEditor: (id) => set({ editingId: id, selectedId: id }),
+      openAdd: (wallId) => set({ addToWallId: wallId }),
+      setPricingOpen: (open) => set({ pricingOpen: open }),
+      setFormula: (catalogId, formula) =>
+        set((s) => {
+          const pricing = { ...s.pricing };
+          if (formula === null) delete pricing[catalogId];
+          else pricing[catalogId] = formula;
+          return { pricing };
+        }),
+      setSnapshot: (dataUrl) => set({ snapshot3d: dataUrl }),
+      newDesign: () => set({ design: defaultDesign(), selectedId: null, editingId: null, editingRoughInId: null, snapshot3d: null }),
+      loadDesign: (design) =>
+        set({ design: normalizeDesign(design), selectedId: null, editingId: null, editingRoughInId: null, snapshot3d: null }),
+    }),
+    {
+      name: 'cabdesign-v1',
+      version: 2,
+      migrate: (state) => {
+        const s = state as { design?: Design } | undefined;
+        if (s?.design) return { ...s, design: normalizeDesign(s.design) };
+        return state;
+      },
+      partialize: (s) => ({ design: s.design, pricing: s.pricing, dims: s.dims }),
+      // after a same-version rehydrate (no migrate), backfill fields added since
+      // the save (e.g. roughIns) and re-pack so derived layout (corner reserves,
+      // filler auto-outset) reflects the loaded design.
+      onRehydrateStorage: () => (state) => {
+        if (state?.design) {
+          if (!Array.isArray(state.design.roughIns)) state.design.roughIns = [];
+          state.design = withPack(state.design);
+        }
+      },
+    }
+  )
+);

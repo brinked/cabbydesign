@@ -1,0 +1,94 @@
+// Auth/session state for the SPA. Separate from the designer store (useStore)
+// so login/admin concerns don't tangle with cabinet geometry. On login it pulls
+// the admin-controlled global cabinet dims + base pricing formulas into the
+// designer store so every dealer designs against the same catalog rules.
+import { create } from 'zustand';
+import { api, ApiError, type ApiUser, type DealerPrefs } from '../api/client';
+import { useStore } from './store';
+
+export type Screen = 'design' | 'admin' | 'jobs' | 'profile';
+
+interface SessionState {
+  status: 'loading' | 'authed' | 'anon';
+  user: ApiUser | null;
+  prefs: DealerPrefs | null;
+  screen: Screen;
+  /** id of the saved job currently loaded in the designer (for Save vs Save As). */
+  currentJobId: number | null;
+  currentJobName: string | null;
+  /** Save-job dialog visibility. */
+  saveJobOpen: boolean;
+
+  init: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  setScreen: (screen: Screen) => void;
+  setPrefs: (prefs: DealerPrefs) => Promise<void>;
+  setCurrentJob: (id: number | null, name: string | null) => void;
+  openSaveJob: (open: boolean) => void;
+  /** Re-pull admin globals (dims + pricing) into the designer store. */
+  refreshGlobals: () => Promise<void>;
+}
+
+async function pullGlobals() {
+  const [{ dims }, { pricing }] = await Promise.all([api.getCabinetDims(), api.getPricing()]);
+  // Push server-managed globals into the designer store. These override the
+  // per-browser values that store.ts persists in localStorage.
+  useStore.setState({ dims, pricing });
+}
+
+export const useSession = create<SessionState>()((set, get) => ({
+  status: 'loading',
+  user: null,
+  prefs: null,
+  screen: 'design',
+  currentJobId: null,
+  currentJobName: null,
+  saveJobOpen: false,
+
+  init: async () => {
+    try {
+      const { user, prefs } = await api.me();
+      if (user) {
+        await pullGlobals();
+        set({ status: 'authed', user, prefs: prefs ?? null });
+      } else {
+        set({ status: 'anon', user: null, prefs: null });
+      }
+    } catch {
+      set({ status: 'anon', user: null, prefs: null });
+    }
+  },
+
+  login: async (email, password) => {
+    const { user, prefs } = await api.login(email, password);
+    await pullGlobals();
+    set({ status: 'authed', user, prefs, screen: 'design' });
+  },
+
+  logout: async () => {
+    try {
+      await api.logout();
+    } catch {
+      /* ignore network errors on logout */
+    }
+    set({ status: 'anon', user: null, prefs: null, screen: 'design', currentJobId: null, currentJobName: null });
+  },
+
+  setScreen: (screen) => set({ screen }),
+
+  setPrefs: async (prefs) => {
+    const { prefs: saved } = await api.setPrefs(prefs);
+    set({ prefs: saved });
+  },
+
+  setCurrentJob: (id, name) => set({ currentJobId: id, currentJobName: name }),
+
+  openSaveJob: (open) => set({ saveJobOpen: open }),
+
+  refreshGlobals: async () => {
+    if (get().status === 'authed') await pullGlobals();
+  },
+}));
+
+export { ApiError };

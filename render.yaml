@@ -1,0 +1,33 @@
+# Render Blueprint. In the Render dashboard: New → Blueprint → pick this repo.
+# Render reads this file and provisions the service + disk below.
+#
+# Before the first deploy goes live, set ADMIN_EMAIL + ADMIN_PASSWORD in the
+# dashboard (they're marked sync:false = secrets). On boot the server ensures
+# that admin exists with that password so you can sign in. Remove them later.
+services:
+  - type: web
+    name: cabdesign
+    runtime: node
+    # A persistent disk requires a paid instance type (Starter or higher).
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run server
+    healthCheckPath: /api/health
+    # Seed dealers from importdealers.txt on each deploy (idempotent — existing
+    # accounts are skipped). Remove this line once you no longer need it.
+    preDeployCommand: npm run import-dealers
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true # Render generates and stores a strong secret once
+      - key: DB_PATH
+        value: /var/data/cabdesign.db
+      - key: ADMIN_EMAIL
+        sync: false # set in dashboard (e.g. extcabinets@gmail.com)
+      - key: ADMIN_PASSWORD
+        sync: false # set in dashboard (min 8 chars) for first sign-in
+    disk:
+      name: cabdesign-data
+      mountPath: /var/data
+      sizeGB: 1
