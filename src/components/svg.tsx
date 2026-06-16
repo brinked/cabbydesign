@@ -182,23 +182,67 @@ function Knobs({ cx, y, n }: { cx: number; y: number; n: number }) {
 }
 
 /** Stainless built-in grill head, drawn ABOVE the carcass (negative y). */
+/**
+ * Built-in gas grill head (Blaze-style): tall half-cylinder hood with a centered
+ * tube handle + temperature gauge, and a stainless control panel with a brand
+ * badge and evenly spaced control knobs. Fully parametric on width.
+ */
 function GrillHead({ w, counter }: { w: number; counter: boolean }) {
-  const gw = Math.max(20, w - 3);
+  const gw = Math.max(20, w - 2);
   const x = (w - gw) / 2;
   const base = counter ? -COUNTER_T : 0;
-  const bodyH = 8;
-  const hoodH = 12;
-  const by = base - bodyH;
-  const hoodPath = `M ${x} ${by} L ${x + 2.5} ${by - hoodH + 2} Q ${x + 2.5} ${by - hoodH} ${x + 5} ${by - hoodH} L ${x + gw - 5} ${by - hoodH} Q ${x + gw - 2.5} ${by - hoodH} ${x + gw - 2.5} ${by - hoodH + 2} L ${x + gw} ${by} Z`;
+  const panelH = 7; // control / knob panel
+  const hoodH = 12; // lid
+  const py = base - panelH; // seam: bottom of lid / top of control panel
+  const ht = py - hoodH; // top of the lid envelope
+  const cx = x + gw / 2;
+  const sideH = hoodH * 0.4; // straight portion before the lid arches over
+  const knobs = Math.max(3, Math.min(6, Math.round(gw / 8)));
+  const gaugeY = py - hoodH * 0.66;
+  const handleY = py - hoodH * 0.2;
+  // half-cylinder hood: straight sides arching smoothly across the top
+  const hood = `M ${x} ${py} L ${x} ${py - sideH} C ${x} ${ht} ${x + gw} ${ht} ${x + gw} ${py - sideH} L ${x + gw} ${py} Z`;
+  const badgeW = Math.min(6.5, gw * 0.2);
   return (
     <g>
-      <rect x={x} y={by} width={gw} height={bodyH} fill="url(#g-steel)" stroke={STEEL_LN} strokeWidth={0.25} />
-      <rect x={x} y={by} width={gw} height={bodyH} fill="url(#p-brush)" opacity={0.45} />
-      <Knobs cx={x + gw / 2} y={by + bodyH - 2.6} n={Math.max(3, Math.min(5, Math.round(gw / 9)))} />
-      <path d={hoodPath} fill="url(#g-steel)" stroke={STEEL_LN} strokeWidth={0.25} />
-      <path d={hoodPath} fill="url(#p-brush)" opacity={0.4} />
-      <rect x={x + 6} y={by - hoodH + 3.2} width={gw - 12} height={1.2} rx={0.6} fill="url(#g-steel-h)" stroke={STEEL_LN} strokeWidth={0.12} filter="url(#f-handle)" />
-      <line x1={x} y1={by} x2={x + gw} y2={by} stroke={STEEL_LN} strokeWidth={0.3} />
+      {/* ---- control panel ---- */}
+      <rect x={x} y={py} width={gw} height={panelH} rx={0.8} fill="url(#g-steel)" stroke={STEEL_LN} strokeWidth={0.25} />
+      <rect x={x} y={py} width={gw} height={panelH} fill="url(#p-brush)" opacity={0.32} />
+      <rect x={x} y={py} width={gw} height={panelH * 0.5} rx={0.8} fill="url(#g-sheen)" opacity={0.5} />
+      {/* brand badge on the left */}
+      <rect x={x + 1.6} y={py + panelH / 2 - 1.3} width={badgeW} height={2.6} rx={0.45} fill="#c0392b" />
+      <rect x={x + 1.6} y={py + panelH / 2 - 1.3} width={badgeW} height={1.2} rx={0.45} fill="#fff" opacity={0.22} />
+      {/* control knobs (grouped toward the right of the badge) */}
+      <Knobs cx={x + badgeW + 3.2 + (gw - badgeW - 4.6) / 2} y={py + panelH - 2.6} n={knobs} />
+
+      {/* ---- hood ---- */}
+      <path d={hood} fill="url(#g-steel)" stroke={STEEL_LN} strokeWidth={0.25} />
+      <path d={hood} fill="url(#p-brush)" opacity={0.28} />
+      {/* broad specular sweep following the cylinder */}
+      <path
+        d={`M ${x + 1.5} ${py - sideH * 0.5} C ${x + 1.5} ${ht + 1.2} ${x + gw - 1.5} ${ht + 1.2} ${x + gw - 1.5} ${py - sideH * 0.5}`}
+        fill="none"
+        stroke="#fff"
+        strokeWidth={0.6}
+        opacity={0.45}
+        strokeLinecap="round"
+      />
+      {/* darker reflection band low on the lid */}
+      <rect x={x} y={py - 2.4} width={gw} height={2.4} fill="url(#g-undercounter)" opacity={0.55} />
+      <line x1={x} y1={py} x2={x + gw} y2={py} stroke={STEEL_LN} strokeWidth={0.35} />
+
+      {/* temperature gauge, top-center */}
+      <circle cx={cx} cy={gaugeY} r={1.9} fill="#eef0f1" stroke={STEEL_DK} strokeWidth={0.35} />
+      <circle cx={cx} cy={gaugeY} r={1.9} fill="url(#g-sheen)" opacity={0.55} />
+      <line x1={cx} y1={gaugeY} x2={cx + 1.0} y2={gaugeY - 0.75} stroke="#1b1f23" strokeWidth={0.22} strokeLinecap="round" />
+      <circle cx={cx} cy={gaugeY} r={0.3} fill="#1b1f23" />
+
+      {/* tube handle, low on the hood front */}
+      <g filter="url(#f-handle)">
+        <line x1={cx - gw * 0.28} y1={handleY} x2={cx - gw * 0.28} y2={handleY - 1.4} stroke={STEEL_DK} strokeWidth={0.55} />
+        <line x1={cx + gw * 0.28} y1={handleY} x2={cx + gw * 0.28} y2={handleY - 1.4} stroke={STEEL_DK} strokeWidth={0.55} />
+        <rect x={cx - gw * 0.3} y={handleY - 0.2} width={gw * 0.6} height={1.5} rx={0.75} fill="url(#g-steel-h)" stroke={STEEL_LN} strokeWidth={0.12} />
+      </g>
     </g>
   );
 }
@@ -493,7 +537,8 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
       );
       break;
     case 'grill':
-      front = doors(2);
+    case 'grill4':
+      front = doors(cat.front === 'grill4' ? 4 : 2);
       gear = <GrillHead w={w} counter={cat.counter} />;
       break;
     case 'griddle':
