@@ -10,7 +10,9 @@ services:
     runtime: node
     # A persistent disk requires a paid instance type (Starter or higher).
     plan: starter
-    buildCommand: npm install && npm run build
+    # --include=dev forces devDependencies (vite, typescript, @types/*) which
+    # Render's production install would otherwise skip — they're needed to build.
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm run server
     healthCheckPath: /api/health
     # Seed dealers from importdealers.txt on each deploy (idempotent — existing
