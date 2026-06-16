@@ -7,3 +7,5 @@ smoke-*.png
 .netlify
 server/data
 .env
+tsconfig.tsbuildinfo
+.claude/settings.local.json
