@@ -12,6 +12,7 @@ export const APPLIANCE_CAT_LABELS: Record<ApplianceCat, string> = {
   powerburner: 'Power Burner',
   kamado: 'Kamado',
   fridge: 'Refrigeration',
+  icemaker: 'Ice Maker',
   liner: 'Insulated Liner',
 };
 
@@ -23,8 +24,12 @@ export const APPLIANCE_CATS: ApplianceCat[] = [
   'powerburner',
   'kamado',
   'fridge',
+  'icemaker',
   'liner',
 ];
+
+/** Categories whose models carry physical W×D×H dimensions (drive the gap). */
+export const SIZED_CATS: ApplianceCat[] = ['fridge', 'icemaker', 'liner'];
 
 /**
  * The dealer's discount off MSRP, as a fraction (0..1). The admin enters the
@@ -52,7 +57,9 @@ export interface AppliancePrice {
   applianceNet: number;
   linerMsrp: number;
   linerNet: number;
-  /** Sum at the requested price mode (MSRP for marked_up, net for cost). */
+  /** Panel-ready cabinet-matched door panel charge (flat; not discounted). */
+  panelCharge: number;
+  /** Sum at the requested price mode (MSRP for marked_up, net for cost), incl. panel. */
   total: number;
   /** Human label: "Brand Model" or the customer's free text. */
   label: string;
@@ -65,6 +72,7 @@ const EMPTY: AppliancePrice = {
   applianceNet: 0,
   linerMsrp: 0,
   linerNet: 0,
+  panelCharge: 0,
   total: 0,
   label: '',
   byCustomer: false,
@@ -95,8 +103,9 @@ export function appliancePrice(
   const applianceNet = netPrice(item.msrp, item.brand, brands);
   const linerMsrp = liner?.msrp ?? 0;
   const linerNet = liner ? netPrice(liner.msrp, liner.brand, brands) : 0;
+  const panelCharge = item.panelCharge && item.panelCharge > 0 ? round2(item.panelCharge) : 0;
   const useMsrp = mode === 'marked_up';
-  const total = round2((useMsrp ? applianceMsrp : applianceNet) + (useMsrp ? linerMsrp : linerNet));
+  const total = round2((useMsrp ? applianceMsrp : applianceNet) + (useMsrp ? linerMsrp : linerNet) + panelCharge);
 
   return {
     item,
@@ -105,6 +114,7 @@ export function appliancePrice(
     applianceNet,
     linerMsrp,
     linerNet,
+    panelCharge,
     total,
     label: `${item.brand} ${item.model}`.trim(),
     byCustomer: false,
@@ -132,6 +142,26 @@ export function requiredCabinetWidth(sel: ApplianceSelection | undefined, applia
   const cutoutW = liner?.cutoutW ?? item.cutoutW;
   if (!cutoutW || cutoutW <= 0) return 0;
   return Math.round((cutoutW + LINER_CABINET_CLEARANCE) * 100) / 100;
+}
+
+/** The selected inventory appliance's overall height (cutoutH), or undefined. */
+export function selectedApplianceHeight(
+  sel: ApplianceSelection | undefined,
+  appliances: ApplianceItem[]
+): number | undefined {
+  if (!sel || sel.mode !== 'inventory' || !sel.applianceId) return undefined;
+  const item = appliances.find((a) => a.id === sel.applianceId);
+  return item?.cutoutH;
+}
+
+/** The selected inventory appliance's width (cutoutW), or undefined. */
+export function selectedApplianceWidth(
+  sel: ApplianceSelection | undefined,
+  appliances: ApplianceItem[]
+): number | undefined {
+  if (!sel || sel.mode !== 'inventory' || !sel.applianceId) return undefined;
+  const item = appliances.find((a) => a.id === sel.applianceId);
+  return item?.cutoutW;
 }
 
 /** Slug a brand+model into a stable id. */
@@ -175,6 +205,7 @@ function normCat(raw: string): ApplianceCat | null {
   if (s.includes('burner')) return 'sideburner';
   if (s.includes('grill')) return 'grill';
   if (s.includes('kamado')) return 'kamado';
+  if (s.includes('ice')) return 'icemaker';
   if (s.includes('fridge') || s.includes('refrig')) return 'fridge';
   if (s.includes('liner') || s.includes('jacket')) return 'liner';
   return null;
@@ -345,7 +376,7 @@ function parseBbqCsv(dataRows: string[]): CsvParseResult {
   return { items: [...appliances, ...liners.values()], errors };
 }
 
-const FLAT_HEADERS = ['category', 'brand', 'model', 'name', 'msrp', 'liner_model', 'cutout_w', 'cutout_d', 'cutout_h'] as const;
+const FLAT_HEADERS = ['category', 'brand', 'model', 'name', 'msrp', 'liner_model', 'cutout_w', 'cutout_d', 'cutout_h', 'panel_charge'] as const;
 
 /** The internal flat format (what appliancesToCsv writes). */
 function parseFlatCsv(rows: string[], header: string[]): CsvParseResult {
@@ -376,6 +407,7 @@ function parseFlatCsv(rows: string[], header: string[]): CsvParseResult {
       cutoutW: parseInches(get('cutout_w')),
       cutoutD: parseInches(get('cutout_d')),
       cutoutH: parseInches(get('cutout_h')),
+      panelCharge: parseMoneyCell(get('panel_charge')),
       active: true,
     };
     pending.push({ item, linerModel: get('liner_model') });
@@ -405,7 +437,7 @@ export function appliancesToCsv(items: ApplianceItem[]): string {
   for (const a of items) {
     const linerModel = a.linerId ? byId.get(a.linerId)?.model ?? '' : '';
     lines.push(
-      [a.category, a.brand, a.model, a.name, a.msrp, linerModel, a.cutoutW ?? '', a.cutoutD ?? '', a.cutoutH ?? '']
+      [a.category, a.brand, a.model, a.name, a.msrp, linerModel, a.cutoutW ?? '', a.cutoutD ?? '', a.cutoutH ?? '', a.panelCharge ?? '']
         .map(csvCell)
         .join(',')
     );

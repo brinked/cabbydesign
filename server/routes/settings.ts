@@ -120,7 +120,7 @@ function readArray(key: string): unknown[] {
 
 const applianceSchema = z.object({
   id: z.string().min(1).max(120),
-  category: z.enum(['grill', 'griddle', 'sideburner', 'powerburner', 'kamado', 'fridge', 'liner']),
+  category: z.enum(['grill', 'griddle', 'sideburner', 'powerburner', 'kamado', 'fridge', 'icemaker', 'liner']),
   brand: z.string().min(1).max(120),
   model: z.string().min(1).max(120),
   name: z.string().max(200).default(''),
@@ -129,6 +129,7 @@ const applianceSchema = z.object({
   cutoutW: z.number().min(0).max(200).optional(),
   cutoutD: z.number().min(0).max(200).optional(),
   cutoutH: z.number().min(0).max(200).optional(),
+  panelCharge: z.number().min(0).max(1_000_000).optional(),
   active: z.boolean().optional(),
 });
 const appliancesSchema = z.array(applianceSchema).max(5000);

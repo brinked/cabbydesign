@@ -9,6 +9,7 @@ import {
   LINER_CABINET_CLEARANCE,
   parseAppliancesCsv,
   requiredCabinetWidth,
+  selectedApplianceWidth,
 } from '../model/appliances';
 import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, PlacedItem } from '../model/types';
 import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, useStore } from '../state/store';
@@ -190,7 +191,12 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   const mode: 'none' | 'inventory' | 'own' = sel?.mode ?? 'none';
   const selected = sel?.mode === 'inventory' ? options.find((a) => a.id === sel.applianceId) : undefined;
   const liner = selected?.linerId ? appliances.find((a) => a.id === selected.linerId) : undefined;
-  const reqW = want === 'grill' ? requiredCabinetWidth(sel, appliances) : 0;
+  const reqW =
+    want === 'grill'
+      ? requiredCabinetWidth(sel, appliances)
+      : want === 'fridge' || want === 'icemaker'
+        ? selectedApplianceWidth(sel, appliances) ?? 0
+        : 0;
 
   const set = (next: ApplianceSelection | undefined) => updateItem(it.id, { appliance: next });
 
@@ -261,7 +267,11 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
                   + liner {liner.model} {money(liner.msrp)}
                 </span>
               )}
+              {selected.panelCharge ? <span className="price-sub"> + panel {money(selected.panelCharge)}</span> : null}
               {liner?.cutoutW ? <span className="price-sub"> · liner cutout {fmtIn(liner.cutoutW)} W</span> : null}
+              {selected.cutoutH && selected.cutoutH < it.h ? (
+                <span className="price-sub"> · {fmtIn(it.h - selected.cutoutH)} gap under counter</span>
+              ) : null}
             </div>
           )}
           {reqW > 0 && it.w + 0.01 < reqW && (
@@ -306,8 +316,14 @@ export function EditItemModal() {
   const left = spaceLeft(design, it.wallId, cat.lane);
   const dimRange = effectiveDims(it.catalogId, dims);
   const maxW = Math.min(dimRange.maxW, it.w + left);
-  // A grill's insulated liner needs cabinet width ≥ liner cutout + 3″.
-  const appMinW = cat.applianceCat === 'grill' ? requiredCabinetWidth(it.appliance, appliances) : 0;
+  // A grill's insulated liner needs cabinet width ≥ liner cutout + 3″; a
+  // fridge/ice maker needs a cabinet at least as wide as the unit.
+  const appMinW =
+    cat.applianceCat === 'grill'
+      ? requiredCabinetWidth(it.appliance, appliances)
+      : cat.applianceCat === 'fridge' || cat.applianceCat === 'icemaker'
+        ? selectedApplianceWidth(it.appliance, appliances) ?? 0
+        : 0;
   const minW = Math.max(dimRange.minW, Math.min(appMinW, maxW));
   const price = itemPrice(design, it, pricing);
   const island = wall.ghost;
@@ -648,6 +664,7 @@ function ApplianceRow({
   const [cw, setCw] = useState(numStr(a.cutoutW));
   const [cd, setCd] = useState(numStr(a.cutoutD));
   const [ch, setCh] = useState(numStr(a.cutoutH));
+  const [panel, setPanel] = useState(numStr(a.panelCharge));
   useEffect(() => setBrand(a.brand), [a.brand]);
   useEffect(() => setModel(a.model), [a.model]);
   useEffect(() => setName(a.name), [a.name]);
@@ -655,14 +672,18 @@ function ApplianceRow({
   useEffect(() => setCw(numStr(a.cutoutW)), [a.cutoutW]);
   useEffect(() => setCd(numStr(a.cutoutD)), [a.cutoutD]);
   useEffect(() => setCh(numStr(a.cutoutH)), [a.cutoutH]);
+  useEffect(() => setPanel(numStr(a.panelCharge)), [a.panelCharge]);
 
-  // Commit a cutout field: blank → cleared, otherwise a non-negative number.
-  const commitCut = (key: 'cutoutW' | 'cutoutD' | 'cutoutH', text: string) => {
-    const t = text.trim();
+  // Commit a numeric field: blank → cleared, otherwise a non-negative number.
+  const commitNum = (key: 'cutoutW' | 'cutoutD' | 'cutoutH' | 'panelCharge', text: string) => {
+    const t = text.replace(/[$,]/g, '').trim();
     if (t === '') return onChange({ [key]: undefined });
     const v = parseFloat(t);
     onChange({ [key]: Number.isFinite(v) && v >= 0 ? v : undefined });
   };
+  // liners use a cutout opening; fridges/ice makers carry their own W×D×H.
+  const sized = a.category === 'liner' || a.category === 'fridge' || a.category === 'icemaker';
+  const panelReadyCat = a.category === 'fridge' || a.category === 'icemaker';
 
   return (
     <div className="appliance-row">
@@ -687,13 +708,13 @@ function ApplianceRow({
           onChange({ msrp: Number.isFinite(v) && v >= 0 ? v : 0 });
         }}
       />
-      {a.category === 'liner' ? (
-        <div className="cutout-cell" title="Insulated-liner cutout opening (inches). Width drives the 3″ grill-cabinet rule.">
-          <input className="dim-input cutout-in" value={cw} inputMode="decimal" placeholder="W" onChange={(e) => setCw(e.target.value)} onBlur={() => commitCut('cutoutW', cw)} />
+      {sized ? (
+        <div className="cutout-cell" title={a.category === 'liner' ? 'Insulated-liner cutout opening (inches). Width drives the 3″ grill-cabinet rule.' : 'Appliance size (inches). Height drives the gap shown under the counter.'}>
+          <input className="dim-input cutout-in" value={cw} inputMode="decimal" placeholder="W" onChange={(e) => setCw(e.target.value)} onBlur={() => commitNum('cutoutW', cw)} />
           <span className="cutout-x">×</span>
-          <input className="dim-input cutout-in" value={cd} inputMode="decimal" placeholder="D" onChange={(e) => setCd(e.target.value)} onBlur={() => commitCut('cutoutD', cd)} />
+          <input className="dim-input cutout-in" value={cd} inputMode="decimal" placeholder="D" onChange={(e) => setCd(e.target.value)} onBlur={() => commitNum('cutoutD', cd)} />
           <span className="cutout-x">×</span>
-          <input className="dim-input cutout-in" value={ch} inputMode="decimal" placeholder="H" onChange={(e) => setCh(e.target.value)} onBlur={() => commitCut('cutoutH', ch)} />
+          <input className="dim-input cutout-in" value={ch} inputMode="decimal" placeholder="H" onChange={(e) => setCh(e.target.value)} onBlur={() => commitNum('cutoutH', ch)} />
         </div>
       ) : (
         <select className="select" value={a.linerId ?? ''} onChange={(e) => onChange({ linerId: e.target.value || undefined })}>
@@ -705,6 +726,19 @@ function ApplianceRow({
             </option>
           ))}
         </select>
+      )}
+      {panelReadyCat ? (
+        <input
+          className="dim-input"
+          value={panel}
+          inputMode="decimal"
+          placeholder="Panel $"
+          title="Panel-ready: charge for the custom cabinet-matched door panel(s). Leave blank for stainless."
+          onChange={(e) => setPanel(e.target.value)}
+          onBlur={() => commitNum('panelCharge', panel)}
+        />
+      ) : (
+        <span className="appliance-pad" />
       )}
       <button className="btn-danger-ghost" title="Remove" onClick={onRemove}>
         ✕
@@ -814,7 +848,8 @@ export function AppliancesModal() {
         <span>Model #</span>
         <span>Description</span>
         <span>MSRP</span>
-        <span>Recommended liner / Cutout W×D×H (liners)</span>
+        <span>Liner / Size W×D×H</span>
+        <span>Panel $</span>
         <span></span>
       </div>
       <div className="appliance-list">
@@ -845,7 +880,7 @@ export function AppliancesModal() {
           Export CSV
         </button>
         <span className="card-sub appliance-csv-help">
-          CSV columns: category, brand, model, name, msrp, liner_model
+          CSV columns: category, brand, model, name, msrp, liner_model, cutout_w, cutout_d, cutout_h, panel_charge
         </span>
       </div>
       {csvMsg && <div className={csvMsg.ok ? 'ok-banner' : 'warn'} style={{ marginTop: 8 }}>{csvMsg.text}</div>}

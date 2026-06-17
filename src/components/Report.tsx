@@ -298,6 +298,14 @@ export default function Report() {
                       {showPricing && <td className="num">{money(applianceUnit(l.p.linerMsrp, l.p.linerNet))}</td>}
                     </tr>
                   )}
+                  {l.p.panelCharge > 0 && (
+                    <tr className="appliance-liner-row">
+                      <td></td>
+                      <td></td>
+                      <td>↳ Custom cabinet-matched panel (panel-ready)</td>
+                      {showPricing && <td className="num">{money(l.p.panelCharge)}</td>}
+                    </tr>
+                  )}
                 </Fragment>
               ))}
             </tbody>

@@ -104,6 +104,10 @@ export interface CabDims {
   /** Corner/susan footprint orientation, derived from placement so it stays
    *  fixed in its corner; when set, `hinge` is free to pick the handle side. */
   cornerSide?: 1 | -1;
+  /** Selected appliance's overall height (inches) for fridge/ice-maker
+   *  housings. When shorter than the cabinet, the unit renders to this height
+   *  and leaves a visible gap under the counter. Defaults to the cabinet height. */
+  applianceH?: number;
 }
 
 /** Max width of one applied panel; wider runs are split into multiple panels. */
@@ -348,9 +352,15 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   const fridgeDrawers = cat.front === 'fridge2' || cat.front === 'fridgep2';
   const fridgePanel = cat.front === 'fridgep' || cat.front === 'fridgep2'; // cabinet-matched fronts
   const steelFridge = isFridge && !fridgePanel; // stainless fridge
-  const steel = isAppliance || steelFridge;
+  const isIcemaker = cat.front === 'icemaker';
+  const steel = isAppliance || steelFridge || isIcemaker;
   const kick = cat.lane === 'floor' && !isAppliance ? TOEKICK_H : 0;
   const carcassH = h - kick;
+  // Fridge/ice-maker housings render the unit at the selected appliance's
+  // height; the space up to the counter (h) reads as a visible gap.
+  const isApplianceHousing = cat.applianceCat === 'fridge' || cat.applianceCat === 'icemaker';
+  const unitTotalH = isApplianceHousing && dims.applianceH && dims.applianceH > 0 ? Math.min(dims.applianceH, h) : h;
+  const bodyH = Math.max(6, unitTotalH - kick); // carcass/front height above the kick
 
   const isCorner = cat.front === 'corner';
   const isSusan = cat.front === 'susan';
@@ -401,14 +411,16 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       g.add(kickMesh);
     }
   } else {
-    // carcass — white box like the real product; colored fronts go on top
-    const carcass = box(w, carcassH, d, steel ? mats.steel : mats.carcass);
-    carcass.position.set(0, kick + carcassH / 2, d / 2);
+    // carcass — white box like the real product; colored fronts go on top.
+    // Appliance housings only build up to the unit height (gap above).
+    const ch2 = isApplianceHousing ? bodyH : carcassH;
+    const carcass = box(w, ch2, d, steel ? mats.steel : mats.carcass);
+    carcass.position.set(0, kick + ch2 / 2, d / 2);
     g.add(carcass);
     if (kick > 0) {
       // Full cabinet width and finish-matched: kicks are applied as long strips,
       // so adjacent cabinets read as one seamless band.
-      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, d - 1, steelFridge ? mats.steel : mats.kick);
+      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, d - 1, steel ? mats.steel : mats.kick);
       kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, d / 2 - 0.5);
       g.add(kickMesh);
     }
@@ -695,7 +707,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   if (steelFridge) {
     const ffw = w - REVEAL * 2;
     const yB = kick + REVEAL;
-    const yT = kick + carcassH - REVEAL;
+    const yT = kick + bodyH - REVEAL;
     const grilleH = 2.4;
     const areaB = yB + grilleH + GAP; // bottom of the door/drawer area
     const tubeHandle = (len: number, vertical: boolean) => {
@@ -753,8 +765,8 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   if (cat.front === 'dishwasher' || cat.front === 'icemaker') {
     const ffw = w - 0.5;
     const fz = d + 0.45;
-    const yB = REVEAL;
-    const yT = h - REVEAL;
+    const yB = kick + REVEAL;
+    const yT = kick + bodyH - REVEAL;
     // top control panel strip with a small display + buttons
     const ctrlH = 3;
     const ctrl = box(ffw, ctrlH, 0.9, mats.steel);

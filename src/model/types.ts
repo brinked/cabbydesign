@@ -50,6 +50,7 @@ export type ApplianceCat =
   | 'powerburner'
   | 'kamado'
   | 'fridge'
+  | 'icemaker'
   | 'liner';
 
 /** One sellable appliance in the admin-managed inventory (model + MSRP). */
@@ -66,11 +67,16 @@ export interface ApplianceItem {
   msrp: number;
   /** Grills only: id of the recommended insulated liner ('liner' item). */
   linerId?: string;
-  /** Insulated-liner cutout opening (inches). Used to size the housing cabinet:
-   *  a grill cabinet must be at least 3″ wider than its liner's cutout width. */
+  /** Physical/cutout dimensions (inches). For a liner, the insulated-liner
+   *  cutout opening (its width drives the 3″ grill-cabinet rule). For a
+   *  fridge/ice maker, the appliance's own W×D×H — the height drives the gap
+   *  shown under the counter when it's shorter than the cabinet. */
   cutoutW?: number;
   cutoutD?: number;
   cutoutH?: number;
+  /** Panel-ready fridge/ice maker: charge for the custom cabinet-matched door
+   *  panel(s). Adds a separate line on the report when > 0. */
+  panelCharge?: number;
   /** Hidden from the dealer dropdowns when false. Defaults to true. */
   active?: boolean;
 }

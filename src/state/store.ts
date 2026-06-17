@@ -9,7 +9,7 @@ import { cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, preset
 export const PANEL_RATE_PER_SQFT = 36;
 
 /** Catalog ids that were renamed/removed — remap (or drop) on load. */
-const CATALOG_MIGRATE: Record<string, string> = { 'base-doordrawer': 'base-1door1drawer', 'base-blind': 'base-blindr' };
+const CATALOG_MIGRATE: Record<string, string> = { 'base-doordrawer': 'base-1door1drawer', 'base-blind': 'base-blindr', 'app-icemaker': 'out-icemaker' };
 const VALID_IDS = new Set(CATALOG.map((c) => c.id));
 
 /** Effective allowed size range for a cabinet, with user Settings overrides. */

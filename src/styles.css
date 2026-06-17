@@ -930,7 +930,7 @@ button:disabled {
 
 .appliance-row {
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr 1fr 1.3fr 0.7fr 1.7fr 28px;
+  grid-template-columns: 1.1fr 0.9fr 1fr 1.2fr 0.7fr 1.7fr 0.7fr 28px;
   gap: 8px;
   align-items: center;
   padding: 5px 0;
