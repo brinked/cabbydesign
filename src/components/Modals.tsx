@@ -687,7 +687,15 @@ function ApplianceRow({
           onChange({ msrp: Number.isFinite(v) && v >= 0 ? v : 0 });
         }}
       />
-      {a.category === 'grill' ? (
+      {a.category === 'liner' ? (
+        <div className="cutout-cell" title="Insulated-liner cutout opening (inches). Width drives the 3″ grill-cabinet rule.">
+          <input className="dim-input cutout-in" value={cw} inputMode="decimal" placeholder="W" onChange={(e) => setCw(e.target.value)} onBlur={() => commitCut('cutoutW', cw)} />
+          <span className="cutout-x">×</span>
+          <input className="dim-input cutout-in" value={cd} inputMode="decimal" placeholder="D" onChange={(e) => setCd(e.target.value)} onBlur={() => commitCut('cutoutD', cd)} />
+          <span className="cutout-x">×</span>
+          <input className="dim-input cutout-in" value={ch} inputMode="decimal" placeholder="H" onChange={(e) => setCh(e.target.value)} onBlur={() => commitCut('cutoutH', ch)} />
+        </div>
+      ) : (
         <select className="select" value={a.linerId ?? ''} onChange={(e) => onChange({ linerId: e.target.value || undefined })}>
           <option value="">— no liner —</option>
           {liners.map((l) => (
@@ -697,16 +705,6 @@ function ApplianceRow({
             </option>
           ))}
         </select>
-      ) : a.category === 'liner' ? (
-        <div className="cutout-cell" title="Insulated-liner cutout opening (inches). Width drives the 3″ grill-cabinet rule.">
-          <input className="dim-input cutout-in" value={cw} inputMode="decimal" placeholder="W" onChange={(e) => setCw(e.target.value)} onBlur={() => commitCut('cutoutW', cw)} />
-          <span className="cutout-x">×</span>
-          <input className="dim-input cutout-in" value={cd} inputMode="decimal" placeholder="D" onChange={(e) => setCd(e.target.value)} onBlur={() => commitCut('cutoutD', cd)} />
-          <span className="cutout-x">×</span>
-          <input className="dim-input cutout-in" value={ch} inputMode="decimal" placeholder="H" onChange={(e) => setCh(e.target.value)} onBlur={() => commitCut('cutoutH', ch)} />
-        </div>
-      ) : (
-        <span className="appliance-noliner">—</span>
       )}
       <button className="btn-danger-ghost" title="Remove" onClick={onRemove}>
         ✕
@@ -816,7 +814,7 @@ export function AppliancesModal() {
         <span>Model #</span>
         <span>Description</span>
         <span>MSRP</span>
-        <span>Liner (grills) / Cutout W×D×H (liners)</span>
+        <span>Recommended liner / Cutout W×D×H (liners)</span>
         <span></span>
       </div>
       <div className="appliance-list">
