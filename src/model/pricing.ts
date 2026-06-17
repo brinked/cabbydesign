@@ -15,7 +15,8 @@ function tokenize(src: string): Token[] {
   let i = 0;
   while (i < src.length) {
     const ch = src[i];
-    if (/\s/.test(ch)) {
+    // Skip whitespace and inch/foot marks so "34.5\"" etc. parse cleanly.
+    if (/[\s"”″'′]/.test(ch)) {
       i++;
       continue;
     }

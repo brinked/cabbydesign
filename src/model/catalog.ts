@@ -31,6 +31,9 @@ const DRAWER1 = 'W*D + 650'; // +1 top drawer
 const DRAWER3 = 'W*D + 1050'; // top + 2 larger
 const DRAWER4 = 'W*D + 1250'; // top + 3 larger
 const GRILL4 = 'W*D + 600'; // box + $100 large-grill add-on
+// Wall cabinets & the pedestal come in varying heights, so their box price
+// scales with height off a 34" reference (price = (W*D + 900) * H/34).
+const WALLBOX = '((W*D*1) + 900) * (H/34)';
 
 /** Shown on every sink cabinet so the box is sized correctly for the basin. */
 const SINK_NOTE = 'Sink cabinet should be 3" wider than the sink.';
@@ -52,16 +55,16 @@ export const CATALOG: CatalogItem[] = [
   { id: 'base-blindl', name: 'Left Blind Corner Base', category: 'base', front: 'blindl', lane: 'floor', w: 42, d: 24, h: BASE_H, minW: 39, maxW: 48, stepW: 3, counter: true, formula: BOX },
   { id: 'base-blindr', name: 'Right Blind Corner Base', category: 'base', front: 'blindr', lane: 'floor', w: 42, d: 24, h: BASE_H, minW: 39, maxW: 48, stepW: 3, counter: true, formula: BOX },
   { id: 'base-open', name: 'Open Shelf Base', category: 'base', front: 'open', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 18, maxW: 42, stepW: 3, counter: true, formula: BOX },
-  { id: 'base-pedestal', name: 'Pedestal Cabinet', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 24, h: 20, minW: 18, maxW: 42, stepW: 3, minH: 18, maxH: 34.5, counter: false, formula: BOX, note: 'Short riser base — 20" tall by default (min 18").' },
+  { id: 'base-pedestal', name: 'Pedestal Cabinet', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 24, h: 20, minW: 18, maxW: 42, stepW: 3, minH: 18, maxH: 34.5, counter: false, formula: WALLBOX, note: 'Short riser base — 20" tall by default (min 18").' },
   { id: 'base-trash', name: 'Trash Pull-Out', category: 'base', front: 'trash', lane: 'floor', w: 15, d: 24, h: BASE_H, minW: 15, maxW: 18, stepW: 3, counter: true, formula: BOX },
   { id: 'base-trashdrawer', name: 'Trash Pull-Out + Drawer', category: 'base', front: 'trashdrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 21, stepW: 3, counter: true, formula: DRAWER1 },
 
   // ---------- Wall cabinets ----------
-  { id: 'wall-1door', name: '1-Door Wall', category: 'wall', front: 'door1', lane: 'upper', w: 15, d: 12, h: 30, minW: 9, maxW: 24, stepW: 3, counter: false, formula: BOX, mount: 54 },
-  { id: 'wall-2door', name: '2-Door Wall', category: 'wall', front: 'door2', lane: 'upper', w: 30, d: 12, h: 30, minW: 24, maxW: 42, stepW: 3, counter: false, formula: BOX, mount: 54 },
-  { id: 'wall-open', name: 'Open Shelf Wall', category: 'wall', front: 'open', lane: 'upper', w: 30, d: 12, h: 30, minW: 18, maxW: 36, stepW: 3, counter: false, formula: BOX, mount: 54 },
-  { id: 'wall-corner', name: 'Diagonal Corner Wall', category: 'wall', front: 'corner', lane: 'upper', w: 24, d: 24, h: 30, minW: 24, maxW: 30, stepW: 3, minD: 21, maxD: 27, counter: false, formula: BOX, mount: 54 },
-  { id: 'wall-susan', name: 'Lazy Susan Wall (L-Shape)', category: 'wall', front: 'susan', lane: 'upper', w: 24, d: 24, h: 30, minW: 24, maxW: 30, stepW: 3, minD: 21, maxD: 27, counter: false, formula: BOX, mount: 54 },
+  { id: 'wall-1door', name: '1-Door Wall', category: 'wall', front: 'door1', lane: 'upper', w: 15, d: 12, h: 30, minW: 9, maxW: 24, stepW: 3, counter: false, formula: WALLBOX, mount: 54 },
+  { id: 'wall-2door', name: '2-Door Wall', category: 'wall', front: 'door2', lane: 'upper', w: 30, d: 12, h: 30, minW: 24, maxW: 42, stepW: 3, counter: false, formula: WALLBOX, mount: 54 },
+  { id: 'wall-open', name: 'Open Shelf Wall', category: 'wall', front: 'open', lane: 'upper', w: 30, d: 12, h: 30, minW: 18, maxW: 36, stepW: 3, counter: false, formula: WALLBOX, mount: 54 },
+  { id: 'wall-corner', name: 'Diagonal Corner Wall', category: 'wall', front: 'corner', lane: 'upper', w: 24, d: 24, h: 30, minW: 24, maxW: 30, stepW: 3, minD: 21, maxD: 27, counter: false, formula: WALLBOX, mount: 54 },
+  { id: 'wall-susan', name: 'Lazy Susan Wall (L-Shape)', category: 'wall', front: 'susan', lane: 'upper', w: 24, d: 24, h: 30, minW: 24, maxW: 30, stepW: 3, minD: 21, maxD: 27, counter: false, formula: WALLBOX, mount: 54 },
 
   // ---------- Tall cabinets ----------
   { id: 'tall-pantry', name: 'Pantry', category: 'tall', front: 'pantry', lane: 'floor', w: 24, d: 24, h: 84, minW: 18, maxW: 36, stepW: 3, counter: false, formula: BOX },
