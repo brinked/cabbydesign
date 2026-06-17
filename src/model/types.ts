@@ -66,6 +66,11 @@ export interface ApplianceItem {
   msrp: number;
   /** Grills only: id of the recommended insulated liner ('liner' item). */
   linerId?: string;
+  /** Insulated-liner cutout opening (inches). Used to size the housing cabinet:
+   *  a grill cabinet must be at least 3″ wider than its liner's cutout width. */
+  cutoutW?: number;
+  cutoutD?: number;
+  cutoutH?: number;
   /** Hidden from the dealer dropdowns when false. Defaults to true. */
   active?: boolean;
 }

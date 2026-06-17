@@ -126,6 +126,9 @@ const applianceSchema = z.object({
   name: z.string().max(200).default(''),
   msrp: z.number().min(0).max(1_000_000),
   linerId: z.string().max(120).optional(),
+  cutoutW: z.number().min(0).max(200).optional(),
+  cutoutD: z.number().min(0).max(200).optional(),
+  cutoutH: z.number().min(0).max(200).optional(),
   active: z.boolean().optional(),
 });
 const appliancesSchema = z.array(applianceSchema).max(5000);

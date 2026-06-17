@@ -6,7 +6,9 @@ import {
   APPLIANCE_CAT_LABELS,
   applianceId,
   appliancesToCsv,
+  LINER_CABINET_CLEARANCE,
   parseAppliancesCsv,
+  requiredCabinetWidth,
 } from '../model/appliances';
 import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, PlacedItem } from '../model/types';
 import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, useStore } from '../state/store';
@@ -188,6 +190,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   const mode: 'none' | 'inventory' | 'own' = sel?.mode ?? 'none';
   const selected = sel?.mode === 'inventory' ? options.find((a) => a.id === sel.applianceId) : undefined;
   const liner = selected?.linerId ? appliances.find((a) => a.id === selected.linerId) : undefined;
+  const reqW = want === 'grill' ? requiredCabinetWidth(sel, appliances) : 0;
 
   const set = (next: ApplianceSelection | undefined) => updateItem(it.id, { appliance: next });
 
@@ -245,7 +248,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
                 + Insulated liner (recommended)
               </button>
               <button className={sel?.withLiner === false ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ ...sel!, withLiner: false })}>
-                Grill only
+                Without liner
               </button>
             </div>
           )}
@@ -258,6 +261,13 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
                   + liner {liner.model} {money(liner.msrp)}
                 </span>
               )}
+              {liner?.cutoutW ? <span className="price-sub"> · liner cutout {fmtIn(liner.cutoutW)} W</span> : null}
+            </div>
+          )}
+          {reqW > 0 && it.w + 0.01 < reqW && (
+            <div className="warn" style={{ marginTop: 8 }}>
+              ⚠ This {APPLIANCE_CAT_LABELS[want!].toLowerCase()} needs a cabinet at least {fmtIn(reqW)} wide
+              {liner?.cutoutW ? ` (liner cutout ${fmtIn(liner.cutoutW)} + ${LINER_CABINET_CLEARANCE}″ clearance)` : ''}. Widen the cabinet above to fit it.
             </div>
           )}
         </>
@@ -284,6 +294,7 @@ export function EditItemModal() {
   const duplicateItem = useStore((s) => s.duplicateItem);
   const pricing = useStore((s) => s.pricing);
   const dims = useStore((s) => s.dims);
+  const appliances = useStore((s) => s.appliances);
 
   if (!editingId) return null;
   const it = design.items.find((i) => i.id === editingId);
@@ -295,6 +306,9 @@ export function EditItemModal() {
   const left = spaceLeft(design, it.wallId, cat.lane);
   const dimRange = effectiveDims(it.catalogId, dims);
   const maxW = Math.min(dimRange.maxW, it.w + left);
+  // A grill's insulated liner needs cabinet width ≥ liner cutout + 3″.
+  const appMinW = cat.applianceCat === 'grill' ? requiredCabinetWidth(it.appliance, appliances) : 0;
+  const minW = Math.max(dimRange.minW, Math.min(appMinW, maxW));
   const price = itemPrice(design, it, pricing);
   const island = wall.ghost;
   const maxTrays = cat.maxTrays ?? 0;
@@ -303,7 +317,7 @@ export function EditItemModal() {
     <Modal title={`${fmtIn(it.w)} ${cat.name}`} sub={`Space left: ${fmtIn(Math.max(0, left))}`} onClose={() => openEditor(null)}>
       {cat.note && <div className="edit-note">{cat.note}</div>}
       <div className="stepper-list">
-        <Stepper label="Width" value={it.w} step={1} min={dimRange.minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
+        <Stepper label="Width" value={it.w} step={1} min={minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
         <Stepper label="Depth" value={it.d} step={3} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
         <Stepper label="Height" value={it.h} step={1.5} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
         {cat.front === 'filler' ? (
