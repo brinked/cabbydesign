@@ -81,12 +81,14 @@ export const CATALOG: CatalogItem[] = [
   { id: 'out-power', name: 'Power Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 18, maxW: 30, stepW: 3, counter: false, topGearH: 6, formula: BOX, applianceCat: 'powerburner' },
   { id: 'out-propane', name: 'Propane Pull-Out', category: 'outdoor', front: 'propane', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: BOX },
   { id: 'out-propanedrawer', name: 'Propane Pull-Out + Drawer', category: 'outdoor', front: 'propanedrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: DRAWER1 },
-  { id: 'out-fridge', name: 'Fridge Cabinet (1-Door)', category: 'outdoor', front: 'fridge', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 24, maxW: 33, stepW: 3, counter: true, formula: BOX, applianceCat: 'fridge' },
-  { id: 'out-fridge2', name: 'Fridge Cabinet (2-Drawer)', category: 'outdoor', front: 'fridge2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 24, maxW: 33, stepW: 3, counter: true, formula: BOX, applianceCat: 'fridge' },
-  { id: 'out-fridgep', name: 'Panel-Ready Fridge (1-Door)', category: 'outdoor', front: 'fridgep', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 24, maxW: 33, stepW: 3, counter: true, formula: BOX, applianceCat: 'fridge' },
-  { id: 'out-fridgep2', name: 'Panel-Ready Fridge (2-Drawer)', category: 'outdoor', front: 'fridgep2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 24, maxW: 33, stepW: 3, counter: true, formula: BOX, applianceCat: 'fridge' },
+  // Fridge / ice-maker "openings" are just spaces sized to the appliance — no
+  // cabinet box charge (formula '0'); only the selected appliance is priced.
+  { id: 'out-fridge', name: 'Fridge Opening (1-Door)', category: 'outdoor', front: 'fridge', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridge2', name: 'Fridge Opening (2-Drawer)', category: 'outdoor', front: 'fridge2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridgep', name: 'Panel-Ready Fridge Opening (1-Door)', category: 'outdoor', front: 'fridgep', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridgep2', name: 'Panel-Ready Fridge Opening (2-Drawer)', category: 'outdoor', front: 'fridgep2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
   { id: 'out-kamado', name: 'Kamado Cabinet', category: 'outdoor', front: 'kamado', lane: 'floor', w: 36, d: 30, h: BASE_H, minW: 30, maxW: 42, stepW: 2, counter: true, topGearH: 26, formula: BOX, applianceCat: 'kamado' },
-  { id: 'out-icemaker', name: 'Ice Maker Cabinet', category: 'outdoor', front: 'icemaker', lane: 'floor', w: 15, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: BOX, applianceCat: 'icemaker' },
+  { id: 'out-icemaker', name: 'Ice Maker Opening', category: 'outdoor', front: 'icemaker', lane: 'floor', w: 15, d: 24, h: BASE_H, minW: 12, maxW: 30, stepW: 1, counter: true, formula: '0', applianceCat: 'icemaker' },
   { id: 'out-sink', name: 'Outdoor Sink Cabinet', category: 'outdoor', front: 'sink', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 36, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
 
   // ---------- Fillers & trim ----------

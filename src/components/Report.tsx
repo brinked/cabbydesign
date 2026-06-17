@@ -104,7 +104,7 @@ export default function Report() {
   const applianceSubtotal = applianceLines.reduce((s, l) => s + l.p.total, 0);
 
   // Marked-up subtotals (percent factor, plus a flat $ on each priced cabinet).
-  const pricedCabCount = lines.filter((l) => l.cat.category !== 'appliance' && !l.error).length;
+  const pricedCabCount = lines.filter((l) => l.cat.category !== 'appliance' && !l.error && l.price > 0).length;
   const cabinetSubtotalMk = cabinetSubtotal * factor + flatPerCab * pricedCabCount;
   const panelSubtotalMk = (endSubtotal + backSubtotal) * factor;
   const subtotalMk = cabinetSubtotalMk + panelSubtotalMk + applianceSubtotal;
@@ -196,7 +196,9 @@ export default function Report() {
                   {fmtIn(l.it.w)} × {fmtIn(l.it.d)} × {fmtIn(l.it.h)}
                 </td>
                 {showPricing && (
-                  <td className="num">{l.cat.category === 'appliance' ? '—' : l.error ? 'formula error' : cabMk(l.price)}</td>
+                  <td className="num">
+                    {l.cat.category === 'appliance' ? '—' : l.error ? 'formula error' : l.price <= 0 ? '—' : cabMk(l.price)}
+                  </td>
                 )}
               </tr>
             ))}

@@ -174,6 +174,8 @@ function Stepper({
 function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   const appliances = useStore((s) => s.appliances);
   const updateItem = useStore((s) => s.updateItem);
+  const design = useStore((s) => s.design);
+  const dimOverrides = useStore((s) => s.dims);
   const want = cat.applianceCat;
 
   const options = useMemo(
@@ -198,7 +200,24 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
         ? selectedApplianceWidth(sel, appliances) ?? 0
         : 0;
 
-  const set = (next: ApplianceSelection | undefined) => updateItem(it.id, { appliance: next });
+  // A fridge/ice maker just needs an opening sized to fit it — so when a model
+  // is picked, auto-size the cabinet width to the unit (clamped to the free
+  // space on the wall and the cabinet's max width). It shrinks to fit smaller
+  // units too, since the opening should match the appliance.
+  const fitWidth = (next: ApplianceSelection | undefined): number | undefined => {
+    if (want !== 'fridge' && want !== 'icemaker') return undefined;
+    const unitW = selectedApplianceWidth(next, appliances);
+    if (!unitW || unitW <= 0) return undefined;
+    const available = it.w + spaceLeft(design, it.wallId, cat.lane);
+    const { maxW } = effectiveDims(it.catalogId, dimOverrides);
+    const target = Math.min(unitW, available, maxW);
+    return target !== it.w ? Math.round(target * 100) / 100 : undefined;
+  };
+
+  const set = (next: ApplianceSelection | undefined) => {
+    const w = fitWidth(next);
+    updateItem(it.id, w !== undefined ? { appliance: next, w } : { appliance: next });
+  };
 
   return (
     <div className="appliance-section">
@@ -274,12 +293,19 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
               ) : null}
             </div>
           )}
-          {reqW > 0 && it.w + 0.01 < reqW && (
-            <div className="warn" style={{ marginTop: 8 }}>
-              ⚠ This {APPLIANCE_CAT_LABELS[want!].toLowerCase()} needs a cabinet at least {fmtIn(reqW)} wide
-              {liner?.cutoutW ? ` (liner cutout ${fmtIn(liner.cutoutW)} + ${LINER_CABINET_CLEARANCE}″ clearance)` : ''}. Widen the cabinet above to fit it.
-            </div>
-          )}
+          {reqW > 0 &&
+            it.w + 0.01 < reqW &&
+            (want === 'grill' ? (
+              <div className="warn" style={{ marginTop: 8 }}>
+                ⚠ This grill needs a cabinet at least {fmtIn(reqW)} wide
+                {liner?.cutoutW ? ` (liner cutout ${fmtIn(liner.cutoutW)} + ${LINER_CABINET_CLEARANCE}″ clearance)` : ''}. Widen the cabinet above to fit it.
+              </div>
+            ) : (
+              <div className="warn" style={{ marginTop: 8 }}>
+                ⚠ Not enough room on this wall — the {APPLIANCE_CAT_LABELS[want!].toLowerCase()} is {fmtIn(reqW)} wide but only {fmtIn(it.w)} of
+                open space is available here. Free up space (shorten or remove a neighbouring cabinet) so it fits.
+              </div>
+            ))}
         </>
       )}
 
