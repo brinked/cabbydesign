@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
 import { frameForWall, planBounds } from '../model/geometry';
-import type { Design, FinishOption, PlacedItem } from '../model/types';
+import { selectedApplianceHeight } from '../model/appliances';
+import type { ApplianceItem, Design, FinishOption, PlacedItem } from '../model/types';
 import { footprintW, laneItems } from '../state/store';
 import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, isSinkFront, sinkBasin } from './cabinet3d';
 
@@ -199,7 +200,7 @@ function counterSlabHoles(
 }
 
 /** Builds all walls, cabinets and counters for a design as one group. */
-export function buildDesignGroup(design: Design, fin: FinishOption): BuiltScene {
+export function buildDesignGroup(design: Design, fin: FinishOption, appliances: ApplianceItem[] = []): BuiltScene {
   const group = new THREE.Group();
   const mats = createMats(fin);
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1eee7, roughness: 0.92 });
@@ -234,9 +235,10 @@ export function buildDesignGroup(design: Design, fin: FinishOption): BuiltScene 
       // Orientation a lazy susan keeps in its corner is set by which wall end it
       // sits at — not by the hinge field, which only chooses the handle door.
       const geomSide: 1 | -1 = it.x + footprintW(it) / 2 > f.wall.length / 2 ? -1 : 1;
+      const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' ? geomSide : undefined },
+        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' ? geomSide : undefined, applianceH },
         mats
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;

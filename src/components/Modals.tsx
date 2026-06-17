@@ -201,23 +201,29 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
         : 0;
 
   // A fridge/ice maker just needs an opening sized to fit it — so when a model
-  // is picked, auto-size the cabinet width to the unit (clamped to the free
-  // space on the wall and the cabinet's max width). It shrinks to fit smaller
-  // units too, since the opening should match the appliance.
-  const fitWidth = (next: ApplianceSelection | undefined): number | undefined => {
-    if (want !== 'fridge' && want !== 'icemaker') return undefined;
-    const unitW = selectedApplianceWidth(next, appliances);
-    if (!unitW || unitW <= 0) return undefined;
-    const available = it.w + spaceLeft(design, it.wallId, cat.lane);
-    const { maxW } = effectiveDims(it.catalogId, dimOverrides);
-    const target = Math.min(unitW, available, maxW);
-    return target !== it.w ? Math.round(target * 100) / 100 : undefined;
+  // is picked, auto-size the opening's width and depth to the unit's W and D.
+  // (Height stays at counter height; the unit renders at its real height with
+  // the gap shown above it.) Width is clamped to the free space on the wall.
+  const fitDims = (next: ApplianceSelection | undefined): Partial<PlacedItem> => {
+    if (want !== 'fridge' && want !== 'icemaker') return {};
+    if (!next || next.mode !== 'inventory' || !next.applianceId) return {};
+    const item = appliances.find((a) => a.id === next.applianceId);
+    if (!item) return {};
+    const dr = effectiveDims(it.catalogId, dimOverrides);
+    const patch: Partial<PlacedItem> = {};
+    if (item.cutoutW && item.cutoutW > 0) {
+      const available = it.w + spaceLeft(design, it.wallId, cat.lane);
+      const w = Math.round(Math.min(item.cutoutW, available, dr.maxW) * 100) / 100;
+      if (w !== it.w) patch.w = w;
+    }
+    if (item.cutoutD && item.cutoutD > 0) {
+      const d = Math.round(Math.min(Math.max(item.cutoutD, dr.minD), dr.maxD) * 100) / 100;
+      if (d !== it.d) patch.d = d;
+    }
+    return patch;
   };
 
-  const set = (next: ApplianceSelection | undefined) => {
-    const w = fitWidth(next);
-    updateItem(it.id, w !== undefined ? { appliance: next, w } : { appliance: next });
-  };
+  const set = (next: ApplianceSelection | undefined) => updateItem(it.id, { appliance: next, ...fitDims(next) });
 
   return (
     <div className="appliance-section">
