@@ -414,23 +414,27 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   } else if (isKamadoInsert) {
     // Built-in kamado: solid lower cabinet (doors) + an open top compartment
-    // (back + two sides, open front & top) the kamado drops into.
+    // (white melamine: shelf floor, back, two sides) with a top stretcher
+    // across the front. No apron; open front & top so the kamado drops in.
     const T = 0.75;
     const openH = Math.min(KAMADO_OPEN_H, carcassH - 6);
     const lowerH = carcassH - openH;
     const yB = kick;
-    const add = (bw: number, bh: number, bd: number, x: number, y: number, z: number, mat: THREE.Material = mats.body) => {
+    const add = (bw: number, bh: number, bd: number, x: number, y: number, z: number, mat: THREE.Material = mats.carcass) => {
       const m = box(bw, bh, bd, mat);
       m.position.set(x, y, z);
       m.castShadow = m.receiveShadow = true;
       g.add(m);
     };
-    add(w, lowerH, d, 0, yB + lowerH / 2, d / 2, mats.carcass); // solid lower body (behind doors)
+    add(w, lowerH, d, 0, yB + lowerH / 2, d / 2); // solid lower body (behind doors)
     const cy = yB + lowerH;
     add(w, T, d, 0, cy + T / 2, d / 2); // compartment floor / divider shelf
-    add(w, openH, T, 0, cy + openH / 2, T / 2, mats.inner); // back of the opening
+    add(w, openH, T, 0, cy + openH / 2, T / 2); // back of the opening
     add(T, openH, d, -w / 2 + T / 2, cy + openH / 2, d / 2); // left side
     add(T, openH, d, w / 2 - T / 2, cy + openH / 2, d / 2); // right side
+    // top stretcher across the front (caps the opening; no apron below)
+    const strH = 2;
+    add(w, strH, T, 0, cy + openH - strH / 2, d - T / 2);
     if (kick > 0) {
       const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, d - 1, mats.kick);
       kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, d / 2 - 0.5);
@@ -502,17 +506,27 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         }
         break;
       }
+      case 'kamadoinsert': {
+        // Built-in kamado: just the lower doors. The open top compartment +
+        // top stretcher are built as carcass parts (no apron, no face panel).
+        const doorH = fh - KAMADO_OPEN_H - GAP;
+        if (w >= 24) {
+          fronts.push({ dx: -half / 2 - GAP / 2, dy: -fh / 2 + doorH / 2, w: half, h: doorH, handle: 'v-right' });
+          fronts.push({ dx: half / 2 + GAP / 2, dy: -fh / 2 + doorH / 2, w: half, h: doorH, handle: 'v-left' });
+        } else {
+          fronts.push({ dx: 0, dy: -fh / 2 + doorH / 2, w: fw, h: doorH, handle: oneDoorHandle });
+        }
+        break;
+      }
       case 'grill':
       case 'grill4':
       case 'griddle':
-      case 'burner':
-      case 'kamadoinsert': {
+      case 'burner': {
         // The appliance face is recessed into the top of the cabinet. The
         // cabinet front picture-frames it: apron below, panel stiles wrapping
-        // both sides, doors at the bottom. The built-in kamado leaves the top
-        // open (a 12″ opening) instead of a face panel.
+        // both sides, doors at the bottom.
         const isGrill = cat.front === 'grill' || cat.front === 'grill4';
-        const applH = cat.front === 'kamadoinsert' ? KAMADO_OPEN_H : isGrill ? 9 : 7;
+        const applH = isGrill ? 9 : 7;
         const apronH = 4.5;
         const doorH = fh - applH - apronH - GAP * 2;
         if (cat.front === 'grill4') {
