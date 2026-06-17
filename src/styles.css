@@ -930,11 +930,27 @@ button:disabled {
 
 .appliance-row {
   display: grid;
-  grid-template-columns: 1.1fr 1fr 1fr 1.4fr 0.8fr 1.2fr 28px;
+  grid-template-columns: 1.1fr 0.9fr 1fr 1.3fr 0.7fr 1.7fr 28px;
   gap: 8px;
   align-items: center;
   padding: 5px 0;
   border-bottom: 1px solid var(--line);
+}
+
+.cutout-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cutout-in {
+  min-width: 0;
+  padding: 6px 4px;
+}
+
+.cutout-x {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .appliance-row-head {

@@ -644,10 +644,25 @@ function ApplianceRow({
   const [model, setModel] = useState(a.model);
   const [name, setName] = useState(a.name);
   const [msrp, setMsrp] = useState(String(a.msrp));
+  const numStr = (n?: number) => (n === undefined ? '' : String(n));
+  const [cw, setCw] = useState(numStr(a.cutoutW));
+  const [cd, setCd] = useState(numStr(a.cutoutD));
+  const [ch, setCh] = useState(numStr(a.cutoutH));
   useEffect(() => setBrand(a.brand), [a.brand]);
   useEffect(() => setModel(a.model), [a.model]);
   useEffect(() => setName(a.name), [a.name]);
   useEffect(() => setMsrp(String(a.msrp)), [a.msrp]);
+  useEffect(() => setCw(numStr(a.cutoutW)), [a.cutoutW]);
+  useEffect(() => setCd(numStr(a.cutoutD)), [a.cutoutD]);
+  useEffect(() => setCh(numStr(a.cutoutH)), [a.cutoutH]);
+
+  // Commit a cutout field: blank → cleared, otherwise a non-negative number.
+  const commitCut = (key: 'cutoutW' | 'cutoutD' | 'cutoutH', text: string) => {
+    const t = text.trim();
+    if (t === '') return onChange({ [key]: undefined });
+    const v = parseFloat(t);
+    onChange({ [key]: Number.isFinite(v) && v >= 0 ? v : undefined });
+  };
 
   return (
     <div className="appliance-row">
@@ -678,9 +693,18 @@ function ApplianceRow({
           {liners.map((l) => (
             <option key={l.id} value={l.id}>
               {l.brand} {l.model}
+              {l.cutoutW ? ` (${l.cutoutW}″ cut)` : ''}
             </option>
           ))}
         </select>
+      ) : a.category === 'liner' ? (
+        <div className="cutout-cell" title="Insulated-liner cutout opening (inches). Width drives the 3″ grill-cabinet rule.">
+          <input className="dim-input cutout-in" value={cw} inputMode="decimal" placeholder="W" onChange={(e) => setCw(e.target.value)} onBlur={() => commitCut('cutoutW', cw)} />
+          <span className="cutout-x">×</span>
+          <input className="dim-input cutout-in" value={cd} inputMode="decimal" placeholder="D" onChange={(e) => setCd(e.target.value)} onBlur={() => commitCut('cutoutD', cd)} />
+          <span className="cutout-x">×</span>
+          <input className="dim-input cutout-in" value={ch} inputMode="decimal" placeholder="H" onChange={(e) => setCh(e.target.value)} onBlur={() => commitCut('cutoutH', ch)} />
+        </div>
       ) : (
         <span className="appliance-noliner">—</span>
       )}
@@ -792,7 +816,7 @@ export function AppliancesModal() {
         <span>Model #</span>
         <span>Description</span>
         <span>MSRP</span>
-        <span>Liner (grills)</span>
+        <span>Liner (grills) / Cutout W×D×H (liners)</span>
         <span></span>
       </div>
       <div className="appliance-list">
