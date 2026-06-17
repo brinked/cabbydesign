@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CATALOG, CATEGORY_LABELS, COUNTER_T, catalogById } from '../model/catalog';
+import { BASE_H, CATALOG, CATEGORY_LABELS, COUNTER_T, catalogById } from '../model/catalog';
 import { money, tryFormula } from '../model/pricing';
 import {
   APPLIANCE_CATS,
@@ -201,9 +201,10 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
         : 0;
 
   // A fridge/ice maker just needs an opening sized to fit it — so when a model
-  // is picked, auto-size the opening's width and depth to the unit's W and D.
-  // (Height stays at counter height; the unit renders at its real height with
-  // the gap shown above it.) Width is clamped to the free space on the wall.
+  // is picked, auto-size the opening's width, depth AND height to the unit's
+  // dimensions. The countertop is always drawn at counter height (BASE_H), so a
+  // unit shorter than the counter shows the gap underneath automatically. Width
+  // is clamped to the free space on the wall.
   const fitDims = (next: ApplianceSelection | undefined): Partial<PlacedItem> => {
     if (want !== 'fridge' && want !== 'icemaker') return {};
     if (!next || next.mode !== 'inventory' || !next.applianceId) return {};
@@ -219,6 +220,12 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
     if (item.cutoutD && item.cutoutD > 0) {
       const d = Math.round(Math.min(Math.max(item.cutoutD, dr.minD), dr.maxD) * 100) / 100;
       if (d !== it.d) patch.d = d;
+    }
+    if (item.cutoutH && item.cutoutH > 0) {
+      const minH = cat.minH ?? 12;
+      const maxH = cat.maxH ?? 96;
+      const h = Math.round(Math.min(Math.max(item.cutoutH, minH), maxH) * 100) / 100;
+      if (h !== it.h) patch.h = h;
     }
     return patch;
   };
@@ -294,8 +301,8 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
               )}
               {selected.panelCharge ? <span className="price-sub"> + panel {money(selected.panelCharge)}</span> : null}
               {liner?.cutoutW ? <span className="price-sub"> · liner cutout {fmtIn(liner.cutoutW)} W</span> : null}
-              {selected.cutoutH && selected.cutoutH < it.h ? (
-                <span className="price-sub"> · {fmtIn(it.h - selected.cutoutH)} gap under counter</span>
+              {(want === 'fridge' || want === 'icemaker') && it.h < BASE_H - 0.01 ? (
+                <span className="price-sub"> · {fmtIn(BASE_H - it.h)} gap under counter</span>
               ) : null}
             </div>
           )}
