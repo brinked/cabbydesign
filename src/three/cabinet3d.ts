@@ -414,13 +414,14 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   } else if (isKamadoInsert) {
     // Built-in kamado: solid lower cabinet (doors) + an open top compartment
-    // (white melamine: shelf floor, back, two sides) with a top stretcher
-    // across the front. No apron; open front & top so the kamado drops in.
+    // (shelf floor, back, two sides) with a flat top stretcher across the
+    // front. The whole cabinet is in the selected finish color (the opening
+    // exposes the interior, so no white melamine). No apron; open front & top.
     const T = 0.75;
     const openH = Math.min(KAMADO_OPEN_H, carcassH - 6);
     const lowerH = carcassH - openH;
     const yB = kick;
-    const add = (bw: number, bh: number, bd: number, x: number, y: number, z: number, mat: THREE.Material = mats.carcass) => {
+    const add = (bw: number, bh: number, bd: number, x: number, y: number, z: number, mat: THREE.Material = mats.body) => {
       const m = box(bw, bh, bd, mat);
       m.position.set(x, y, z);
       m.castShadow = m.receiveShadow = true;
@@ -432,9 +433,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     add(w, openH, T, 0, cy + openH / 2, T / 2); // back of the opening
     add(T, openH, d, -w / 2 + T / 2, cy + openH / 2, d / 2); // left side
     add(T, openH, d, w / 2 - T / 2, cy + openH / 2, d / 2); // right side
-    // top stretcher across the front (caps the opening; no apron below)
-    const strH = 2;
-    add(w, strH, T, 0, cy + openH - strH / 2, d - T / 2);
+    // flat top stretcher — a board lying flat across the top front
+    const strD = 3.5;
+    add(w, T, strD, 0, cy + openH - T / 2, d - strD / 2);
     if (kick > 0) {
       const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, d - 1, mats.kick);
       kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, d / 2 - 0.5);
