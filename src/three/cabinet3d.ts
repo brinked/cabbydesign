@@ -365,6 +365,8 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   const isCorner = cat.front === 'corner';
   const isSusan = cat.front === 'susan';
   const isOpen = cat.front === 'open'; // open shelving — no door, exposed shelves
+  const isKamadoInsert = cat.front === 'kamadoinsert'; // doors + open 12" top compartment
+  const KAMADO_OPEN_H = 12;
   // chamfer faces the room: side 1 (corner at left end) vs −1 (corner at right end).
   // Prefer the placement-derived side so the carcass stays put in its corner and
   // the hinge toggle only moves the (single) handle.
@@ -405,6 +407,30 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const sy = yB + (carcassH * i) / (nShelves + 1);
       add(w - T * 2, T, d - 1.5, 0, sy, d / 2); // shelf, set back slightly from the front
     }
+    if (kick > 0) {
+      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, d - 1, mats.kick);
+      kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, d / 2 - 0.5);
+      g.add(kickMesh);
+    }
+  } else if (isKamadoInsert) {
+    // Built-in kamado: solid lower cabinet (doors) + an open top compartment
+    // (back + two sides, open front & top) the kamado drops into.
+    const T = 0.75;
+    const openH = Math.min(KAMADO_OPEN_H, carcassH - 6);
+    const lowerH = carcassH - openH;
+    const yB = kick;
+    const add = (bw: number, bh: number, bd: number, x: number, y: number, z: number, mat: THREE.Material = mats.body) => {
+      const m = box(bw, bh, bd, mat);
+      m.position.set(x, y, z);
+      m.castShadow = m.receiveShadow = true;
+      g.add(m);
+    };
+    add(w, lowerH, d, 0, yB + lowerH / 2, d / 2, mats.carcass); // solid lower body (behind doors)
+    const cy = yB + lowerH;
+    add(w, T, d, 0, cy + T / 2, d / 2); // compartment floor / divider shelf
+    add(w, openH, T, 0, cy + openH / 2, T / 2, mats.inner); // back of the opening
+    add(T, openH, d, -w / 2 + T / 2, cy + openH / 2, d / 2); // left side
+    add(T, openH, d, w / 2 - T / 2, cy + openH / 2, d / 2); // right side
     if (kick > 0) {
       const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, d - 1, mats.kick);
       kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, d / 2 - 0.5);
@@ -479,12 +505,14 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       case 'grill':
       case 'grill4':
       case 'griddle':
-      case 'burner': {
+      case 'burner':
+      case 'kamadoinsert': {
         // The appliance face is recessed into the top of the cabinet. The
         // cabinet front picture-frames it: apron below, panel stiles wrapping
-        // both sides, doors at the bottom.
+        // both sides, doors at the bottom. The built-in kamado leaves the top
+        // open (a 12″ opening) instead of a face panel.
         const isGrill = cat.front === 'grill' || cat.front === 'grill4';
-        const applH = isGrill ? 9 : 7;
+        const applH = cat.front === 'kamadoinsert' ? KAMADO_OPEN_H : isGrill ? 9 : 7;
         const apronH = 4.5;
         const doorH = fh - applH - apronH - GAP * 2;
         if (cat.front === 'grill4') {
@@ -918,6 +946,21 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     egg.castShadow = true;
     egg.position.set(0, counterTop + r * 0.7, d / 2);
     g.add(egg);
+  } else if (cat.front === 'kamadoinsert' && !isAppliance) {
+    // kamado recessed into the open 12″ compartment, dome rising above the top
+    const r = Math.min(w / 2 - 5, 11);
+    const egg = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), mats.egg);
+    egg.scale.y = 1.15;
+    egg.castShadow = true;
+    const compFloor = h - KAMADO_OPEN_H; // top of the door region (= floor of the opening)
+    const eggY = compFloor + r * 0.9;
+    egg.position.set(0, eggY, d / 2 + 1);
+    g.add(egg);
+    // lid seam band around the kamado's widest point
+    const band = new THREE.Mesh(new THREE.TorusGeometry(r * 1.0, 0.3, 8, 30), mats.dark);
+    band.position.set(0, eggY, d / 2 + 1);
+    band.rotation.x = Math.PI / 2;
+    g.add(band);
   } else if (isSinkFront(cat.front)) {
     // dropped-in stainless basin (the counter is cut out over it in scene3d)
     const { bw, bd, zc, bowlH } = sinkBasin(w, d);

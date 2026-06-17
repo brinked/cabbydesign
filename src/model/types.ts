@@ -33,6 +33,7 @@ export type FrontKind =
   | 'propane'
   | 'propanedrawer'
   | 'kamado'
+  | 'kamadoinsert'
   | 'pizza'
   | 'cartgrill'
   | 'dishwasher'

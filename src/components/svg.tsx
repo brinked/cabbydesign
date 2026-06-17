@@ -590,6 +590,20 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
         gear = <KamadoEgg w={w} counter={cat.counter} />;
       }
       break;
+    case 'kamadoinsert': {
+      // doors below + an open 12″ compartment with the kamado set into it
+      const openH = 12;
+      const doorH = fh - openH - gap;
+      front = (
+        <g>
+          {doors(2, openH + gap, doorH)}
+          {/* open compartment (recessed interior) */}
+          <rect x={gap} y={0} width={w - gap * 2} height={openH} rx={0.6} fill="url(#g-recess)" stroke="rgba(0,0,0,0.25)" strokeWidth={0.3} />
+        </g>
+      );
+      gear = <KamadoEgg w={w} counter={false} />;
+      break;
+    }
     case 'pizza': {
       const domeR = Math.min(w / 2 - 2, 16);
       const cx = w / 2;
@@ -708,6 +722,7 @@ export function CabinetTop({ cat, w, d, fin, hinge = 'left' }: { cat: CatalogIte
           </g>
         );
       case 'kamado':
+      case 'kamadoinsert':
         return <circle cx={w / 2} cy={d * 0.5} r={Math.min(w, d) / 2 - 3} fill="#1f3a2e" stroke="#142a21" strokeWidth={0.4} />;
       case 'pizza':
         return <circle cx={w / 2} cy={d * 0.5} r={Math.min(w, d) / 2 - 3} fill="#b8643c" stroke="#8f4c2d" strokeWidth={0.4} />;
