@@ -122,10 +122,11 @@ export function appliancePrice(
 }
 
 /**
- * A grill cabinet must be at least this many inches wider than its insulated
- * liner's cutout width (clearance for the cabinet frame around the jacket).
+ * A grill/griddle/side-burner/power-burner cabinet must be at least this many
+ * inches wider than its insulated liner's cutout width (clearance for the
+ * cabinet frame around the jacket).
  */
-export const LINER_CABINET_CLEARANCE = 3;
+export const LINER_CABINET_CLEARANCE = 4;
 
 /**
  * Minimum housing-cabinet width for a placed cabinet's appliance selection: the

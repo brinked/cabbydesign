@@ -20,6 +20,11 @@ import { fmtIn } from './svg';
 
 const HINGED_FRONTS: FrontKind[] = ['door1', 'doordrawer', 'burner', 'propane', 'blind', 'blindl', 'blindr', 'fridge', 'fridgep', 'corner', 'susan', 'sink1', 'sink1f'];
 
+/** Cabinet appliance categories that house an insulated liner — these enforce
+ *  the liner cutout-width + clearance rule (see LINER_CABINET_CLEARANCE). */
+const LINER_RULE_CATS = ['grill', 'griddle', 'sideburner', 'powerburner'];
+const usesLinerRule = (c?: string) => !!c && LINER_RULE_CATS.includes(c);
+
 function Modal({ title, sub, onClose, children, wide }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -193,12 +198,11 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   const mode: 'none' | 'inventory' | 'own' = sel?.mode ?? 'none';
   const selected = sel?.mode === 'inventory' ? options.find((a) => a.id === sel.applianceId) : undefined;
   const liner = selected?.linerId ? appliances.find((a) => a.id === selected.linerId) : undefined;
-  const reqW =
-    want === 'grill'
-      ? requiredCabinetWidth(sel, appliances)
-      : want === 'fridge' || want === 'icemaker'
-        ? selectedApplianceWidth(sel, appliances) ?? 0
-        : 0;
+  const reqW = usesLinerRule(want)
+    ? requiredCabinetWidth(sel, appliances)
+    : want === 'fridge' || want === 'icemaker'
+      ? selectedApplianceWidth(sel, appliances) ?? 0
+      : 0;
 
   // A fridge/ice maker just needs an opening sized to fit it — so when a model
   // is picked, auto-size the opening's width, depth AND height to the unit's
@@ -308,9 +312,9 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
           )}
           {reqW > 0 &&
             it.w + 0.01 < reqW &&
-            (want === 'grill' ? (
+            (usesLinerRule(want) ? (
               <div className="warn" style={{ marginTop: 8 }}>
-                ⚠ This grill needs a cabinet at least {fmtIn(reqW)} wide
+                ⚠ This {APPLIANCE_CAT_LABELS[want!].toLowerCase()} needs a cabinet at least {fmtIn(reqW)} wide
                 {liner?.cutoutW ? ` (liner cutout ${fmtIn(liner.cutoutW)} + ${LINER_CABINET_CLEARANCE}″ clearance)` : ''}. Widen the cabinet above to fit it.
               </div>
             ) : (
@@ -355,14 +359,13 @@ export function EditItemModal() {
   const left = spaceLeft(design, it.wallId, cat.lane);
   const dimRange = effectiveDims(it.catalogId, dims);
   const maxW = Math.min(dimRange.maxW, it.w + left);
-  // A grill's insulated liner needs cabinet width ≥ liner cutout + 3″; a
-  // fridge/ice maker needs a cabinet at least as wide as the unit.
-  const appMinW =
-    cat.applianceCat === 'grill'
-      ? requiredCabinetWidth(it.appliance, appliances)
-      : cat.applianceCat === 'fridge' || cat.applianceCat === 'icemaker'
-        ? selectedApplianceWidth(it.appliance, appliances) ?? 0
-        : 0;
+  // A grill/griddle/burner's insulated liner needs cabinet width ≥ liner cutout
+  // + clearance; a fridge/ice maker needs a cabinet at least as wide as the unit.
+  const appMinW = usesLinerRule(cat.applianceCat)
+    ? requiredCabinetWidth(it.appliance, appliances)
+    : cat.applianceCat === 'fridge' || cat.applianceCat === 'icemaker'
+      ? selectedApplianceWidth(it.appliance, appliances) ?? 0
+      : 0;
   const minW = Math.max(dimRange.minW, Math.min(appMinW, maxW));
   const price = itemPrice(design, it, pricing);
   const island = wall.ghost;
