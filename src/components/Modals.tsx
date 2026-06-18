@@ -610,6 +610,64 @@ export function PricingModal() {
   );
 }
 
+/** Retail price formulas — the basis for contractor "% off retail" accounts. */
+export function RetailPricingModal() {
+  const open = useStore((s) => s.retailPricingOpen);
+  const setOpen = useStore((s) => s.setRetailPricingOpen);
+  const retailPricing = useStore((s) => s.retailPricing);
+  const setRetailFormula = useStore((s) => s.setRetailFormula);
+
+  const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch), []);
+
+  if (!open) return null;
+  return (
+    <Modal
+      title="Retail pricing formulas"
+      sub="The retail (list) price per cabinet. Contractors on '% off retail' pay this minus their discount. Variables: W, D, H in inches. Blank = falls back to the base price formula."
+      onClose={() => setOpen(false)}
+      wide
+    >
+      <div className="pricing-table">
+        <div className="pricing-row pricing-head">
+          <span>Cabinet</span>
+          <span>Retail formula</span>
+          <span>@ default size</span>
+          <span></span>
+        </div>
+        {rows.map((c) => {
+          const set = retailPricing[c.id] !== undefined;
+          const formula = retailPricing[c.id] ?? c.formula;
+          const { price, error } = tryFormula(formula, { W: c.w, D: c.d, H: c.h });
+          return (
+            <div className="pricing-row" key={c.id}>
+              <span className="pricing-name">{c.name}</span>
+              <span>
+                <input
+                  className={error ? 'formula-input formula-bad' : 'formula-input'}
+                  value={retailPricing[c.id] ?? ''}
+                  placeholder={c.formula}
+                  onChange={(e) => setRetailFormula(c.id, e.target.value)}
+                  spellCheck={false}
+                />
+                {error && <div className="warn-inline">{error}</div>}
+              </span>
+              <span className="pricing-sample">{error ? '—' : money(price)}</span>
+              <span>
+                {set && (
+                  <button className="btn-ghost" title="Clear (use base price)" onClick={() => setRetailFormula(c.id, null)}>
+                    ↺
+                  </button>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <SaveGlobalFooter onSave={() => api.setRetailPricing(useStore.getState().retailPricing).then(() => undefined)} />
+    </Modal>
+  );
+}
+
 function DimCell({
   value,
   placeholder,

@@ -36,6 +36,7 @@ export default function ProfileScreen() {
     setBusy(true);
     try {
       await setPrefs({
+        ...prefs!,
         marginPct: Number.isNaN(margin) ? 0 : margin,
         flatAmount: Number.isNaN(flat) ? 0 : flat,
         markupMode,
@@ -67,6 +68,21 @@ export default function ProfileScreen() {
 
       <LogoCard />
 
+      {user?.role === 'contractor' ? (
+        <section className="card">
+          <h2>Pricing</h2>
+          <p className="card-sub">Your pricing is set by your administrator.</p>
+          <p style={{ marginTop: 8 }}>
+            {prefs?.contractorMode === 'own' ? (
+              <b>Custom pricing</b>
+            ) : (
+              <>
+                <b>{prefs?.retailDiscountPct ?? 0}% off retail</b>
+              </>
+            )}
+          </p>
+        </section>
+      ) : (
       <section className="card">
         <h2>Markup</h2>
         <p className="card-sub">How your selling price is calculated from cost when “marked-up” pricing is shown.</p>
@@ -128,6 +144,7 @@ export default function ProfileScreen() {
             : 'Example: a $200 flat markup adds $200 to each cabinet line.'}
         </p>
       </section>
+      )}
 
       <section className="card">
         <h2>Report pricing</h2>

@@ -5,7 +5,7 @@ export interface ApiUser {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'dealer';
+  role: 'admin' | 'dealer' | 'contractor';
   companyName: string;
   companySlogan: string;
   address: string;
@@ -49,6 +49,12 @@ export interface ApiPrefs {
   flatAmount: number;
   /** Admin-controlled; the dealer cannot change this. */
   taxExempt: boolean;
+  /** Contractor accounts: how their pricing is derived. */
+  contractorMode: 'retail_discount' | 'own';
+  /** Contractor 'retail_discount' mode: percent off the admin retail price. */
+  retailDiscountPct: number;
+  /** Contractor 'own' mode: their own per-cabinet formulas (catalogId -> formula). */
+  ownPricing: Record<string, string>;
 }
 
 const getPrefs = db.prepare('SELECT * FROM dealer_prefs WHERE user_id = ?');
@@ -61,6 +67,12 @@ export function prefsFor(userId: number): ApiPrefs {
     insertPrefs.run(userId);
     row = getPrefs.get(userId) as DealerPrefsRow;
   }
+  let ownPricing: Record<string, string> = {};
+  try {
+    ownPricing = row.own_pricing ? JSON.parse(row.own_pricing) : {};
+  } catch {
+    ownPricing = {};
+  }
   return {
     marginPct: row.margin_pct,
     showPricing: !!row.show_pricing,
@@ -68,6 +80,9 @@ export function prefsFor(userId: number): ApiPrefs {
     markupMode: row.markup_mode,
     flatAmount: row.flat_amount,
     taxExempt: !!row.tax_exempt,
+    contractorMode: row.contractor_mode,
+    retailDiscountPct: row.retail_discount_pct,
+    ownPricing,
   };
 }
 

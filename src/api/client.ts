@@ -3,11 +3,13 @@
 // along automatically with credentials: 'include'.
 import type { ApplianceBrands, ApplianceItem, Design } from '../model/types';
 
+export type Role = 'admin' | 'dealer' | 'contractor';
+
 export interface ApiUser {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'dealer';
+  role: Role;
   companyName: string;
   companySlogan: string;
   address: string;
@@ -26,6 +28,10 @@ export interface DealerPrefs {
   flatAmount: number;
   /** Admin-controlled; dealers see it read-only. */
   taxExempt: boolean;
+  /** Contractor accounts: pricing derivation (admin-controlled). */
+  contractorMode: 'retail_discount' | 'own';
+  retailDiscountPct: number;
+  ownPricing: Record<string, string>;
 }
 
 export interface CertInfo {
@@ -80,13 +86,16 @@ export type CabinetDims = Record<string, DimOverridePayload>;
 export interface DealerInput {
   name: string;
   email: string;
-  role: 'admin' | 'dealer';
+  role: Role;
   companyName: string;
   companySlogan: string;
   address: string;
   phone: string;
   active: boolean;
   taxExempt: boolean;
+  contractorMode: 'retail_discount' | 'own';
+  retailDiscountPct: number;
+  ownPricing: Record<string, string>;
   password?: string;
 }
 
@@ -124,6 +133,9 @@ export const api = {
   getPricing: () => request<{ pricing: Record<string, string> }>('GET', '/settings/pricing'),
   setPricing: (pricing: Record<string, string>) =>
     request<{ pricing: Record<string, string> }>('PUT', '/settings/pricing', { pricing }),
+  getRetailPricing: () => request<{ retailPricing: Record<string, string> }>('GET', '/settings/retail-pricing'),
+  setRetailPricing: (retailPricing: Record<string, string>) =>
+    request<{ retailPricing: Record<string, string> }>('PUT', '/settings/retail-pricing', { retailPricing }),
   getTaxRate: () => request<{ rate: number }>('GET', '/settings/tax'),
   setTaxRate: (rate: number) => request<{ rate: number }>('PUT', '/settings/tax', { rate }),
 

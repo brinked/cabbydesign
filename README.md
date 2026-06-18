@@ -27,6 +27,7 @@ Other scripts: `npm run dev:web` / `npm run dev:server` run the two halves separ
 - **Profile** (each dealer) — upload a **company logo** (shown on their customer reports), choose a **markup** (percentage *or* a flat $ per cabinet), set whether to **show or hide pricing** on the report and **cost vs. marked-up** prices, upload a **resale tax certificate**, and change their password.
 - **Sales tax** — a global rate (default **6.5%**, admin-editable) is added to marked-up report totals. The admin can mark a dealer **tax-exempt** (after reviewing their uploaded resale certificate).
 - New dealer accounts start with the default password **ChangeMe123** (admin can override or reset to it); dealers change it after first login.
+- **Contractor accounts** — a separate account role. Each contractor's pricing is admin-set per account: either **% off retail** (the admin-defined retail price, set in **Admin → Retail pricing**) or **their own per-cabinet formulas**. Separate from dealer (cost + markup) pricing.
 - **My Jobs** (each dealer) — save the current design with the customer's **name, email, and address**, then reopen, rename, or delete saved jobs later. (File **Export/Import** still works as a local backup.)
 
 ## Production build & hosting

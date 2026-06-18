@@ -1,16 +1,32 @@
-// Admin CRUD over dealer accounts.
+﻿// Admin CRUD over dealer accounts.
 import { Router } from 'express';
 import { z } from 'zod';
 import { db, type UserRow } from '../db.ts';
 import { DEFAULT_DEALER_PASSWORD, hashPassword, requireAdmin } from '../auth.ts';
 import { certDataFor, certInfoFor, prefsFor, shapeUser } from '../shape.ts';
 
-/** Apply the admin-only tax_exempt flag to a dealer's prefs row. */
+/** Apply the admin-only prefs (tax exemption + contractor pricing config). */
 const ensurePrefsRow = db.prepare('INSERT OR IGNORE INTO dealer_prefs (user_id) VALUES (?)');
-const setTaxExempt = db.prepare("UPDATE dealer_prefs SET tax_exempt = ?, updated_at = datetime('now') WHERE user_id = ?");
-function applyTaxExempt(userId: number, exempt: boolean): void {
+const setAdminPrefs = db.prepare(`
+  UPDATE dealer_prefs SET tax_exempt = @taxExempt, contractor_mode = @contractorMode,
+    retail_discount_pct = @retailDiscountPct, own_pricing = @ownPricing,
+    updated_at = datetime('now') WHERE user_id = @userId
+`);
+function applyAdminPrefs(
+  userId: number,
+  d: { taxExempt: boolean; contractorMode: 'retail_discount' | 'own'; retailDiscountPct: number; ownPricing: Record<string, string> }
+): void {
   ensurePrefsRow.run(userId);
-  setTaxExempt.run(exempt ? 1 : 0, userId);
+  // keep only non-empty formula strings
+  const own: Record<string, string> = {};
+  for (const [id, f] of Object.entries(d.ownPricing)) if (f && f.trim()) own[id] = f.trim();
+  setAdminPrefs.run({
+    userId,
+    taxExempt: d.taxExempt ? 1 : 0,
+    contractorMode: d.contractorMode,
+    retailDiscountPct: d.retailDiscountPct,
+    ownPricing: JSON.stringify(own),
+  });
 }
 
 /** Full admin view of a dealer: account + prefs + certificate status. */
@@ -38,16 +54,20 @@ dealersRouter.get('/', (_req, res) => {
 const upsertSchema = z.object({
   name: z.string().min(1).max(120),
   email: z.string().email(),
-  role: z.enum(['admin', 'dealer']).default('dealer'),
+  role: z.enum(['admin', 'dealer', 'contractor']).default('dealer'),
   companyName: z.string().max(160).default(''),
   companySlogan: z.string().max(160).default(''),
   address: z.string().max(300).default(''),
   phone: z.string().max(40).default(''),
   active: z.boolean().default(true),
   taxExempt: z.boolean().default(false),
+  // contractor pricing (admin-controlled)
+  contractorMode: z.enum(['retail_discount', 'own']).default('retail_discount'),
+  retailDiscountPct: z.number().min(0).max(100).default(0),
+  ownPricing: z.record(z.string(), z.string().max(200)).default({}),
 });
 
-// Password optional on create — blank means start with the default password.
+// Password optional on create - blank means start with the default password.
 const createSchema = upsertSchema.extend({
   password: z.string().min(8).or(z.literal('')).optional(),
 });
@@ -75,7 +95,7 @@ dealersRouter.post('/', (req, res) => {
     active: d.active ? 1 : 0,
   });
   const id = Number(info.lastInsertRowid);
-  applyTaxExempt(id, d.taxExempt);
+  applyAdminPrefs(id, d);
   res.status(201).json({ dealer: dealerView(getUser.get(id) as UserRow) });
 });
 
@@ -120,7 +140,7 @@ dealersRouter.put('/:id', (req, res) => {
     phone: d.phone,
     active: d.active ? 1 : 0,
   });
-  applyTaxExempt(id, d.taxExempt);
+  applyAdminPrefs(id, d);
   res.json({ dealer: dealerView(getUser.get(id) as UserRow) });
 });
 

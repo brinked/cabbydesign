@@ -155,10 +155,13 @@ interface AppState {
   editingRoughInId: string | null;
   addToWallId: string | null;
   pricingOpen: boolean;
+  retailPricingOpen: boolean;
   settingsOpen: boolean;
   appliancesOpen: boolean;
-  /** catalogId -> formula override */
+  /** catalogId -> formula override (base / dealer cost) */
   pricing: Record<string, string>;
+  /** catalogId -> retail price formula (basis for contractor "% off retail") */
+  retailPricing: Record<string, string>;
   /** catalogId -> size-range override */
   dims: Record<string, DimOverride>;
   /** Admin-managed appliance inventory (grills, fridges, liners, …). */
@@ -196,6 +199,8 @@ interface AppState {
   openAdd: (wallId: string | null) => void;
   setPricingOpen: (open: boolean) => void;
   setFormula: (catalogId: string, formula: string | null) => void;
+  setRetailPricingOpen: (open: boolean) => void;
+  setRetailFormula: (catalogId: string, formula: string | null) => void;
   setSnapshot: (dataUrl: string | null) => void;
   newDesign: () => void;
   loadDesign: (design: Design) => void;
@@ -426,9 +431,11 @@ export const useStore = create<AppState>()(
       editingRoughInId: null,
       addToWallId: null,
       pricingOpen: false,
+      retailPricingOpen: false,
       settingsOpen: false,
       appliancesOpen: false,
       pricing: {},
+      retailPricing: {},
       dims: {},
       appliances: [],
       applianceBrands: {},
@@ -670,6 +677,14 @@ export const useStore = create<AppState>()(
           if (formula === null) delete pricing[catalogId];
           else pricing[catalogId] = formula;
           return { pricing };
+        }),
+      setRetailPricingOpen: (open) => set({ retailPricingOpen: open }),
+      setRetailFormula: (catalogId, formula) =>
+        set((s) => {
+          const retailPricing = { ...s.retailPricing };
+          if (formula === null) delete retailPricing[catalogId];
+          else retailPricing[catalogId] = formula;
+          return { retailPricing };
         }),
       setSnapshot: (dataUrl) => set({ snapshot3d: dataUrl }),
       newDesign: () => set({ design: defaultDesign(), selectedId: null, editingId: null, editingRoughInId: null, snapshot3d: null }),

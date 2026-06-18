@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError, type DealerInput, type DealerWithPrefs } from '../api/client';
+import { CATALOG } from '../model/catalog';
 import { useStore } from '../state/store';
 import { useSession } from '../state/session';
 
@@ -13,6 +14,9 @@ const BLANK: DealerInput = {
   phone: '',
   active: true,
   taxExempt: false,
+  contractorMode: 'retail_discount',
+  retailDiscountPct: 0,
+  ownPricing: {},
   password: '',
 };
 
@@ -24,6 +28,7 @@ export default function AdminPanel() {
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState<DealerWithPrefs | 'new' | null>(null);
   const setPricingOpen = useStore((s) => s.setPricingOpen);
+  const setRetailPricingOpen = useStore((s) => s.setRetailPricingOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
 
@@ -105,6 +110,9 @@ export default function AdminPanel() {
           <button className="btn-ghost" onClick={() => setPricingOpen(true)}>
             Base pricing
           </button>
+          <button className="btn-ghost" onClick={() => setRetailPricingOpen(true)}>
+            Retail pricing
+          </button>
           <button className="btn-ghost" onClick={() => setAppliancesOpen(true)}>
             Appliances
           </button>
@@ -147,8 +155,24 @@ export default function AdminPanel() {
                 </td>
                 <td>{d.companyName || '—'}</td>
                 <td>{d.email}</td>
-                <td>{d.role === 'admin' ? <span className="pill pill-admin">admin</span> : 'dealer'}</td>
-                <td>{d.prefs.markupMode === 'flat' ? `$${d.prefs.flatAmount}` : `${d.prefs.marginPct}%`}</td>
+                <td>
+                  {d.role === 'admin' ? (
+                    <span className="pill pill-admin">admin</span>
+                  ) : d.role === 'contractor' ? (
+                    <span className="pill pill-admin">contractor</span>
+                  ) : (
+                    'dealer'
+                  )}
+                </td>
+                <td>
+                  {d.role === 'contractor'
+                    ? d.prefs.contractorMode === 'own'
+                      ? 'own pricing'
+                      : `${d.prefs.retailDiscountPct}% off retail`
+                    : d.prefs.markupMode === 'flat'
+                      ? `$${d.prefs.flatAmount}`
+                      : `${d.prefs.marginPct}%`}
+                </td>
                 <td>
                   {d.prefs.taxExempt ? <span className="pill pill-ok">exempt</span> : <span className="pill">taxed</span>}
                   {d.cert.present && (
@@ -238,6 +262,9 @@ function toInput(d: DealerWithPrefs): DealerInput {
     phone: d.phone,
     active: d.active,
     taxExempt: d.prefs.taxExempt,
+    contractorMode: d.prefs.contractorMode,
+    retailDiscountPct: d.prefs.retailDiscountPct,
+    ownPricing: d.prefs.ownPricing,
   };
 }
 
@@ -322,6 +349,7 @@ function DealerEditModal({
             <span>Role</span>
             <select value={form.role} onChange={(e) => set({ role: e.target.value as DealerInput['role'] })}>
               <option value="dealer">Dealer</option>
+              <option value="contractor">Contractor</option>
               <option value="admin">Admin</option>
             </select>
           </label>
@@ -346,6 +374,7 @@ function DealerEditModal({
           <input type="checkbox" checked={form.taxExempt} onChange={(e) => set({ taxExempt: e.target.checked })} />
           <span>Tax exempt (no sales tax on this dealer's orders)</span>
         </label>
+        {form.role === 'contractor' && <ContractorPricing form={form} set={set} />}
         {!isNew && dealer!.cert.present && (
           <p className="card-sub" style={{ marginTop: 8 }}>
             Resale certificate on file: <b>{dealer!.cert.name || 'certificate'}</b>.{' '}
@@ -375,6 +404,67 @@ function DealerEditModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Contractor pricing config inside the dealer edit modal (admin-controlled). */
+function ContractorPricing({ form, set }: { form: DealerInput; set: (patch: Partial<DealerInput>) => void }) {
+  const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch), []);
+  return (
+    <div className="card" style={{ marginTop: 12, padding: 12 }}>
+      <h2 style={{ fontSize: 15 }}>Contractor pricing</h2>
+      <div className="seg" style={{ maxWidth: 360, marginTop: 8 }}>
+        <button
+          className={form.contractorMode === 'retail_discount' ? 'seg-btn active' : 'seg-btn'}
+          onClick={() => set({ contractorMode: 'retail_discount' })}
+        >
+          % off retail
+        </button>
+        <button
+          className={form.contractorMode === 'own' ? 'seg-btn active' : 'seg-btn'}
+          onClick={() => set({ contractorMode: 'own' })}
+        >
+          Their own pricing
+        </button>
+      </div>
+      {form.contractorMode === 'retail_discount' ? (
+        <label className="form-field form-field-inline" style={{ marginTop: 10 }}>
+          <span>Discount off retail</span>
+          <span className="suffix-input">
+            <input
+              inputMode="decimal"
+              value={String(form.retailDiscountPct)}
+              onChange={(e) => set({ retailDiscountPct: parseFloat(e.target.value) || 0 })}
+            />
+            <span className="suffix">%</span>
+          </span>
+        </label>
+      ) : (
+        <div className="pricing-table" style={{ marginTop: 10, maxHeight: '38vh', overflowY: 'auto' }}>
+          <div className="pricing-row pricing-head" style={{ gridTemplateColumns: '1fr 2fr' }}>
+            <span>Cabinet</span>
+            <span>Formula (blank = retail)</span>
+          </div>
+          {rows.map((c) => (
+            <div className="pricing-row" key={c.id} style={{ gridTemplateColumns: '1fr 2fr' }}>
+              <span className="pricing-name">{c.name}</span>
+              <input
+                className="formula-input"
+                value={form.ownPricing[c.id] ?? ''}
+                placeholder={c.formula}
+                spellCheck={false}
+                onChange={(e) => set({ ownPricing: { ...form.ownPricing, [c.id]: e.target.value } })}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="card-sub" style={{ marginTop: 8 }}>
+        {form.contractorMode === 'retail_discount'
+          ? 'Contractor pays the admin Retail price minus this %. Set retail prices via "Retail pricing" in the header.'
+          : "Contractor uses these per-cabinet formulas (W, D, H in inches); blank falls back to the retail price."}
+      </p>
     </div>
   );
 }

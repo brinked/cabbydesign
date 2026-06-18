@@ -12,27 +12,54 @@ import { fmtIn } from './svg';
 export default function Report() {
   const design = useStore((s) => s.design);
   const pricing = useStore((s) => s.pricing);
+  const retailPricing = useStore((s) => s.retailPricing);
   const snapshot = useStore((s) => s.snapshot3d);
   const setTab = useStore((s) => s.setTab);
   const appliances = useStore((s) => s.appliances);
   const applianceBrands = useStore((s) => s.applianceBrands);
   const prefs = useSession((s) => s.prefs);
+  const role = useSession((s) => s.user?.role);
   const taxRate = useSession((s) => s.taxRate);
   const logo = useSession((s) => s.user?.logo) ?? '';
   const fin = useFinish(design.finishId);
   const numbers = itemNumbers(design);
 
-  // Dealer pricing preferences. Default to showing marked-up pricing.
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  // Pricing preferences. Default to showing marked-up pricing.
   const showPricing = prefs?.showPricing ?? true;
   const priceMode = prefs?.priceMode ?? 'marked_up';
   const isMarkedUp = priceMode === 'marked_up';
-  // percent markup multiplies; flat markup adds a fixed $ to each cabinet line.
-  const factor = isMarkedUp && prefs?.markupMode !== 'flat' ? 1 + (prefs?.marginPct ?? 0) / 100 : 1;
-  const flatPerCab = isMarkedUp && prefs?.markupMode === 'flat' ? prefs?.flatAmount ?? 0 : 0;
+  const isContractor = role === 'contractor';
   const taxExempt = prefs?.taxExempt ?? false;
-  // panels mark up by percent only (flat is "per cabinet"); cabinets add the flat.
+
+  // Dealer markup (not used for contractors). percent multiplies; flat adds per cabinet.
+  const factor = !isContractor && isMarkedUp && prefs?.markupMode !== 'flat' ? 1 + (prefs?.marginPct ?? 0) / 100 : 1;
+  const flatPerCab = !isContractor && isMarkedUp && prefs?.markupMode === 'flat' ? prefs?.flatAmount ?? 0 : 0;
+
+  // Contractor pricing: % off retail (retail formula, fall back to base) or the
+  // contractor's own per-cabinet formulas (fall back to retail, then base).
+  const contractorMode = prefs?.contractorMode ?? 'retail_discount';
+  const retailDiscount = isContractor ? prefs?.retailDiscountPct ?? 0 : 0;
+  const retailMap = { ...pricing, ...retailPricing };
+  const ownMap = { ...pricing, ...retailPricing, ...(prefs?.ownPricing ?? {}) };
+
+  /** Final displayed cabinet line price (box + trays) for the current account. */
+  const cabinetDisplayed = (it: (typeof design.items)[number], costP: ReturnType<typeof itemPrice>): number => {
+    const trays = costP.trays;
+    if (isContractor && isMarkedUp) {
+      const box =
+        contractorMode === 'own'
+          ? itemPrice(design, it, ownMap).cabinet
+          : itemPrice(design, it, retailMap).cabinet * (1 - retailDiscount / 100);
+      return round2(box) + trays;
+    }
+    // dealer markup (factor/flat), or cost mode (factor 1, flat 0)
+    return round2((costP.cabinet + trays) * factor + flatPerCab);
+  };
+
+  // panels mark up by the dealer percent only (1 for contractors / cost mode).
   const panelMk = (n: number) => money(n * factor);
-  const cabMk = (n: number) => money(n * factor + flatPerCab);
 
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -46,11 +73,13 @@ export default function Report() {
       const cat = catalogById(it.catalogId);
       const p = itemPrice(design, it, pricing);
       const wall = design.walls.find((w) => w.id === it.wallId);
-      // cabinet line = box (drawers/add-ons baked into the formula) + trays
+      // cost line (box + trays) and the final displayed price for this account
       const price = p.cabinet + p.trays;
-      return { it, cat, wall, price, error: p.error, n: numbers.get(it.id) ?? 0 };
+      const displayed = cat.category === 'appliance' || p.error ? 0 : cabinetDisplayed(it, p);
+      return { it, cat, wall, price, displayed, error: p.error, n: numbers.get(it.id) ?? 0 };
     });
   const cabinetSubtotal = lines.reduce((s, l) => s + (l.error ? 0 : l.price), 0);
+  const cabinetSubtotalDisplayed = lines.reduce((s, l) => s + (l.error || l.price <= 0 ? 0 : l.displayed), 0);
   const hasErrors = lines.some((l) => l.error);
 
   // Applied end panels — grouped by size (depth × panel height), with quantity.
@@ -104,8 +133,7 @@ export default function Report() {
   const applianceSubtotal = applianceLines.reduce((s, l) => s + l.p.total, 0);
 
   // Marked-up subtotals (percent factor, plus a flat $ on each priced cabinet).
-  const pricedCabCount = lines.filter((l) => l.cat.category !== 'appliance' && !l.error && l.price > 0).length;
-  const cabinetSubtotalMk = cabinetSubtotal * factor + flatPerCab * pricedCabCount;
+  const cabinetSubtotalMk = cabinetSubtotalDisplayed;
   const panelSubtotalMk = (endSubtotal + backSubtotal) * factor;
   const subtotalMk = cabinetSubtotalMk + panelSubtotalMk + applianceSubtotal;
   const taxAmount = isMarkedUp && !taxExempt ? (subtotalMk * taxRate) / 100 : 0;
@@ -197,7 +225,7 @@ export default function Report() {
                 </td>
                 {showPricing && (
                   <td className="num">
-                    {l.cat.category === 'appliance' ? '—' : l.error ? 'formula error' : l.price <= 0 ? '—' : cabMk(l.price)}
+                    {l.cat.category === 'appliance' ? '—' : l.error ? 'formula error' : l.price <= 0 ? '—' : money(l.displayed)}
                   </td>
                 )}
               </tr>

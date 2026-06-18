@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   name            TEXT    NOT NULL,
   email           TEXT    NOT NULL UNIQUE,
-  role            TEXT    NOT NULL DEFAULT 'dealer' CHECK (role IN ('admin', 'dealer')),
+  role            TEXT    NOT NULL DEFAULT 'dealer' CHECK (role IN ('admin', 'dealer', 'contractor')),
   company_name    TEXT    NOT NULL DEFAULT '',
   company_slogan  TEXT    NOT NULL DEFAULT '',
   address         TEXT    NOT NULL DEFAULT '',
@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS dealer_prefs (
   flat_amount  REAL    NOT NULL DEFAULT 0,
   -- admin-controlled: exempt from sales tax (dealer has a resale certificate)
   tax_exempt   INTEGER NOT NULL DEFAULT 0,
+  -- Contractor accounts only: 'retail_discount' = % off the admin retail price;
+  -- 'own' = the contractor's own per-cabinet formulas (own_pricing).
+  contractor_mode     TEXT NOT NULL DEFAULT 'retail_discount' CHECK (contractor_mode IN ('retail_discount', 'own')),
+  retail_discount_pct REAL NOT NULL DEFAULT 0,
+  own_pricing         TEXT NOT NULL DEFAULT '', -- JSON: { catalogId: formula }
   updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -7,7 +7,7 @@ import { db, type UserRow } from './db.ts';
 
 export interface SessionUser {
   id: number;
-  role: 'admin' | 'dealer';
+  role: 'admin' | 'dealer' | 'contractor';
 }
 
 /** Password every new dealer account starts with (they change it after login). */

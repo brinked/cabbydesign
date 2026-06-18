@@ -9,6 +9,7 @@ export const settingsRouter = Router();
 
 const CABINET_DIMS_KEY = 'cabinetDims';
 const PRICING_KEY = 'pricing';
+const RETAIL_PRICING_KEY = 'retailPricing';
 const TAX_RATE_KEY = 'taxRate';
 const APPLIANCES_KEY = 'appliances';
 const APPLIANCE_BRANDS_KEY = 'applianceBrands';
@@ -82,6 +83,25 @@ settingsRouter.put('/pricing', requireAdmin, (req, res) => {
   }
   upsertSetting.run(PRICING_KEY, JSON.stringify(clean));
   res.json({ pricing: clean });
+});
+
+// ---- Retail price formulas (the basis for contractor "% off retail"). ----
+settingsRouter.get('/retail-pricing', (_req, res) => {
+  res.json({ retailPricing: readJson(RETAIL_PRICING_KEY) });
+});
+
+settingsRouter.put('/retail-pricing', requireAdmin, (req, res) => {
+  const parsed = pricingSchema.safeParse(req.body?.retailPricing ?? req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid retail pricing formulas' });
+    return;
+  }
+  const clean: Record<string, string> = {};
+  for (const [id, f] of Object.entries(parsed.data)) {
+    if (f && f.trim()) clean[id] = f.trim();
+  }
+  upsertSetting.run(RETAIL_PRICING_KEY, JSON.stringify(clean));
+  res.json({ retailPricing: clean });
 });
 
 // ---- Global sales-tax rate (percent). Readable by all; admin-writable. ----
