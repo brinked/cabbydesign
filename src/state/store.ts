@@ -90,16 +90,31 @@ export function roughInBand(host: PlacedItem, w: number): { lo: number; hi: numb
 }
 
 /**
- * A stub-out conflicts when it isn't fully behind a single cabinet, or when it
- * sits within the required end clearance (it would break into the cabinet side
- * / applied end panel).
+ * A stub-out is "good" (no conflict) when nothing blocks drilling it: either it
+ * sits fully behind a single cabinet with end clearance, OR there's no cabinet
+ * in front of it at all (open space). It only conflicts when a cabinet END falls
+ * within its span — i.e. it's partially behind a cabinet or straddles the gap
+ * between two cabinets, where you couldn't cut a clean hole.
  */
 export function roughInConflict(design: Design, r: RoughIn): boolean {
-  const host = roughInHost(design, r);
-  if (!host) return true;
-  const { lo, hi } = roughInBand(host, r.w);
-  if (lo > hi) return true; // cabinet too narrow to host with clearance
-  return r.x < lo - 0.01 || r.x > hi + 0.01;
+  const stubL = r.x - r.w / 2;
+  const stubR = r.x + r.w / 2;
+  const cabs = design.items.filter((it) => {
+    if (it.wallId !== r.wallId) return false;
+    const c = catalogById(it.catalogId);
+    return c.lane === 'floor' && c.front !== 'filler';
+  });
+  // Good: fully behind one cabinet, clear of its ends (and applied panels).
+  for (const it of cabs) {
+    const lo = it.x + (it.endL ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR);
+    const hi = it.x + footprintW(it) - (it.endR ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR);
+    if (stubL >= lo - 0.01 && stubR <= hi + 0.01) return false;
+  }
+  // Good: nothing in front of it (no cabinet overlaps the stub's span).
+  const blocked = cabs.some((it) => it.x < stubR - 0.01 && it.x + footprintW(it) > stubL + 0.01);
+  if (!blocked) return false;
+  // Otherwise a cabinet end intrudes on the stub → conflict.
+  return true;
 }
 
 /** Renames from the pre-Starboard finish palette. */

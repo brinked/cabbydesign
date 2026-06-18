@@ -803,8 +803,11 @@ export function susanCounterPts(w: number, d: number, hinge: HingeSide, O: numbe
  * red dashed outline when it conflicts (not directly behind a cabinet).
  */
 export function RoughInGlyph({ kind, w, h, conflict }: { kind: RoughInKind; w: number; h: number; conflict: boolean }) {
-  const color = conflict ? '#dc2626' : kind === 'plumbing' ? '#2563eb' : '#b45309';
-  const fill = conflict ? 'rgba(220,38,38,0.12)' : kind === 'plumbing' ? 'rgba(37,99,235,0.12)' : 'rgba(180,83,9,0.12)';
+  // Green when the stub is good (behind a cabinet with clearance, or in open
+  // space); red when a cabinet end intrudes on it. The icon shape still tells
+  // plumbing vs electrical apart.
+  const color = conflict ? '#dc2626' : '#16a34a';
+  const fill = conflict ? 'rgba(220,38,38,0.12)' : 'rgba(22,163,74,0.12)';
   const sw = Math.max(0.35, Math.min(w, h) * 0.05);
   const cx = w / 2;
   const cy = h / 2;
