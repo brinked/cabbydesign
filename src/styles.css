@@ -911,17 +911,65 @@ button:disabled {
 
 .brand-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 10px 14px;
   margin-top: 8px;
 }
 
 .brand-cell {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.brand-cell-head {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 13px;
+}
+
+.brand-cell-name {
+  font-weight: 600;
+}
+
+.brand-vis {
+  font-size: 12px;
+}
+
+.brand-vis > summary {
+  cursor: pointer;
+  color: var(--muted);
+  list-style: none;
+}
+
+.brand-vis > summary::-webkit-details-marker {
+  display: none;
+}
+
+.brand-vis-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding-left: 2px;
+}
+
+.brand-vis-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.brand-vis-row input {
+  accent-color: var(--accent);
 }
 
 .brand-cell .suffix-input {

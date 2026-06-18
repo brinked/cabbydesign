@@ -13,7 +13,7 @@ import {
 } from '../model/appliances';
 import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, PlacedItem } from '../model/types';
 import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, useStore } from '../state/store';
-import { api, ApiError } from '../api/client';
+import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { CatalogThumb } from './CabinetImage';
 import { useFinish } from './WallsView';
 import { fmtIn } from './svg';
@@ -847,6 +847,50 @@ function ApplianceRow({
   );
 }
 
+/** Per-brand "visible to these accounts" picker. Empty = visible to everyone. */
+function BrandVisibility({
+  accounts,
+  value,
+  onChange,
+}: {
+  accounts: DealerWithPrefs[];
+  value: number[];
+  onChange: (ids: number[]) => void;
+}) {
+  const sel = new Set(value);
+  const toggle = (id: number) => {
+    const n = new Set(sel);
+    n.has(id) ? n.delete(id) : n.add(id);
+    onChange([...n]);
+  };
+  const summary = value.length === 0 ? 'Everyone' : `${value.length} customer${value.length > 1 ? 's' : ''}`;
+  return (
+    <details className="brand-vis">
+      <summary>
+        Visible to: <b>{summary}</b>
+      </summary>
+      <div className="brand-vis-list">
+        {accounts.length === 0 && <span className="card-sub">No customer accounts yet.</span>}
+        {accounts.map((a) => (
+          <label key={a.id} className="brand-vis-row">
+            <input type="checkbox" checked={sel.has(a.id)} onChange={() => toggle(a.id)} />
+            <span>
+              {a.name}
+              {a.companyName ? ` — ${a.companyName}` : ''}
+              {a.role === 'contractor' ? ' (contractor)' : ''}
+            </span>
+          </label>
+        ))}
+        {value.length > 0 && (
+          <button className="link-btn" onClick={() => onChange([])}>
+            Reset to everyone
+          </button>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export function AppliancesModal() {
   const open = useStore((s) => s.appliancesOpen);
   const setOpen = useStore((s) => s.setAppliancesOpen);
@@ -855,6 +899,23 @@ export function AppliancesModal() {
   const setAppliances = useStore((s) => s.setAppliances);
   const setApplianceBrands = useStore((s) => s.setApplianceBrands);
   const [csvMsg, setCsvMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [accounts, setAccounts] = useState<DealerWithPrefs[]>([]);
+  const [restricted, setRestricted] = useState<RestrictedBrands>({});
+
+  // Load the account list + current brand visibility when the modal opens.
+  useEffect(() => {
+    if (!open) return;
+    api.listDealers().then(({ dealers }) => setAccounts(dealers.filter((d) => d.role !== 'admin'))).catch(() => undefined);
+    api.getRestrictedBrands().then(({ restrictedBrands }) => setRestricted(restrictedBrands)).catch(() => undefined);
+  }, [open]);
+
+  const setBrandVisibility = (brand: string, ids: number[]) =>
+    setRestricted((r) => {
+      const n = { ...r };
+      if (ids.length) n[brand] = ids;
+      else delete n[brand];
+      return n;
+    });
 
   // Brands shown = those with a discount set plus every brand used in inventory.
   const brandNames = useMemo(() => {
@@ -904,7 +965,24 @@ export function AppliancesModal() {
     setAppliances(items);
     setCsvMsg({
       ok: errors.length === 0,
-      text: errors.length === 0 ? `Imported ${items.length} items. Review, then Save for all dealers.` : `Imported ${items.length} items, ${errors.length} skipped: ${errors.slice(0, 3).join(' ')}`,
+      text: errors.length === 0 ? `Imported ${items.length} items (replaced existing). Review, then Save for all dealers.` : `Imported ${items.length} items, ${errors.length} skipped: ${errors.slice(0, 3).join(' ')}`,
+    });
+  };
+
+  // Append/merge: add the parsed items to the existing inventory (upsert by id),
+  // so a brand file (e.g. NewAge) can be added without wiping what's there.
+  const appendCsv = (text: string) => {
+    const { items, errors } = parseAppliancesCsv(text);
+    if (items.length === 0) {
+      setCsvMsg({ ok: false, text: errors[0] ?? 'No rows found in the file.' });
+      return;
+    }
+    const ids = new Set(items.map((i) => i.id));
+    const merged = [...appliances.filter((a) => !ids.has(a.id)), ...items];
+    setAppliances(merged);
+    setCsvMsg({
+      ok: errors.length === 0,
+      text: `Added ${items.length} items (inventory now ${merged.length}). Review, set each brand's visibility above, then Save for all dealers.${errors.length ? ` ${errors.length} rows skipped.` : ''}`,
     });
   };
 
@@ -924,18 +1002,24 @@ export function AppliancesModal() {
       onClose={() => setOpen(false)}
       wide
     >
-      <h3 className="modal-h3">Brand discounts</h3>
-      <p className="card-sub">Enter the manufacturer discount you receive. Each dealer automatically gets half of it.</p>
+      <h3 className="modal-h3">Brands — discount &amp; visibility</h3>
+      <p className="card-sub">
+        Enter the manufacturer discount you receive (each dealer automatically gets half). Set <b>Visible to</b> to limit a
+        brand to specific customer accounts — leave it on <b>Everyone</b> to show it to all.
+      </p>
       <div className="brand-grid">
         {brandNames.length === 0 && <span className="card-sub">Add inventory below, then set each brand's discount here.</span>}
         {brandNames.map((b) => (
-          <label key={b} className="brand-cell">
-            <span>{b}</span>
-            <span className="suffix-input">
-              <DimCell value={brands[b]?.discountPct} placeholder={0} onCommit={(v) => setBrandPct(b, v)} />
-              <span className="suffix">%</span>
-            </span>
-          </label>
+          <div key={b} className="brand-cell">
+            <div className="brand-cell-head">
+              <span className="brand-cell-name">{b}</span>
+              <span className="suffix-input">
+                <DimCell value={brands[b]?.discountPct} placeholder={0} onCommit={(v) => setBrandPct(b, v)} />
+                <span className="suffix">%</span>
+              </span>
+            </div>
+            <BrandVisibility accounts={accounts} value={restricted[b] ?? []} onChange={(ids) => setBrandVisibility(b, ids)} />
+          </div>
         ))}
       </div>
 
@@ -964,7 +1048,20 @@ export function AppliancesModal() {
           + Add row
         </button>
         <label className="btn-ghost file-btn">
-          Import CSV
+          Append CSV
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) f.text().then(appendCsv);
+              e.target.value = '';
+            }}
+          />
+        </label>
+        <label className="btn-ghost file-btn">
+          Replace from CSV
           <input
             type="file"
             accept=".csv,text/csv"
@@ -989,6 +1086,7 @@ export function AppliancesModal() {
         onSave={async () => {
           await api.setAppliances(useStore.getState().appliances);
           await api.setApplianceBrands(useStore.getState().applianceBrands);
+          await api.setRestrictedBrands(restricted);
         }}
       />
     </Modal>

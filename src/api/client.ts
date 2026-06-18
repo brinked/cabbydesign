@@ -83,6 +83,9 @@ export interface DimOverridePayload {
 }
 export type CabinetDims = Record<string, DimOverridePayload>;
 
+/** Appliance brand -> account (user) ids allowed to use it. Empty = everyone. */
+export type RestrictedBrands = Record<string, number[]>;
+
 export interface DealerInput {
   name: string;
   email: string;
@@ -146,6 +149,10 @@ export const api = {
   getApplianceBrands: () => request<{ brands: ApplianceBrands }>('GET', '/settings/appliance-brands'),
   setApplianceBrands: (brands: ApplianceBrands) =>
     request<{ brands: ApplianceBrands }>('PUT', '/settings/appliance-brands', { brands }),
+  // brand -> allowed account ids (admin-only; empty/absent = visible to everyone)
+  getRestrictedBrands: () => request<{ restrictedBrands: RestrictedBrands }>('GET', '/settings/restricted-brands'),
+  setRestrictedBrands: (restrictedBrands: RestrictedBrands) =>
+    request<{ restrictedBrands: RestrictedBrands }>('PUT', '/settings/restricted-brands', { restrictedBrands }),
 
   // ---- dealer profile ----
   getPrefs: () => request<{ prefs: DealerPrefs }>('GET', '/profile/prefs'),

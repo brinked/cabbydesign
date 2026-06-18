@@ -13,6 +13,7 @@ const RETAIL_PRICING_KEY = 'retailPricing';
 const TAX_RATE_KEY = 'taxRate';
 const APPLIANCES_KEY = 'appliances';
 const APPLIANCE_BRANDS_KEY = 'applianceBrands';
+const RESTRICTED_BRANDS_KEY = 'restrictedBrands';
 const DEFAULT_TAX_RATE = 6.5; // Florida
 
 const getSetting = db.prepare('SELECT value FROM app_settings WHERE key = ?');
@@ -154,8 +155,30 @@ const applianceSchema = z.object({
 });
 const appliancesSchema = z.array(applianceSchema).max(5000);
 
-settingsRouter.get('/appliances', (_req, res) => {
-  res.json({ appliances: readArray(APPLIANCES_KEY) });
+// A brand can be restricted to specific accounts (brand -> allowed user ids).
+// An unrestricted brand (absent / empty list) is visible to everyone.
+function readRestrictedBrands(): Record<string, number[]> {
+  const raw = readJson(RESTRICTED_BRANDS_KEY);
+  const out: Record<string, number[]> = {};
+  for (const [b, ids] of Object.entries(raw)) if (Array.isArray(ids)) out[b] = ids as number[];
+  return out;
+}
+
+settingsRouter.get('/appliances', (req, res) => {
+  const all = readArray(APPLIANCES_KEY) as Array<{ brand?: string }>;
+  // Admins (and the inventory editor) see everything; everyone else only sees
+  // items whose brand isn't restricted away from them.
+  if (req.user?.role === 'admin') {
+    res.json({ appliances: all });
+    return;
+  }
+  const restricted = readRestrictedBrands();
+  const uid = req.user?.id;
+  const visible = all.filter((a) => {
+    const allow = restricted[a.brand ?? ''];
+    return !allow || allow.length === 0 || (uid !== undefined && allow.includes(uid));
+  });
+  res.json({ appliances: visible });
 });
 
 settingsRouter.put('/appliances', requireAdmin, (req, res) => {
@@ -183,4 +206,28 @@ settingsRouter.put('/appliance-brands', requireAdmin, (req, res) => {
   }
   upsertSetting.run(APPLIANCE_BRANDS_KEY, JSON.stringify(parsed.data));
   res.json({ brands: parsed.data });
+});
+
+// Per-brand visibility: brand -> allowed account (user) ids. Admin-only; the
+// designer never reads this directly (the appliance list is filtered server-side).
+const restrictedBrandsSchema = z.record(z.string(), z.array(z.number().int().positive()));
+
+settingsRouter.get('/restricted-brands', requireAdmin, (_req, res) => {
+  res.json({ restrictedBrands: readRestrictedBrands() });
+});
+
+settingsRouter.put('/restricted-brands', requireAdmin, (req, res) => {
+  const parsed = restrictedBrandsSchema.safeParse(req.body?.restrictedBrands ?? req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid brand visibility' });
+    return;
+  }
+  // Drop empty lists so an unrestricted brand isn't stored at all.
+  const clean: Record<string, number[]> = {};
+  for (const [b, ids] of Object.entries(parsed.data)) {
+    const uniq = [...new Set(ids)];
+    if (uniq.length) clean[b] = uniq;
+  }
+  upsertSetting.run(RESTRICTED_BRANDS_KEY, JSON.stringify(clean));
+  res.json({ restrictedBrands: clean });
 });
