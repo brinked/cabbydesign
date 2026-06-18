@@ -162,18 +162,17 @@ export interface CornerReserve {
   end: number;
 }
 
-/** Default dead-corner depth (a standard base-cabinet depth) reserved at every corner. */
-const DEFAULT_CORNER = 24;
-/** Extra clearance reserved on each wall at a corner for a filler (door/drawer clearance). */
+/** Extra clearance reserved on each wall at a corner for door/drawer clearance. */
 const CORNER_FILLER = 3;
 
 /**
- * Every corner where two non-island walls meet always reserves a "dead corner"
- * so perpendicular runs can never overlap. By default the later wall yields a
- * standard-depth zone (deeper if the earlier wall has a deeper cabinet at the
- * corner). If a blind/lazy-susan corner cabinet is placed on the later wall, it
- * owns the corner instead and the earlier wall yields. The reserved zone is
- * filled by a blind/lazy-susan corner cabinet (exempt) or left as dead space.
+ * Where two non-island walls meet, each wall reserves a "dead corner" only big
+ * enough to clear the OTHER wall's cabinet at that corner — its depth plus a 3"
+ * clearance. If the other wall has NO cabinet at the corner, nothing is reserved
+ * (so a returning L-wall with no run lets cabinets sit right into the corner).
+ * A blind/lazy-susan corner cabinet fills the corner, so the adjacent run butts
+ * flush against it (no extra filler). Corner cabinets are exempt and may occupy
+ * their own reserve.
  */
 export function cornerReserves(
   walls: Wall[],
@@ -204,10 +203,11 @@ export function cornerReserves(
     }
     return { depth, corner };
   };
-  // A corner cabinet fills the corner → the other run butts flush (no filler).
-  // A dead corner (regular cabinet or empty) keeps a 3" filler clearance.
+  // No cabinet on the other wall → no reserve. A corner cabinet fills the
+  // corner → the other run butts flush (no filler). Otherwise reserve that
+  // cabinet's depth + 3" clearance.
   const reserveFor = (n: { depth: number; corner: boolean }): number =>
-    n.depth <= 0 ? DEFAULT_CORNER + CORNER_FILLER : n.corner ? n.depth : Math.max(DEFAULT_CORNER, n.depth) + CORNER_FILLER;
+    n.depth <= 0 ? 0 : n.corner ? n.depth : n.depth + CORNER_FILLER;
 
   for (let i = 0; i < walls.length; i++) {
     for (let j = i + 1; j < walls.length; j++) {
