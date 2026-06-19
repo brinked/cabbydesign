@@ -1193,7 +1193,10 @@ button:disabled {
 }
 
 @page {
-  size: letter;
+  /* No `size` here on purpose: pinning a named size (e.g. `letter`) makes
+     Firefox lock orientation and hide the portrait/landscape toggle. Leaving
+     it out keeps portrait as the default while letting the user choose
+     landscape (and paper size) in the print dialog. */
   margin: 0.6in;
 }
 
