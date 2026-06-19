@@ -1186,9 +1186,32 @@ button:disabled {
   .report-page {
     box-shadow: none;
     border-radius: 0;
-    page-break-after: always;
     min-height: 0;
     padding: 24px 8px;
+  }
+
+  /* One section per sheet — but no forced break after the LAST one, which would
+     otherwise emit a trailing blank page. */
+  .report-page:not(:last-child) {
+    page-break-after: always;
+  }
+
+  /* Keep a figure whole, and cap its height so it can't overflow onto extra
+     (near-blank) pages. The on-screen 880px cap is removed in print, so without
+     this the SVGs scale to the full sheet width and grow very tall — especially
+     in landscape. width:auto !important overrides the inline width:100% so the
+     SVG letterboxes to fit within both max-width and max-height. The cap is
+     sized to fit landscape Letter, the most height-constrained case. */
+  .report-figure {
+    break-inside: avoid;
+    text-align: center;
+  }
+
+  .report-figure svg {
+    width: auto !important;
+    max-width: 100%;
+    max-height: 5.6in;
+    margin: 0 auto;
   }
 }
 
