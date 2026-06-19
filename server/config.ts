@@ -16,6 +16,19 @@ export const config = {
   isProd: process.env.NODE_ENV === 'production',
   // Allowed CORS origin for the SPA in dev (Vite). In prod the SPA is same-origin.
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
+  // Public base URL of the app (used in emailed links, e.g. password reset).
+  appUrl: process.env.APP_URL ?? 'http://localhost:5173',
+  // Outbound email (Google Workspace SMTP). Configure these env vars to enable
+  // order notifications + password-reset emails. Unset = email is disabled.
+  smtp: {
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 465),
+    user: process.env.SMTP_USER ?? '', // e.g. info@extcabinets.com
+    pass: process.env.SMTP_PASS ?? '', // a Google Workspace App Password
+    from: process.env.EMAIL_FROM ?? 'EXT Cabinets <info@extcabinets.com>',
+    // Where order-submission notifications are sent.
+    orderInbox: process.env.EMAIL_TO ?? 'extcabinets@gmail.com',
+  },
 };
 
 export const COOKIE_NAME = 'cabdesign_session';

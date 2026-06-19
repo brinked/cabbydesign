@@ -63,6 +63,14 @@ CREATE TABLE IF NOT EXISTS dealer_branding (
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Password-reset tokens (one-time, time-limited). We store only the SHA-256 of
+-- the token; the plaintext is emailed to the user.
+CREATE TABLE IF NOT EXISTS password_resets (
+  token_hash TEXT    PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TEXT    NOT NULL
+);
+
 -- Global app settings (admin-controlled). Currently holds the cabinet
 -- min/max width/depth limits under key 'cabinetDims'. value is JSON text.
 CREATE TABLE IF NOT EXISTS app_settings (

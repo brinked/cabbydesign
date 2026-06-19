@@ -110,6 +110,23 @@ export interface JobInput {
   design: Design;
 }
 
+export interface OrderLine {
+  n?: number | string;
+  name: string;
+  location: string;
+  size: string;
+  price: string;
+}
+export interface OrderInput {
+  projectName: string;
+  notes: string;
+  customer: { name: string; email: string; address: string };
+  showPricing: boolean;
+  total: string;
+  lines: OrderLine[];
+  design: Design;
+}
+
 export const api = {
   // ---- auth ----
   me: () => request<{ user: ApiUser | null; prefs?: DealerPrefs; cert?: CertInfo }>('GET', '/auth/me'),
@@ -118,6 +135,12 @@ export const api = {
   logout: () => request<{ ok: true }>('POST', '/auth/logout'),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ ok: true }>('POST', '/auth/change-password', { currentPassword, newPassword }),
+  forgotPassword: (email: string) => request<{ ok: true }>('POST', '/auth/forgot', { email }),
+  resetPassword: (token: string, newPassword: string) =>
+    request<{ ok: true }>('POST', '/auth/reset', { token, newPassword }),
+
+  // ---- orders (submit a project to EXT for review) ----
+  submitOrder: (input: OrderInput) => request<{ ok: true }>('POST', '/orders/submit', input),
 
   // ---- admin: dealers ----
   listDealers: () => request<{ dealers: DealerWithPrefs[] }>('GET', '/dealers'),

@@ -1249,6 +1249,7 @@ button:disabled {
 .login-field input,
 .form-field input,
 .form-field select,
+.form-field textarea,
 .search-input {
   border: 1px solid var(--line);
   border-radius: 9px;
@@ -1256,6 +1257,11 @@ button:disabled {
   font: inherit;
   font-size: 14px;
   background: var(--card);
+}
+
+.form-field textarea {
+  resize: vertical;
+  min-height: 64px;
 }
 
 .login-btn {

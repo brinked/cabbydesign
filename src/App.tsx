@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Toolbar from './components/Toolbar';
 import WallsView from './components/WallsView';
 import TopView from './components/TopView';
 import View3D from './components/View3D';
 import Report from './components/Report';
 import Login from './components/Login';
+import ResetPassword from './components/ResetPassword';
 import AdminPanel from './components/AdminPanel';
 import JobsScreen from './components/JobsScreen';
 import ProfileScreen from './components/ProfileScreen';
@@ -20,9 +21,25 @@ export default function App() {
   const screen = useSession((s) => s.screen);
   const init = useSession((s) => s.init);
 
+  // Password-reset deep link: ?reset=<token> from the emailed link.
+  const [resetToken, setResetToken] = useState<string | null>(() => new URLSearchParams(window.location.search).get('reset'));
+
   useEffect(() => {
     init();
   }, [init]);
+
+  if (resetToken) {
+    return (
+      <ResetPassword
+        token={resetToken}
+        onDone={() => {
+          // strip the token from the URL and return to the normal app/login flow
+          window.history.replaceState(null, '', window.location.pathname);
+          setResetToken(null);
+        }}
+      />
+    );
+  }
 
   if (status === 'loading') {
     return (

@@ -41,6 +41,15 @@ NODE_ENV=production JWT_SECRET=<random-secret> npm run server   # serves API + d
 
 The Express server auto-serves `dist/` when present, so the SPA and API share an origin (cookies just work). Configure via env vars: `PORT`, `JWT_SECRET` (**required in prod**), `DB_PATH`, `SESSION_DAYS`, `CORS_ORIGIN`. The SQLite database lives at `server/data/cabdesign.db` (gitignored) — back it up to keep dealers and jobs. Hosts like Railway / Render / Fly run this directly; a persistent disk is needed for the SQLite file.
 
+### Email (order notifications + password resets)
+
+Outbound email goes through **Google Workspace SMTP** via `nodemailer`. Set these env vars to turn it on (when unset, email is a safe no-op — order submission reports "not set up" and password resets silently skip):
+
+- `SMTP_USER` — the sending mailbox, e.g. `info@extcabinets.com`
+- `SMTP_PASS` — a **Google App Password** (Google account → Security → 2-Step Verification → **App passwords**; this is a 16-char token, *not* the normal login password). 2-Step Verification must be enabled on the account first.
+- `APP_URL` — public URL of the app (e.g. `https://cabdesign.onrender.com`), used to build the password-reset link.
+- Optional: `SMTP_HOST` (default `smtp.gmail.com`), `SMTP_PORT` (default `465`), `EMAIL_FROM` (default `EXT Cabinets <info@extcabinets.com>`), `EMAIL_TO` (default `extcabinets@gmail.com` — where submitted orders are sent).
+
 ## Features
 
 - **Walls tab** — one elevation card per wall. `+ Add` opens the catalog (base, wall, tall, outdoor grill/griddle/side-burner cabinets, and visual appliances) with isometric previews. Drag cabinets to move them (snaps to neighbors and wall ends), click one to edit width/depth/height/outset and hinge side with steppers, duplicate, or remove. Wall length/height are editable per wall; segment + overall dimensions update live. Hatched "corner" zones appear automatically where another wall's cabinets occupy the corner — only corner cabinets (lazy susan, blind corner) may enter them. **Plumbing/electrical rough-ins** can be added per wall and dragged in 2D right on the elevation — a live read-out shows their height off the floor and distance from the wall, and they automatically keep ≥1″ clearance from each cabinet end (≥2″ where there's an applied end panel).
@@ -55,6 +64,8 @@ The Express server auto-serves `dist/` when present, so the SPA and API share an
   - **Insulated-liner fit rule** — each liner carries its **cutout dimensions**. When a grill is selected, the housing **grill cabinet must be at least 3″ wider than the liner's cutout width** (`requiredCabinetWidth` in `src/model/appliances.ts`); the Width stepper's minimum is raised to enforce it and a warning shows if the cabinet is too narrow.
   - **Admin → Appliances** manages the global inventory and **per-brand discounts**: enter the manufacturer discount *you* receive for a brand and each dealer automatically gets **half** of it (your 30% → the dealer's 15%). The customer report shows MSRP; the dealer's internal "cost" price mode shows MSRP minus their discount. Inventory is bulk-loaded via **CSV import** — the importer auto-detects the BBQ source export (one row per appliance with its matching insulated jacket inline: `Brand, Appliance Type, Model Name, Model Number, Retail Price, Matching Insulated Jacket Model Number, Insulated Jacket Retail Price, …, Insulated Jacket Cutout Dimensions`) and splits it into appliance + deduped liner records with cutout sizes. **Export CSV** writes the internal flat format, which also re-imports.
 - **Save job / Open** — designs save to the dealer's account with customer details (see **My Jobs**); `.cabdesign.json` export/import still works as a local backup, and work autosaves to the browser.
+- **Submit order for review** — from the **Report tab**, a dealer/contractor can submit the current project to EXT Cabinets. A modal collects customer name/email/address and notes; the server emails the order (item schedule + totals honoring the dealer's pricing prefs, with the full `.cabdesign.json` attached) to the order inbox, reply-to the submitting account. Requires email to be configured (see above).
+- **Password reset** — the sign-in screen has a **Forgot password?** link that emails a one-time, 1-hour reset link (`?reset=<token>`); opening it shows a set-new-password screen. Tokens are stored hashed (SHA-256) server-side. Requires email to be configured.
 
 ## Code map
 

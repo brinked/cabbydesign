@@ -1,6 +1,7 @@
-// Login / current-user / logout / change-password.
+// Login / current-user / logout / change-password / forgot + reset password.
 import { Router } from 'express';
 import { z } from 'zod';
+import crypto from 'node:crypto';
 import { db, type UserRow } from '../db.ts';
 import {
   clearSessionCookie,
@@ -10,6 +11,8 @@ import {
   signSession,
   verifyPassword,
 } from '../auth.ts';
+import { config } from '../config.ts';
+import { esc, sendMail } from '../email.ts';
 import { certInfoFor, logoFor, prefsFor, shapeUser } from '../shape.ts';
 
 export const authRouter = Router();
@@ -73,5 +76,60 @@ authRouter.post('/change-password', requireAuth, (req, res) => {
     return;
   }
   setPassword.run(hashPassword(parsed.data.newPassword), user.id);
+  res.json({ ok: true });
+});
+
+// ---- Forgot / reset password (emailed one-time token) ----
+const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+
+// Always returns ok (never reveals whether an email exists). When the account
+// exists and is active, emails a one-time reset link valid for 1 hour.
+authRouter.post('/forgot', async (req, res) => {
+  const parsed = z.object({ email: z.string().email() }).safeParse(req.body);
+  if (!parsed.success) {
+    res.json({ ok: true });
+    return;
+  }
+  const user = getByEmail.get(parsed.data.email) as UserRow | undefined;
+  if (user && user.active) {
+    const token = crypto.randomBytes(32).toString('hex');
+    db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(user.id);
+    db.prepare("INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, datetime('now', '+1 hour'))").run(
+      sha256(token),
+      user.id
+    );
+    const link = `${config.appUrl}/?reset=${token}`;
+    await sendMail({
+      to: user.email,
+      subject: 'Reset your CabDesign password',
+      html: `<div style="font-family:system-ui,Arial,sans-serif;color:#1f2430">
+        <p>Hi ${esc(user.name)},</p>
+        <p>We received a request to reset your CabDesign password. Click below to set a new one — this link expires in 1 hour.</p>
+        <p><a href="${link}" style="background:#5b5bd6;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Reset password</a></p>
+        <p style="color:#888;font-size:12px">If you didn't request this, you can ignore this email. Link: ${esc(link)}</p>
+      </div>`,
+      text: `Reset your CabDesign password (expires in 1 hour): ${link}`,
+    });
+  }
+  res.json({ ok: true });
+});
+
+const resetSchema = z.object({ token: z.string().min(10), newPassword: z.string().min(8) });
+
+authRouter.post('/reset', (req, res) => {
+  const parsed = resetSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'New password must be at least 8 characters' });
+    return;
+  }
+  const row = db
+    .prepare("SELECT user_id, expires_at FROM password_resets WHERE token_hash = ?")
+    .get(sha256(parsed.data.token)) as { user_id: number; expires_at: string } | undefined;
+  if (!row || new Date(row.expires_at.replace(' ', 'T') + 'Z') < new Date()) {
+    res.status(400).json({ error: 'This reset link is invalid or has expired. Request a new one.' });
+    return;
+  }
+  setPassword.run(hashPassword(parsed.data.newPassword), row.user_id);
+  db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(row.user_id);
   res.json({ ok: true });
 });

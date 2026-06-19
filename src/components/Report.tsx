@@ -1,4 +1,6 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
+import type { OrderLine } from '../api/client';
+import SubmitOrderModal from './SubmitOrderModal';
 import { TOEKICK_H, catalogById } from '../model/catalog';
 import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
@@ -139,6 +141,25 @@ export default function Report() {
   const taxAmount = isMarkedUp && !taxExempt ? (subtotalMk * taxRate) / 100 : 0;
   const grandTotal = subtotalMk + taxAmount;
 
+  // Order-submission line items (cabinets + appliances) for the review email.
+  const [orderOpen, setOrderOpen] = useState(false);
+  const orderLines: OrderLine[] = [
+    ...lines.map((l) => ({
+      n: l.n,
+      name: l.cat.name,
+      location: l.wall?.name ?? '',
+      size: `${fmtIn(l.it.w)} × ${fmtIn(l.it.d)} × ${fmtIn(l.it.h)}`,
+      price: !showPricing ? '' : l.cat.category === 'appliance' ? '—' : l.error ? 'formula error' : l.price <= 0 ? '—' : money(l.displayed),
+    })),
+    ...applianceLines.map((l) => ({
+      n: l.n,
+      name: l.p.label,
+      location: design.walls.find((w) => w.id === l.it.wallId)?.name ?? '',
+      size: '',
+      price: !showPricing ? '' : money(l.p.total),
+    })),
+  ];
+
   return (
     <div className="report">
       <div className="report-toolbar no-print">
@@ -151,11 +172,24 @@ export default function Report() {
               Open 3D view
             </button>
           )}
+          <button className="btn-ghost" onClick={() => setOrderOpen(true)}>
+            Submit order for review
+          </button>
           <button className="btn-primary" onClick={() => window.print()}>
             Print / Save as PDF
           </button>
         </div>
       </div>
+
+      {orderOpen && (
+        <SubmitOrderModal
+          design={design}
+          lines={orderLines}
+          total={showPricing ? money(grandTotal) : ''}
+          showPricing={showPricing}
+          onClose={() => setOrderOpen(false)}
+        />
+      )}
 
       {/* Cover */}
       <section className="report-page report-cover">

@@ -28,6 +28,20 @@ services:
         sync: false # set in dashboard (e.g. extcabinets@gmail.com)
       - key: ADMIN_PASSWORD
         sync: false # set in dashboard (min 8 chars) for first sign-in
+      # Public URL of the deployed app — used in password-reset email links.
+      - key: APP_URL
+        sync: false # e.g. https://cabdesign.onrender.com (or your custom domain)
+      # Outbound email (Google Workspace SMTP). Order notifications + password
+      # resets. SMTP_USER = info@extcabinets.com, SMTP_PASS = an App Password
+      # (Google account → Security → 2-Step Verification → App passwords).
+      - key: SMTP_USER
+        sync: false # info@extcabinets.com
+      - key: SMTP_PASS
+        sync: false # 16-char Google App Password (NOT the normal login password)
+      # Optional overrides (sensible defaults in server/config.ts):
+      #   SMTP_HOST (smtp.gmail.com), SMTP_PORT (465),
+      #   EMAIL_FROM ('EXT Cabinets <info@extcabinets.com>'),
+      #   EMAIL_TO   (extcabinets@gmail.com — where orders are sent)
     disk:
       name: cabdesign-data
       mountPath: /var/data
