@@ -1,4 +1,4 @@
-import type { CatalogItem, FinishOption } from './types';
+import type { ApplianceCat, CatalogItem, FinishOption } from './types';
 
 export const BASE_H = 34.5;
 export const COUNTER_T = 1.5;
@@ -124,4 +124,17 @@ export function catalogById(id: string): CatalogItem {
   const c = CATALOG.find((c) => c.id === id);
   if (!c) throw new Error(`Unknown catalog id ${id}`);
   return c;
+}
+
+/** Appliance openings — fridges and ice makers are appliances (spaces sized to
+ *  the unit), not cabinets, so they can't take applied end panels. */
+const APPLIANCE_OPENING_CATS: ApplianceCat[] = ['fridge', 'icemaker'];
+
+/** Whether an item can take applied end panels. Appliances (e.g. freestanding
+ *  grill, dishwasher) and appliance openings (fridges, ice makers) cannot;
+ *  real cabinets — including grill/griddle/burner/kamado cabinets — can. */
+export function takesAppliedEnds(cat: CatalogItem): boolean {
+  if (cat.category === 'appliance') return false;
+  if (cat.applianceCat && APPLIANCE_OPENING_CATS.includes(cat.applianceCat)) return false;
+  return true;
 }

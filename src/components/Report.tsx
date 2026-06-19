@@ -4,7 +4,7 @@ import SubmitOrderModal from './SubmitOrderModal';
 import { TOEKICK_H, catalogById } from '../model/catalog';
 import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
-import { PANEL_RATE_PER_SQFT, itemNumbers, itemOnIsland, itemPrice, reservesFor, useStore } from '../state/store';
+import { PANEL_RATE_PER_SQFT, appliedEnds, itemNumbers, itemOnIsland, itemPrice, reservesFor, useStore } from '../state/store';
 import { useSession } from '../state/session';
 import { MAX_PANEL_W } from '../three/cabinet3d';
 import { TopViewSvg } from './TopView';
@@ -91,9 +91,8 @@ export default function Report() {
   };
   const endGroups = new Map<string, { w: number; h: number; qty: number; unit: number; nums: Set<number> }>();
   for (const it of design.items) {
-    const cat = catalogById(it.catalogId);
-    if (cat.category === 'appliance') continue;
-    const nEnds = (it.endL ? 1 : 0) + (it.endR ? 1 : 0);
+    const e = appliedEnds(it);
+    const nEnds = (e.l ? 1 : 0) + (e.r ? 1 : 0);
     if (!nEnds) continue;
     const h = panelH(it);
     const key = `${it.d}x${h}`;

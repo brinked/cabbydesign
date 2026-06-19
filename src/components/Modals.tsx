@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BASE_H, CATALOG, CATEGORY_LABELS, COUNTER_T, catalogById } from '../model/catalog';
+import { BASE_H, CATALOG, CATEGORY_LABELS, COUNTER_T, catalogById, takesAppliedEnds } from '../model/catalog';
 import { money, tryFormula } from '../model/pricing';
 import {
   APPLIANCE_CATS,
@@ -394,7 +394,7 @@ export function EditItemModal() {
         {maxTrays > 0 && (
           <Stepper label="Pull-out trays" value={it.trays} step={1} min={0} max={maxTrays} onChange={(trays) => updateItem(it.id, { trays })} />
         )}
-        {cat.category !== 'appliance' && (
+        {takesAppliedEnds(cat) && (
           <div className="stepper-row">
             <span className="stepper-label">
               Applied ends

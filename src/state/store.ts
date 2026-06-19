@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, LayoutKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
-import { CATALOG, DEFAULT_RATES, TOEKICK_H, catalogById } from '../model/catalog';
+import { CATALOG, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
 import { tryFormula } from '../model/pricing';
 import { cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
 
@@ -84,8 +84,9 @@ export function roughInHost(design: Design, r: RoughIn): PlacedItem | null {
  */
 export function roughInBand(host: PlacedItem, w: number): { lo: number; hi: number } {
   const fpw = footprintW(host);
-  const leftClear = host.endL ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR;
-  const rightClear = host.endR ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR;
+  const he = appliedEnds(host);
+  const leftClear = he.l ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR;
+  const rightClear = he.r ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR;
   return { lo: host.x + leftClear + w / 2, hi: host.x + fpw - rightClear - w / 2 };
 }
 
@@ -106,8 +107,9 @@ export function roughInConflict(design: Design, r: RoughIn): boolean {
   });
   // Good: fully behind one cabinet, clear of its ends (and applied panels).
   for (const it of cabs) {
-    const lo = it.x + (it.endL ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR);
-    const hi = it.x + footprintW(it) - (it.endR ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR);
+    const e = appliedEnds(it);
+    const lo = it.x + (e.l ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR);
+    const hi = it.x + footprintW(it) - (e.r ? ROUGHIN_CLEAR_PANEL : ROUGHIN_CLEAR);
     if (stubL >= lo - 0.01 && stubR <= hi + 0.01) return false;
   }
   // Good: nothing in front of it (no cabinet overlaps the stub's span).
@@ -132,13 +134,18 @@ export function normalizeDesign(raw: Design): Design {
   const items = (raw.items ?? [])
     .map((it) => ({ ...it, catalogId: CATALOG_MIGRATE[it.catalogId] ?? it.catalogId }))
     .filter((it) => VALID_IDS.has(it.catalogId))
-    .map((it) => ({
-      ...it,
-      hinge: it.hinge ?? 'left',
-      endL: it.endL ?? false,
-      endR: it.endR ?? false,
-      trays: it.trays ?? 0,
-    }));
+    .map((it) => {
+      // Appliances and appliance openings (fridges, ice makers) can't take
+      // applied ends — strip any stale flags so they don't render or bill.
+      const noEnds = !takesAppliedEnds(catalogById(it.catalogId));
+      return {
+        ...it,
+        hinge: it.hinge ?? 'left',
+        endL: noEnds ? false : it.endL ?? false,
+        endR: noEnds ? false : it.endR ?? false,
+        trays: it.trays ?? 0,
+      };
+    });
   const finishId = FINISH_MIGRATE[raw.finishId] ?? raw.finishId;
   const wallIds = new Set(walls.map((w) => w.id));
   const roughIns = (raw.roughIns ?? []).filter((r) => wallIds.has(r.wallId));
@@ -215,9 +222,17 @@ export function laneItems(items: PlacedItem[], wallId: string, lane: 'floor' | '
 
 const END_PANEL_T = 0.75;
 
+/** Effective applied-end panels for an item. Appliances and appliance openings
+ *  (fridges, ice makers) never have them — regardless of stale stored flags. */
+export function appliedEnds(it: PlacedItem): { l: boolean; r: boolean } {
+  if (!takesAppliedEnds(catalogById(it.catalogId))) return { l: false, r: false };
+  return { l: !!it.endL, r: !!it.endR };
+}
+
 /** Overall width an item occupies on the wall: cabinet + applied end panels. */
 export function footprintW(it: PlacedItem): number {
-  return it.w + (it.endL ? END_PANEL_T : 0) + (it.endR ? END_PANEL_T : 0);
+  const e = appliedEnds(it);
+  return it.w + (e.l ? END_PANEL_T : 0) + (e.r ? END_PANEL_T : 0);
 }
 
 /** True when the item's wall is an island (back is exposed → back panels). */
@@ -262,7 +277,8 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
   const panelH = Math.max(0, it.h - (hasKick ? TOEKICK_H : 0));
   const sqft = (wIn: number) => (wIn * panelH) / 144;
   const trays = (it.trays ?? 0) * DEFAULT_RATES.tray;
-  const nEnds = (it.endL ? 1 : 0) + (it.endR ? 1 : 0);
+  const e = appliedEnds(it);
+  const nEnds = (e.l ? 1 : 0) + (e.r ? 1 : 0);
   const ends = nEnds * sqft(it.d) * PANEL_RATE_PER_SQFT;
   const back = itemOnIsland(design, it) ? sqft(it.w) * PANEL_RATE_PER_SQFT : 0;
   const total = price + trays + ends + back;
