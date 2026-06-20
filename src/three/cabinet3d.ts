@@ -9,7 +9,7 @@ import { fitModel } from './models';
 // wall. The model's front (controls) is +z, matching the room-facing direction.
 const GRIDDLE_MODEL_W_FRAC = 0.9;
 const GRIDDLE_MODEL_PROUD = 2.5;
-const GRIDDLE_MODEL_BACK = 0;
+const GRIDDLE_MODEL_BACK = -1; // nudge forward so controls clear the face panel
 const GRIDDLE_MODEL_YAW = 0;
 
 export const STEEL_3D = 0xc9ced2;
@@ -938,13 +938,14 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   } else if (cat.front === 'griddle' && !isAppliance) {
     const model = fitModel('griddle', GRIDDLE_MODEL_W_FRAC * w);
     if (model) {
-      // Close the cabinet's appliance-face opening with a stainless panel so no
-      // carcass shows behind the dropped-in griddle.
+      // Close the cabinet's appliance-face opening with a stainless panel set
+      // back behind the unit, so no carcass shows but the model's own control
+      // face (knobs/branding) stays visible in front of it.
       const gw = applianceFaceW(w);
       const applH = 7;
       const faceY = kick + carcassH - REVEAL - applH / 2;
-      const face = box(gw, applH, 1.5, mats.steel);
-      face.position.set(0, faceY, d - 0.2);
+      const face = box(gw, applH, 0.6, mats.steel);
+      face.position.set(0, faceY, d - 1.6);
       g.add(face);
       // Drop the real griddle into the top of the cabinet, cooking surface PROUD
       // of the top, controls flush to the front (+z faces the room).
