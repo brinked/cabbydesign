@@ -9,7 +9,7 @@ import { fitModel } from './models';
 // wall. The model's front (controls) is +z, matching the room-facing direction.
 const GRIDDLE_MODEL_W_FRAC = 0.9;
 const GRIDDLE_MODEL_PROUD = 2.5;
-const GRIDDLE_MODEL_BACK = -1; // nudge forward so controls clear the face panel
+const GRIDDLE_MODEL_BACK = -3; // protrude the griddle face a few inches past the cabinet
 const GRIDDLE_MODEL_YAW = 0;
 
 export const STEEL_3D = 0xc9ced2;
@@ -74,6 +74,8 @@ export interface CabMats {
   counter: THREE.MeshPhysicalMaterial;
   counterTex: THREE.CanvasTexture;
   steel: THREE.Material;
+  /** Matte brushed-steel for appliance filler panels (won't blow out white). */
+  steelMatte: THREE.Material;
   dark: THREE.Material;
   egg: THREE.Material;
   carcass: THREE.Material;
@@ -90,6 +92,7 @@ export function createMats(fin: FinishOption): CabMats {
     counterTex,
     counter: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.counter), map: counterTex, roughness: 0.22, clearcoat: 0.5, clearcoatRoughness: 0.25 }),
     steel: new THREE.MeshStandardMaterial({ color: STEEL_3D, metalness: 0.9, roughness: 0.28 }),
+    steelMatte: new THREE.MeshStandardMaterial({ color: 0x9a9ea3, metalness: 0.45, roughness: 0.5 }),
     dark: new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.6 }),
     egg: new THREE.MeshPhysicalMaterial({ color: 0x1f3a2e, roughness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.2 }),
     carcass: new THREE.MeshPhysicalMaterial({ color: 0xeceef0, roughness: 0.55, clearcoat: 0.12, clearcoatRoughness: 0.6 }),
@@ -97,7 +100,7 @@ export function createMats(fin: FinishOption): CabMats {
 }
 
 export function disposeMats(m: CabMats): void {
-  for (const mat of [m.body, m.panel, m.inner, m.groove, m.kick, m.counter, m.steel, m.dark, m.egg, m.carcass]) mat.dispose();
+  for (const mat of [m.body, m.panel, m.inner, m.groove, m.kick, m.counter, m.steel, m.steelMatte, m.dark, m.egg, m.carcass]) mat.dispose();
   m.counterTex.dispose();
 }
 
@@ -944,7 +947,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const gw = applianceFaceW(w);
       const applH = 7;
       const faceY = kick + carcassH - REVEAL - applH / 2;
-      const face = box(gw, applH, 0.6, mats.steel);
+      const face = box(gw, applH, 0.6, mats.steelMatte);
       face.position.set(0, faceY, d - 1.6);
       g.add(face);
       // Drop the real griddle into the top of the cabinet, cooking surface PROUD
