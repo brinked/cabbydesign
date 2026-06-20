@@ -184,6 +184,9 @@ export interface PlacedItem {
   trays: number;
   /** Appliance chosen for this cabinet (appliance-housing cabinets only). */
   appliance?: ApplianceSelection;
+  /** Countertop waterfall edge down the left/right side (run ends only). */
+  waterfallL?: boolean;
+  waterfallR?: boolean;
 }
 
 export type LayoutKind = 'linear' | 'l' | 'u';
@@ -216,12 +219,19 @@ export interface RoughIn {
   h: number;
 }
 
+/** Fuel type for the gas appliances in a job. Undefined = not yet chosen. */
+export type GasType = 'ng' | 'lp';
+
 export interface Design {
   name: string;
   client: string;
   layout: LayoutKind;
   finishId: string;
   doorStyle: DoorStyle;
+  /** Natural gas / liquid propane for the whole job (undefined = unset). */
+  gasType?: GasType;
+  /** Countertop slab thickness in inches (default 1.25″ = 3cm). */
+  counterThickness: number;
   walls: Wall[];
   items: PlacedItem[];
   roughIns: RoughIn[];

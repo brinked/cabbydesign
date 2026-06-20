@@ -108,6 +108,8 @@ export interface CabDims {
    *  housings. When shorter than the cabinet, the unit renders to this height
    *  and leaves a visible gap under the counter. Defaults to the cabinet height. */
   applianceH?: number;
+  /** Countertop slab thickness (inches). Defaults to COUNTER_T. */
+  counterT?: number;
 }
 
 /** Max width of one applied panel; wider runs are split into multiple panels. */
@@ -857,7 +859,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   }
 
   // above-counter appliance gear
-  const counterTop = BASE_H + COUNTER_T;
+  const counterTop = BASE_H + (dims.counterT ?? COUNTER_T);
   const addKnobs = (cx: number, y: number, z: number, n: number) => {
     const gap = 4.5;
     const start = cx - ((n - 1) * gap) / 2;

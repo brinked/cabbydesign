@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, LayoutKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
-import { CATALOG, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
+import { CATALOG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
 import { tryFormula } from '../model/pricing';
 import { cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
 
@@ -42,6 +42,7 @@ function defaultDesign(): Design {
     layout: 'linear',
     finishId: 'indigo',
     doorStyle: 'shaker',
+    counterThickness: COUNTER_T,
     walls: [{ id: uid('wall'), name: 'Front Wall', length: 110, height: 96, x: 0, y: 0, angle: 0, thickness: 5, ghost: false }],
     items: [],
     roughIns: [],
@@ -144,12 +145,15 @@ export function normalizeDesign(raw: Design): Design {
         endL: noEnds ? false : it.endL ?? false,
         endR: noEnds ? false : it.endR ?? false,
         trays: it.trays ?? 0,
+        waterfallL: it.waterfallL ?? false,
+        waterfallR: it.waterfallR ?? false,
       };
     });
   const finishId = FINISH_MIGRATE[raw.finishId] ?? raw.finishId;
   const wallIds = new Set(walls.map((w) => w.id));
   const roughIns = (raw.roughIns ?? []).filter((r) => wallIds.has(r.wallId));
-  const result = { ...defaultDesign(), ...raw, finishId, doorStyle: raw.doorStyle ?? 'shaker', walls, items, roughIns };
+  const counterThickness = raw.counterThickness && raw.counterThickness > 0 ? raw.counterThickness : COUNTER_T;
+  const result = { ...defaultDesign(), ...raw, finishId, doorStyle: raw.doorStyle ?? 'shaker', counterThickness, walls, items, roughIns };
   alignFillers(result);
   return result;
 }
@@ -183,7 +187,7 @@ interface AppState {
   setAppliances: (appliances: ApplianceItem[]) => void;
   setApplianceBrands: (brands: ApplianceBrands) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
-  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle'>>) => void;
+  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness'>>) => void;
   applyPreset: (layout: LayoutKind) => void;
   addWall: () => void;
   addWallAt: (placement: { x: number; y: number; angle: number; length: number }) => void;

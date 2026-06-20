@@ -66,6 +66,7 @@ export function WallElevationSvg({
 
   const floorItems = laneItems(wallItems, wall.id, 'floor');
   const runs = counterRuns(floorItems);
+  const cT = design.counterThickness ?? COUNTER_T;
 
   // Dimension boundaries along the floor lane
   const edges = new Set<number>([0, wall.length]);
@@ -284,15 +285,31 @@ export function WallElevationSvg({
       {runs.map((r, i) => {
         const x1 = Math.max(r.x1 - COUNTER_OVERHANG, 0);
         const x2 = Math.min(r.x2 + COUNTER_OVERHANG, wall.length);
-        const cy = floorY - BASE_H - COUNTER_T;
+        const cy = floorY - BASE_H - cT;
         return (
           <g key={`c-${i}`}>
-            <rect x={x1} y={cy + COUNTER_T} width={x2 - x1} height={1.6} fill="url(#g-undercounter)" />
-            <rect x={x1} y={cy} width={x2 - x1} height={COUNTER_T} rx={0.35} fill={fin.counter} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
-            <rect x={x1} y={cy} width={x2 - x1} height={COUNTER_T} rx={0.35} fill="url(#g-counter)" />
+            <rect x={x1} y={cy + cT} width={x2 - x1} height={1.6} fill="url(#g-undercounter)" />
+            <rect x={x1} y={cy} width={x2 - x1} height={cT} rx={0.35} fill={fin.counter} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+            <rect x={x1} y={cy} width={x2 - x1} height={cT} rx={0.35} fill="url(#g-counter)" />
             <line x1={x1 + 0.3} y1={cy + 0.25} x2={x2 - 0.3} y2={cy + 0.25} stroke="#ffffff" strokeWidth={0.25} opacity={0.55} />
           </g>
         );
+      })}
+
+      {/* waterfall edges — countertop wrapping down a run-end side to the floor */}
+      {floorItems.map((it) => {
+        const cat = catalogById(it.catalogId);
+        if (!cat.counter) return null;
+        const cy = floorY - BASE_H - cT;
+        const sides: Array<{ side: 'L' | 'R'; x: number }> = [];
+        if (it.waterfallL) sides.push({ side: 'L', x: it.x - cT });
+        if (it.waterfallR) sides.push({ side: 'R', x: it.x + footprintW(it) });
+        return sides.map(({ side, x }) => (
+          <g key={`wf-${it.id}-${side}`}>
+            <rect x={x} y={cy} width={cT} height={BASE_H + cT} fill={fin.counter} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+            <rect x={x} y={cy} width={cT} height={BASE_H + cT} fill="url(#g-counter)" />
+          </g>
+        ));
       })}
 
       {/* plumbing / electrical rough-ins — draggable in 2D */}

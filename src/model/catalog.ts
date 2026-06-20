@@ -1,7 +1,9 @@
 import type { ApplianceCat, CatalogItem, FinishOption } from './types';
 
 export const BASE_H = 34.5;
-export const COUNTER_T = 1.5;
+/** Default countertop slab thickness (inches) — 3cm. Per-job override lives on
+ *  Design.counterThickness; this is the fallback for older saves & 2D defaults. */
+export const COUNTER_T = 1.25;
 export const COUNTER_OVERHANG = 1;
 export const TOEKICK_H = 4;
 

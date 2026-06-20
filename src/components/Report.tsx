@@ -199,7 +199,11 @@ export default function Report() {
           {design.client ? `Prepared for ${design.client} · ` : ''}
           {date}
         </p>
-        <p className="cover-meta">Finish: {fin.name}</p>
+        <p className="cover-meta">
+          Finish: {fin.name}
+          {design.gasType ? ` · Gas: ${design.gasType === 'ng' ? 'Natural Gas' : 'Liquid Propane'}` : ''}
+          {` · Countertop: ${fmtIn(design.counterThickness)} thick`}
+        </p>
         {snapshot && <img className="cover-render" src={snapshot} alt="3D rendering" />}
         <p className="cover-foot">Design Report — plan, elevations &amp; estimate</p>
       </section>
@@ -414,6 +418,18 @@ export default function Report() {
             priced.
           </p>
         )}
+
+        {(() => {
+          const wf = lines
+            .filter((l) => l.it.waterfallL || l.it.waterfallR)
+            .map((l) => `#${l.n} ${[l.it.waterfallL ? 'left' : '', l.it.waterfallR ? 'right' : ''].filter(Boolean).join(' & ')}`);
+          return wf.length ? (
+            <p className="report-note">
+              <b>Waterfall countertop edges:</b> {wf.join(', ')} — the countertop wraps down the side to the floor in the{' '}
+              {fmtIn(design.counterThickness)} slab.
+            </p>
+          ) : null;
+        })()}
       </section>
     </div>
   );

@@ -14,6 +14,7 @@ import { CabinetFront, CabinetIso } from './svg';
  */
 export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogItem; it: PlacedItem; fin: FinishOption; wallLength: number }) {
   const style = useStore((s) => s.design.doorStyle);
+  const counterT = useStore((s) => s.design.counterThickness);
   const appliances = useStore((s) => s.appliances);
   // a lazy susan keeps its corner orientation from placement; hinge only moves
   // the single handle, matching the 3D and plan views
@@ -21,10 +22,10 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
   // fridge/ice-maker housings render the selected unit at its real height, so a
   // shorter unit shows a gap under the counter.
   const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
-  const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, cornerSide, applianceH };
+  const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, cornerSide, applianceH, counterT };
   const url = useMemo(
     () => cabinetSprite(cat, dims, fin, 'front'),
-    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, style, fin, cornerSide, applianceH]
+    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, style, fin, cornerSide, applianceH, counterT]
   );
   if (!url) return <CabinetFront cat={cat} w={it.w} h={it.h} fin={fin} hinge={it.hinge} />;
   const top = spriteTopY(cat, it.h);

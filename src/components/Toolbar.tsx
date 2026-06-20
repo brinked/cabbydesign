@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FINISHES } from '../model/catalog';
 import type { Design } from '../model/types';
 import { useStore, type Tab } from '../state/store';
@@ -122,6 +122,17 @@ export default function Toolbar() {
                 </option>
               ))}
             </select>
+            <select
+              className="select"
+              value={design.gasType ?? ''}
+              onChange={(e) => setDesignMeta({ gasType: (e.target.value || undefined) as Design['gasType'] })}
+              title="Fuel type for the gas appliances"
+            >
+              <option value="">Gas: not set</option>
+              <option value="ng">Natural Gas</option>
+              <option value="lp">Liquid Propane</option>
+            </select>
+            <CounterThicknessInput value={design.counterThickness} onChange={(v) => setDesignMeta({ counterThickness: v })} />
             {isAdmin && (
               <>
                 <button className="btn-ghost" onClick={() => setPricingOpen(true)}>
@@ -181,5 +192,32 @@ export default function Toolbar() {
         </button>
       </div>
     </header>
+  );
+}
+
+/** Countertop thickness (inches). Commits a positive number on blur/Enter. */
+function CounterThicknessInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const commit = () => {
+    const v = parseFloat(text);
+    if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100) / 100);
+    else setText(String(value));
+  };
+  return (
+    <span className="counter-thick" title="Countertop thickness in inches (default 1.25″ = 3cm)">
+      <span>Counter</span>
+      <input
+        className="counter-input"
+        inputMode="decimal"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+      />
+      <span>″</span>
+    </span>
   );
 }

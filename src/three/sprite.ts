@@ -61,7 +61,7 @@ export function spriteEndExtents(cat: CatalogItem, dims: CabDims): { exL: number
 }
 
 export function cabinetSprite(cat: CatalogItem, dims: CabDims, fin: FinishOption, view: SpriteView): string | null {
-  const key = `${cat.id}|${dims.w}x${dims.d}x${dims.h}|${dims.hinge}|${dims.cornerSide ?? ''}|${dims.style}|${dims.endL ? 'L' : ''}${dims.endR ? 'R' : ''}|${dims.applianceH ?? ''}|${fin.id}|${view}`;
+  const key = `${cat.id}|${dims.w}x${dims.d}x${dims.h}|${dims.hinge}|${dims.cornerSide ?? ''}|${dims.style}|${dims.endL ? 'L' : ''}${dims.endR ? 'R' : ''}|${dims.applianceH ?? ''}|${dims.counterT ?? ''}|${fin.id}|${view}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
 

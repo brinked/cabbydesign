@@ -105,6 +105,24 @@ body {
   margin-left: auto;
 }
 
+.counter-thick {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.counter-input {
+  width: 46px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 6px;
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+}
+
 .select {
   border: 1px solid var(--line);
   border-radius: 8px;

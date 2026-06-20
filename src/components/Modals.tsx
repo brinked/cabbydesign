@@ -418,6 +418,30 @@ export function EditItemModal() {
             </div>
           </div>
         )}
+        {cat.counter && cat.lane === 'floor' && (
+          <div className="stepper-row">
+            <span className="stepper-label">
+              Waterfall edge
+              <span className="stepper-note">counter wraps to the floor (run ends)</span>
+            </span>
+            <div className="seg">
+              <button
+                className={it.waterfallL ? 'seg-btn active' : 'seg-btn'}
+                title="Waterfall countertop down the left side"
+                onClick={() => updateItem(it.id, { waterfallL: !it.waterfallL })}
+              >
+                Left
+              </button>
+              <button
+                className={it.waterfallR ? 'seg-btn active' : 'seg-btn'}
+                title="Waterfall countertop down the right side"
+                onClick={() => updateItem(it.id, { waterfallR: !it.waterfallR })}
+              >
+                Right
+              </button>
+            </div>
+          </div>
+        )}
         {HINGED_FRONTS.includes(cat.front) && (
           <div className="stepper-row">
             <span className="stepper-label">{cat.front === 'blind' ? 'Door side' : 'Hinge side'}</span>
