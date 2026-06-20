@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FINISHES } from '../model/catalog';
+import { COUNTERTOPS, COUNTER_CATEGORY_LABELS, type CounterCategory } from '../model/countertops';
 import type { Design } from '../model/types';
 import { useStore, type Tab } from '../state/store';
 import { useSession, type Screen } from '../state/session';
@@ -205,6 +206,20 @@ function SettingsMenu({
                 <option key={f.id} value={f.id}>
                   {f.name}
                 </option>
+              ))}
+            </select>
+          </label>
+          <label className="settings-menu-row">
+            <span>Countertop</span>
+            <select className="select" value={design.counterId} onChange={(e) => setDesignMeta({ counterId: e.target.value })}>
+              {(['solid', 'granite', 'quartzite', 'concrete'] as CounterCategory[]).map((cat) => (
+                <optgroup key={cat} label={COUNTER_CATEGORY_LABELS[cat]}>
+                  {COUNTERTOPS.filter((c) => c.category === cat).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>

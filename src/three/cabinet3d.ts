@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide } from '../model/types';
+import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
 import { fitModel } from './models';
 
 // Real griddle model placement (tunable). Width as a fraction of the cabinet,
@@ -65,6 +66,75 @@ export function marbleTexture(base: string): THREE.CanvasTexture {
   return t;
 }
 
+/** Procedural countertop texture for a selected style (granite/quartzite/etc). */
+export function countertopTexture(ct: Countertop): THREE.CanvasTexture {
+  const t = canvasTexture(512, (ctx, s) => {
+    ctx.fillStyle = ct.base;
+    ctx.fillRect(0, 0, s, s);
+    const mottle = (light: boolean, n: number, max: number, a: number) => {
+      const rgb = light ? '255,255,255' : '0,0,0';
+      for (let i = 0; i < n; i++) {
+        const x = Math.random() * s, y = Math.random() * s, r = 24 + Math.random() * max;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, `rgba(${rgb},${a * (0.4 + Math.random())})`);
+        g.addColorStop(1, `rgba(${rgb},0)`);
+        ctx.fillStyle = g;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+    };
+    if (ct.category === 'granite') {
+      mottle(true, 40, 80, 0.04);
+      const flecks = ct.flecks ?? ['#888888'];
+      for (let i = 0; i < 6500; i++) {
+        ctx.fillStyle = flecks[(Math.random() * flecks.length) | 0];
+        ctx.globalAlpha = 0.45 + Math.random() * 0.55;
+        const x = Math.random() * s, y = Math.random() * s, r = 0.4 + Math.random() * 1.9;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    } else if (ct.category === 'concrete') {
+      mottle(false, 55, 130, 0.05);
+      mottle(true, 45, 120, 0.04);
+      for (let i = 0; i < 2600; i++) {
+        ctx.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+        ctx.fillRect(Math.random() * s, Math.random() * s, 1, 1);
+      }
+      for (let i = 0; i < 120; i++) {
+        ctx.fillStyle = 'rgba(0,0,0,0.16)';
+        const x = Math.random() * s, y = Math.random() * s, r = 0.5 + Math.random() * 1.2;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // solid + quartzite: soft mottle and flowing veins
+      mottle(true, 45, 70, 0.035);
+      const vein = ct.vein ?? '#b0b0b0';
+      const nv = ct.category === 'quartzite' ? 9 : 6;
+      for (let i = 0; i < nv; i++) {
+        ctx.strokeStyle = vein;
+        ctx.globalAlpha = 0.12 + Math.random() * 0.18;
+        ctx.lineWidth = 0.6 + Math.random() * 1.8;
+        ctx.beginPath();
+        let x = Math.random() * s;
+        let y = 0;
+        ctx.moveTo(x, y);
+        while (y < s) {
+          x += (Math.random() - 0.5) * 70;
+          y += 22 + Math.random() * 45;
+          ctx.quadraticCurveTo(x + (Math.random() - 0.5) * 45, y - 22, x, y);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
 export interface CabMats {
   body: THREE.Material;
   panel: THREE.Material;
@@ -81,8 +151,11 @@ export interface CabMats {
   carcass: THREE.Material;
 }
 
-export function createMats(fin: FinishOption): CabMats {
-  const counterTex = marbleTexture('#edeae3');
+export function createMats(fin: FinishOption, ct: Countertop = countertopById(DEFAULT_COUNTERTOP)): CabMats {
+  const counterTex = countertopTexture(ct);
+  const counter = ct.matte
+    ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, roughness: 0.85, metalness: 0 })
+    : new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, roughness: 0.22, clearcoat: 0.5, clearcoatRoughness: 0.25 });
   return {
     body: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), roughness: 0.55, clearcoat: 0.18, clearcoatRoughness: 0.6 }),
     panel: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.5, clearcoat: 0.22, clearcoatRoughness: 0.55 }),
@@ -90,7 +163,7 @@ export function createMats(fin: FinishOption): CabMats {
     groove: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.inner).multiplyScalar(0.72), roughness: 0.85 }),
     kick: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.body), roughness: 0.8 }),
     counterTex,
-    counter: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.counter), map: counterTex, roughness: 0.22, clearcoat: 0.5, clearcoatRoughness: 0.25 }),
+    counter,
     steel: new THREE.MeshStandardMaterial({ color: STEEL_3D, metalness: 0.9, roughness: 0.28 }),
     steelMatte: new THREE.MeshStandardMaterial({ color: 0x9a9ea3, metalness: 0.45, roughness: 0.5 }),
     dark: new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.6 }),

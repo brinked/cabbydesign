@@ -4,6 +4,7 @@ import SubmitOrderModal from './SubmitOrderModal';
 import { TOEKICK_H, catalogById } from '../model/catalog';
 import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
+import { countertopById } from '../model/countertops';
 import { PANEL_RATE_PER_SQFT, appliedEnds, itemNumbers, itemOnIsland, itemPrice, reservesFor, useStore } from '../state/store';
 import { useSession } from '../state/session';
 import { MAX_PANEL_W } from '../three/cabinet3d';
@@ -202,7 +203,7 @@ export default function Report() {
         <p className="cover-meta">
           Finish: {fin.name}
           {design.gasType ? ` · Gas: ${design.gasType === 'ng' ? 'Natural Gas' : 'Liquid Propane'}` : ''}
-          {` · Countertop: ${fmtIn(design.counterThickness)} thick`}
+          {` · Countertop: ${countertopById(design.counterId).name}, ${fmtIn(design.counterThickness)} thick`}
         </p>
         {snapshot && <img className="cover-render" src={snapshot} alt="3D rendering" />}
         <p className="cover-foot">Design Report — plan, elevations &amp; estimate</p>

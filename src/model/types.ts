@@ -232,6 +232,8 @@ export interface Design {
   gasType?: GasType;
   /** Countertop slab thickness in inches (default 1.25″ = 3cm). */
   counterThickness: number;
+  /** Countertop material/style id (see model/countertops). */
+  counterId: string;
   walls: Wall[];
   items: PlacedItem[];
   roughIns: RoughIn[];

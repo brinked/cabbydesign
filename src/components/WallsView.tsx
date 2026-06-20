@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { FinishOption, PlacedItem, Wall } from '../model/types';
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, FINISHES, catalogById } from '../model/catalog';
+import { countertopById } from '../model/countertops';
 import { isReserveExempt, type CornerReserve } from '../model/geometry';
 import { footprintW, laneItems, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
 import { ElevationCabinet } from './CabinetImage';
@@ -67,6 +68,7 @@ export function WallElevationSvg({
   const floorItems = laneItems(wallItems, wall.id, 'floor');
   const runs = counterRuns(floorItems);
   const cT = design.counterThickness ?? COUNTER_T;
+  const counterColor = countertopById(design.counterId).base;
 
   // Dimension boundaries along the floor lane
   const edges = new Set<number>([0, wall.length]);
@@ -289,7 +291,7 @@ export function WallElevationSvg({
         return (
           <g key={`c-${i}`}>
             <rect x={x1} y={cy + cT} width={x2 - x1} height={1.6} fill="url(#g-undercounter)" />
-            <rect x={x1} y={cy} width={x2 - x1} height={cT} rx={0.35} fill={fin.counter} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+            <rect x={x1} y={cy} width={x2 - x1} height={cT} rx={0.35} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
             <rect x={x1} y={cy} width={x2 - x1} height={cT} rx={0.35} fill="url(#g-counter)" />
             <line x1={x1 + 0.3} y1={cy + 0.25} x2={x2 - 0.3} y2={cy + 0.25} stroke="#ffffff" strokeWidth={0.25} opacity={0.55} />
           </g>
@@ -306,7 +308,7 @@ export function WallElevationSvg({
         if (it.waterfallR) sides.push({ side: 'R', x: it.x + footprintW(it) });
         return sides.map(({ side, x }) => (
           <g key={`wf-${it.id}-${side}`}>
-            <rect x={x} y={cy} width={cT} height={BASE_H + cT} fill={fin.counter} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+            <rect x={x} y={cy} width={cT} height={BASE_H + cT} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
             <rect x={x} y={cy} width={cT} height={BASE_H + cT} fill="url(#g-counter)" />
           </g>
         ));

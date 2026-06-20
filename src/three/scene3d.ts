@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
 import { frameForWall, planBounds } from '../model/geometry';
 import { selectedApplianceHeight } from '../model/appliances';
+import { countertopById } from '../model/countertops';
 import type { ApplianceItem, Design, FinishOption, PlacedItem } from '../model/types';
 import { footprintW, laneItems } from '../state/store';
 import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, isSinkFront, sinkBasin } from './cabinet3d';
@@ -203,7 +204,7 @@ function counterSlabHoles(
 /** Builds all walls, cabinets and counters for a design as one group. */
 export function buildDesignGroup(design: Design, fin: FinishOption, appliances: ApplianceItem[] = []): BuiltScene {
   const group = new THREE.Group();
-  const mats = createMats(fin);
+  const mats = createMats(fin, countertopById(design.counterId));
   const cT = design.counterThickness ?? COUNTER_T;
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1eee7, roughness: 0.92 });
 
