@@ -16,9 +16,6 @@ export default function Toolbar() {
   const setTab = useStore((s) => s.setTab);
   const design = useStore((s) => s.design);
   const setDesignMeta = useStore((s) => s.setDesignMeta);
-  const setPricingOpen = useStore((s) => s.setPricingOpen);
-  const setSettingsOpen = useStore((s) => s.setSettingsOpen);
-  const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
   const newDesign = useStore((s) => s.newDesign);
   const loadDesign = useStore((s) => s.loadDesign);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -101,51 +98,7 @@ export default function Toolbar() {
           </nav>
 
           <div className="toolbar-right">
-            <select
-              className="select"
-              value={design.doorStyle}
-              onChange={(e) => setDesignMeta({ doorStyle: e.target.value as Design['doorStyle'] })}
-              title="Door style"
-            >
-              <option value="shaker">Shaker (groove)</option>
-              <option value="flat">Euro / flat</option>
-            </select>
-            <select
-              className="select"
-              value={design.finishId}
-              onChange={(e) => setDesignMeta({ finishId: e.target.value })}
-              title="Cabinet finish"
-            >
-              {FINISHES.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="select"
-              value={design.gasType ?? ''}
-              onChange={(e) => setDesignMeta({ gasType: (e.target.value || undefined) as Design['gasType'] })}
-              title="Fuel type for the gas appliances"
-            >
-              <option value="">Gas: not set</option>
-              <option value="ng">Natural Gas</option>
-              <option value="lp">Liquid Propane</option>
-            </select>
-            <CounterThicknessInput value={design.counterThickness} onChange={(v) => setDesignMeta({ counterThickness: v })} />
-            {isAdmin && (
-              <>
-                <button className="btn-ghost" onClick={() => setPricingOpen(true)}>
-                  Pricing
-                </button>
-                <button className="btn-ghost" onClick={() => setSettingsOpen(true)}>
-                  Settings
-                </button>
-                <button className="btn-ghost" onClick={() => setAppliancesOpen(true)}>
-                  Appliances
-                </button>
-              </>
-            )}
+            <SettingsMenu design={design} setDesignMeta={setDesignMeta} isAdmin={isAdmin} />
             <button className="btn-primary" onClick={() => openSaveJob(true)} title="Save this design to your account">
               Save job
             </button>
@@ -192,6 +145,100 @@ export default function Toolbar() {
         </button>
       </div>
     </header>
+  );
+}
+
+/** Gear dropdown gathering the per-job design options + admin config links. */
+function SettingsMenu({
+  design,
+  setDesignMeta,
+  isAdmin,
+}: {
+  design: Design;
+  setDesignMeta: (patch: Partial<Design>) => void;
+  isAdmin: boolean;
+}) {
+  const setPricingOpen = useStore((s) => s.setPricingOpen);
+  const setSettingsOpen = useStore((s) => s.setSettingsOpen);
+  const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const openModal = (fn: (v: boolean) => void) => {
+    fn(true);
+    setOpen(false);
+  };
+
+  return (
+    <div className="settings-dd" ref={ref}>
+      <button className={open ? 'btn-ghost active' : 'btn-ghost'} onClick={() => setOpen((o) => !o)} title="Design & settings">
+        ⚙ Settings ▾
+      </button>
+      {open && (
+        <div className="settings-menu">
+          <div className="settings-menu-label">Design</div>
+          <label className="settings-menu-row">
+            <span>Door style</span>
+            <select className="select" value={design.doorStyle} onChange={(e) => setDesignMeta({ doorStyle: e.target.value as Design['doorStyle'] })}>
+              <option value="shaker">Shaker (groove)</option>
+              <option value="flat">Euro / flat</option>
+            </select>
+          </label>
+          <label className="settings-menu-row">
+            <span>Finish</span>
+            <select className="select" value={design.finishId} onChange={(e) => setDesignMeta({ finishId: e.target.value })}>
+              {FINISHES.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="settings-menu-row">
+            <span>Gas type</span>
+            <select className="select" value={design.gasType ?? ''} onChange={(e) => setDesignMeta({ gasType: (e.target.value || undefined) as Design['gasType'] })}>
+              <option value="">Not set</option>
+              <option value="ng">Natural Gas</option>
+              <option value="lp">Liquid Propane</option>
+            </select>
+          </label>
+          <label className="settings-menu-row">
+            <span>Countertop</span>
+            <CounterThicknessInput value={design.counterThickness} onChange={(v) => setDesignMeta({ counterThickness: v })} />
+          </label>
+
+          {isAdmin && (
+            <>
+              <div className="settings-menu-sep" />
+              <div className="settings-menu-label">Admin</div>
+              <button className="settings-menu-item" onClick={() => openModal(setPricingOpen)}>
+                Base pricing…
+              </button>
+              <button className="settings-menu-item" onClick={() => openModal(setSettingsOpen)}>
+                Cabinet size limits…
+              </button>
+              <button className="settings-menu-item" onClick={() => openModal(setAppliancesOpen)}>
+                Appliances…
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

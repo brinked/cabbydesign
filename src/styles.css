@@ -113,6 +113,79 @@ body {
   color: var(--muted);
 }
 
+/* settings gear dropdown */
+.settings-dd {
+  position: relative;
+}
+
+.settings-dd .btn-ghost.active {
+  background: #eef0f4;
+  color: var(--ink);
+}
+
+.settings-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  width: 264px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(20, 24, 40, 0.18);
+  padding: 8px;
+}
+
+.settings-menu-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 6px 8px 4px;
+}
+
+.settings-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+.settings-menu-row .select {
+  flex: 1;
+  max-width: 150px;
+}
+
+.settings-menu-row .counter-thick {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.settings-menu-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 8px 4px;
+}
+
+.settings-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.settings-menu-item:hover {
+  background: #eef0f4;
+}
+
 .counter-input {
   width: 46px;
   border: 1px solid var(--line);
