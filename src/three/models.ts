@@ -34,6 +34,24 @@ export function onModelsLoaded(cb: () => void): () => void {
   return () => listeners.delete(cb);
 }
 
+/**
+ * Strip the molded "Le Griddle / GFE75" logo + text from the griddle model:
+ * the text geometry (node named with the SKU) and the logo decal (the only
+ * mesh whose material carries a texture map). Leaves the plain steel/plastic.
+ */
+function stripGriddleBranding(root: THREE.Object3D): void {
+  const remove: THREE.Object3D[] = [];
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const hasTexture = mats.some((m) => m && (m as THREE.MeshStandardMaterial).map);
+    // own name only (e.g. "Geom3D_LeGriddle GFE75L"); never match a parent group
+    if (hasTexture || /legriddle|gfe\d/i.test(o.name)) remove.push(o);
+  });
+  remove.forEach((o) => o.parent?.remove(o));
+}
+
 /** Center an object on X/Z with its base at y=0; record its size. */
 function normalize(root: THREE.Object3D): ModelTemplate {
   root.updateMatrixWorld(true);
@@ -55,6 +73,7 @@ export function loadModels(): void {
     loader.load(
       url,
       (gltf) => {
+        if (key === 'griddle') stripGriddleBranding(gltf.scene);
         templates.set(key, normalize(gltf.scene));
         listeners.forEach((l) => l());
       },
