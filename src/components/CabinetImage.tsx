@@ -16,6 +16,7 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
   const style = useStore((s) => s.design.doorStyle);
   const counterT = useStore((s) => s.design.counterThickness);
   const appliances = useStore((s) => s.appliances);
+  const modelsReady = useStore((s) => s.modelsReady);
   // a lazy susan keeps its corner orientation from placement; hinge only moves
   // the single handle, matching the 3D and plan views
   const cornerSide: 1 | -1 | undefined = cat.front === 'susan' ? (it.x + (it.w + (it.endL ? 0.75 : 0) + (it.endR ? 0.75 : 0)) / 2 > wallLength / 2 ? -1 : 1) : undefined;
@@ -25,7 +26,7 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
   const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, cornerSide, applianceH, counterT };
   const url = useMemo(
     () => cabinetSprite(cat, dims, fin, 'front'),
-    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, style, fin, cornerSide, applianceH, counterT]
+    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, style, fin, cornerSide, applianceH, counterT, modelsReady]
   );
   if (!url) return <CabinetFront cat={cat} w={it.w} h={it.h} fin={fin} hinge={it.hinge} />;
   const top = spriteTopY(cat, it.h);
@@ -44,9 +45,10 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
 /** Product-shot thumbnail for catalog cards, with SVG fallback. */
 export function CatalogThumb({ cat, fin }: { cat: CatalogItem; fin: FinishOption }) {
   const style = useStore((s) => s.design.doorStyle);
+  const modelsReady = useStore((s) => s.modelsReady);
   const url = useMemo(
     () => cabinetSprite(cat, { w: cat.w, d: cat.d, h: cat.h, hinge: 'left', style, endL: false, endR: false }, fin, 'iso'),
-    [cat, fin, style]
+    [cat, fin, style, modelsReady]
   );
   if (url) return <img className="mini-preview" src={url} alt={cat.name} />;
   const ox = cat.d * 0.5;

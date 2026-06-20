@@ -1,6 +1,16 @@
 import * as THREE from 'three';
 import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide } from '../model/types';
+import { fitModel } from './models';
+
+// Real griddle model placement (tunable). Width as a fraction of the cabinet,
+// how far the cooking surface sits PROUD of the cabinet top (the firebox drops
+// in below), gap from the back wall, and a yaw flip if the controls face the
+// wall. The model's front (controls) is +z, matching the room-facing direction.
+const GRIDDLE_MODEL_W_FRAC = 0.9;
+const GRIDDLE_MODEL_PROUD = 2.5;
+const GRIDDLE_MODEL_BACK = 1.5;
+const GRIDDLE_MODEL_YAW = 0;
 
 export const STEEL_3D = 0xc9ced2;
 
@@ -926,20 +936,32 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     // handle across the hood front
     addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.28, hoodFrontZ + 1.7);
   } else if (cat.front === 'griddle' && !isAppliance) {
-    const gw = applianceFaceW(w);
-    const applH = 7;
-    const faceY = kick + carcassH - REVEAL - applH / 2;
-    const face = box(gw, applH, 1.5, mats.steel);
-    face.position.set(0, faceY, d - 0.2);
-    g.add(face);
-    addKnobs(0, faceY - 1, d + 0.55, 3);
-    const lip = box(gw, 1.4, d - 4, mats.steel);
-    lip.position.set(0, h + 0.7, d / 2);
-    g.add(lip);
-    const lid = grillHood(gw - 0.5, d - 7, 3.4, mats.steel);
-    lid.position.set(0, h + 1.4, d - 2.5);
-    g.add(lid);
-    addHoodHandle(Math.min(16, gw - 8), h + 2.6, d - 2.5 + 1.5);
+    const model = fitModel('griddle', GRIDDLE_MODEL_W_FRAC * w);
+    if (model) {
+      // Drop the real griddle into the top of the cabinet, cooking surface PROUD
+      // of the top, controls toward the room (+z).
+      if (GRIDDLE_MODEL_YAW) model.rotation.y = GRIDDLE_MODEL_YAW;
+      const mb = new THREE.Box3().setFromObject(model);
+      const mh = mb.max.y - mb.min.y; // scaled height
+      const md = mb.max.z - mb.min.z; // scaled depth
+      model.position.set(0, h + GRIDDLE_MODEL_PROUD - mh, d - md / 2 - GRIDDLE_MODEL_BACK);
+      g.add(model);
+    } else {
+      const gw = applianceFaceW(w);
+      const applH = 7;
+      const faceY = kick + carcassH - REVEAL - applH / 2;
+      const face = box(gw, applH, 1.5, mats.steel);
+      face.position.set(0, faceY, d - 0.2);
+      g.add(face);
+      addKnobs(0, faceY - 1, d + 0.55, 3);
+      const lip = box(gw, 1.4, d - 4, mats.steel);
+      lip.position.set(0, h + 0.7, d / 2);
+      g.add(lip);
+      const lid = grillHood(gw - 0.5, d - 7, 3.4, mats.steel);
+      lid.position.set(0, h + 1.4, d - 2.5);
+      g.add(lid);
+      addHoodHandle(Math.min(16, gw - 8), h + 2.6, d - 2.5 + 1.5);
+    }
   } else if (cat.front === 'burner' && !isAppliance) {
     // Drop-in side/power burner: recessed control face, lip and rounded lid.
     const gw = applianceFaceW(w);

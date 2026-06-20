@@ -12,6 +12,7 @@ export default function View3D() {
   const design = useStore((s) => s.design);
   const fin = useFinish(design.finishId);
   const appliances = useStore((s) => s.appliances);
+  const modelsReady = useStore((s) => s.modelsReady);
   const setSnapshot = useStore((s) => s.setSnapshot);
   const [saved, setSaved] = useState(false);
   const [photoCam, setPhotoCam] = useState<PhotoCam | null>(null);
@@ -125,7 +126,7 @@ export default function View3D() {
       dispose();
       camRef.current = null;
     };
-  }, [design, fin, appliances]);
+  }, [design, fin, appliances, modelsReady]);
 
   return (
     <div className="view3d">

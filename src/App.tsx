@@ -14,6 +14,7 @@ import SaveJobModal from './components/SaveJobModal';
 import { SvgDefs } from './components/svg';
 import { useStore } from './state/store';
 import { useSession } from './state/session';
+import { loadModels, onModelsLoaded } from './three/models';
 
 export default function App() {
   const tab = useStore((s) => s.tab);
@@ -27,6 +28,14 @@ export default function App() {
   useEffect(() => {
     init();
   }, [init]);
+
+  // Preload real 3D appliance models; flip the store flag so the 3D scene and
+  // 2D sprites re-render with them once they arrive.
+  useEffect(() => {
+    const off = onModelsLoaded(() => useStore.setState({ modelsReady: true }));
+    loadModels();
+    return off;
+  }, []);
 
   if (resetToken) {
     return (

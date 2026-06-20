@@ -3,6 +3,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { BASE_H } from '../model/catalog';
 import type { CatalogItem, FinishOption } from '../model/types';
 import { END_PANEL_T, buildCabinetLocal, createMats, gearAbove, type CabDims, type CabMats } from './cabinet3d';
+import { hasModel } from './models';
 
 /**
  * Offscreen "product shot" renderer. Each cabinet is rendered once per
@@ -61,7 +62,8 @@ export function spriteEndExtents(cat: CatalogItem, dims: CabDims): { exL: number
 }
 
 export function cabinetSprite(cat: CatalogItem, dims: CabDims, fin: FinishOption, view: SpriteView): string | null {
-  const key = `${cat.id}|${dims.w}x${dims.d}x${dims.h}|${dims.hinge}|${dims.cornerSide ?? ''}|${dims.style}|${dims.endL ? 'L' : ''}${dims.endR ? 'R' : ''}|${dims.applianceH ?? ''}|${dims.counterT ?? ''}|${fin.id}|${view}`;
+  const modelTag = cat.applianceCat === 'griddle' && hasModel('griddle') ? 'M' : '';
+  const key = `${cat.id}|${dims.w}x${dims.d}x${dims.h}|${dims.hinge}|${dims.cornerSide ?? ''}|${dims.style}|${dims.endL ? 'L' : ''}${dims.endR ? 'R' : ''}|${dims.applianceH ?? ''}|${dims.counterT ?? ''}|${modelTag}|${fin.id}|${view}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
 

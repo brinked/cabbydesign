@@ -179,6 +179,8 @@ interface AppState {
   appliances: ApplianceItem[];
   /** Per-brand manufacturer discount (dealer gets half). */
   applianceBrands: ApplianceBrands;
+  /** True once real 3D appliance models (glb) have loaded — re-renders views. */
+  modelsReady: boolean;
   snapshot3d: string | null;
 
   setTab: (tab: Tab) => void;
@@ -459,6 +461,7 @@ export const useStore = create<AppState>()(
       dims: {},
       appliances: [],
       applianceBrands: {},
+      modelsReady: false,
       snapshot3d: null,
 
       setTab: (tab) => set({ tab }),
