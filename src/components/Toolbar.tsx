@@ -235,6 +235,10 @@ function SettingsMenu({
             <span>Countertop</span>
             <CounterThicknessInput value={design.counterThickness} onChange={(v) => setDesignMeta({ counterThickness: v })} />
           </label>
+          <label className="settings-menu-row">
+            <span>Backsplash</span>
+            <BacksplashControl value={design.backsplashHeight ?? 0} onChange={(v) => setDesignMeta({ backsplashHeight: v })} />
+          </label>
 
           {isAdmin && (
             <>
@@ -273,6 +277,44 @@ function CounterThicknessInput({ value, onChange }: { value: number; onChange: (
         className="counter-input"
         inputMode="decimal"
         value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+      />
+      <span>″</span>
+    </span>
+  );
+}
+
+/** Stone backsplash toggle + height (inches). Height 0 = no backsplash; the
+ *  checkbox enables it (defaulting to 4″) and the field sets the stone height. */
+const DEFAULT_BACKSPLASH_H = 4;
+function BacksplashControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const on = value > 0;
+  const [text, setText] = useState(String(value || DEFAULT_BACKSPLASH_H));
+  useEffect(() => {
+    if (value > 0) setText(String(value));
+  }, [value]);
+  const commit = () => {
+    const v = parseFloat(text);
+    if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100) / 100);
+    else setText(String(value || DEFAULT_BACKSPLASH_H));
+  };
+  return (
+    <span className="counter-thick" title="Stone backsplash height up the wall (inches). Uses the countertop stone.">
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => onChange(e.target.checked ? parseFloat(text) || DEFAULT_BACKSPLASH_H : 0)}
+        title={on ? 'Backsplash on' : 'Backsplash off'}
+      />
+      <input
+        className="counter-input"
+        inputMode="decimal"
+        value={text}
+        disabled={!on}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {

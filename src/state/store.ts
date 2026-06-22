@@ -45,6 +45,7 @@ function defaultDesign(): Design {
     doorStyle: 'shaker',
     counterThickness: COUNTER_T,
     counterId: DEFAULT_COUNTERTOP,
+    backsplashHeight: 0,
     walls: [{ id: uid('wall'), name: 'Front Wall', length: 110, height: 96, x: 0, y: 0, angle: 0, thickness: 5, ghost: false }],
     items: [],
     roughIns: [],
@@ -156,7 +157,8 @@ export function normalizeDesign(raw: Design): Design {
   const roughIns = (raw.roughIns ?? []).filter((r) => wallIds.has(r.wallId));
   const counterThickness = raw.counterThickness && raw.counterThickness > 0 ? raw.counterThickness : COUNTER_T;
   const counterId = raw.counterId ?? DEFAULT_COUNTERTOP;
-  const result = { ...defaultDesign(), ...raw, finishId, doorStyle: raw.doorStyle ?? 'shaker', counterThickness, counterId, walls, items, roughIns };
+  const backsplashHeight = raw.backsplashHeight && raw.backsplashHeight > 0 ? raw.backsplashHeight : 0;
+  const result = { ...defaultDesign(), ...raw, finishId, doorStyle: raw.doorStyle ?? 'shaker', counterThickness, counterId, backsplashHeight, walls, items, roughIns };
   alignFillers(result);
   return result;
 }
@@ -192,7 +194,7 @@ interface AppState {
   setAppliances: (appliances: ApplianceItem[]) => void;
   setApplianceBrands: (brands: ApplianceBrands) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
-  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId'>>) => void;
+  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight'>>) => void;
   applyPreset: (layout: LayoutKind) => void;
   addWall: () => void;
   addWallAt: (placement: { x: number; y: number; angle: number; length: number }) => void;

@@ -206,6 +206,8 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   const group = new THREE.Group();
   const mats = createMats(fin, countertopById(design.counterId));
   const cT = design.counterThickness ?? COUNTER_T;
+  const bsH = design.backsplashHeight ?? 0; // stone backsplash height up the wall (0 = none)
+  const BS_THICK = 0.75; // backsplash slab thickness off the wall
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1eee7, roughness: 0.92 });
 
   const frames = design.walls.map(frameForWall);
@@ -306,6 +308,20 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         slabMat.map.repeat.set(Math.max(1, (x2 - x1) / 48), Math.max(1, depth / 48));
         const slab = box(x2 - x1, cT, depth, slabMat);
         place(slab, runCenter, depth / 2, BASE_H + cT / 2);
+      }
+
+      // Stone backsplash — a vertical slab of the counter stone up the wall
+      // behind this run. Only on real walls (islands have no wall to climb).
+      if (bsH > 0 && !f.wall.ghost) {
+        const bx1 = Math.max(r.x1, 0);
+        const bx2 = Math.min(r.x2, f.wall.length);
+        if (bx2 > bx1) {
+          const bsMat = mats.counter.clone();
+          bsMat.map = mats.counterTex.clone();
+          bsMat.map.repeat.set(Math.max(1, (bx2 - bx1) / 48), Math.max(1, bsH / 48));
+          const bs = box(bx2 - bx1, bsH, BS_THICK, bsMat);
+          place(bs, (bx1 + bx2) / 2, BS_THICK / 2, BASE_H + cT + bsH / 2);
+        }
       }
     }
   }

@@ -234,6 +234,9 @@ export interface Design {
   counterThickness: number;
   /** Countertop material/style id (see model/countertops). */
   counterId: string;
+  /** Stone backsplash height up the wall in inches (0 = no backsplash). Uses
+   *  the same stone as the countertop. */
+  backsplashHeight: number;
   walls: Wall[];
   items: PlacedItem[];
   roughIns: RoughIn[];
