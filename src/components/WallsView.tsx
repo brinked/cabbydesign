@@ -3,7 +3,7 @@ import type { FinishOption, PlacedItem, Wall } from '../model/types';
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, FINISHES, catalogById } from '../model/catalog';
 import { countertopById } from '../model/countertops';
 import { isReserveExempt, type CornerReserve } from '../model/geometry';
-import { footprintW, laneItems, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
+import { backsplashSpans, footprintW, laneItems, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
 import { ElevationCabinet } from './CabinetImage';
 import { NumberField } from './NumberField';
 import { DimH, DimV, RoughInGlyph, fmtIn } from './svg';
@@ -68,6 +68,7 @@ export function WallElevationSvg({
   const floorItems = laneItems(wallItems, wall.id, 'floor');
   const runs = counterRuns(floorItems);
   const cT = design.counterThickness ?? COUNTER_T;
+  const bsH = design.backsplashHeight ?? 0;
   const counterColor = countertopById(design.counterId).base;
 
   // Dimension boundaries along the floor lane
@@ -282,6 +283,19 @@ export function WallElevationSvg({
           </g>
         );
       })}
+
+      {/* stone backsplash — a band of counter stone up the wall above the
+          counter, continuous around inside corners */}
+      {bsH > 0 &&
+        backsplashSpans(floorItems, wall.length, reserve).map((s, i) => {
+          const cy = floorY - BASE_H - cT; // counter top surface
+          return (
+            <g key={`bs-${i}`}>
+              <rect x={s.x1} y={cy - bsH} width={s.x2 - s.x1} height={bsH} fill={counterColor} stroke="rgba(0,0,0,0.18)" strokeWidth={0.2} />
+              <rect x={s.x1} y={cy - bsH} width={s.x2 - s.x1} height={bsH} fill="url(#g-counter)" opacity={0.5} />
+            </g>
+          );
+        })}
 
       {/* counters drawn over the carcasses, with a shadow band under the nose */}
       {runs.map((r, i) => {

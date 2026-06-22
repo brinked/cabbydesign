@@ -246,6 +246,36 @@ export function footprintW(it: PlacedItem): number {
   return it.w + (e.l ? END_PANEL_T : 0) + (e.r ? END_PANEL_T : 0);
 }
 
+/**
+ * Continuous wall spans (along the wall, in inches) that receive a stone
+ * backsplash: every counter-bearing floor cabinet's footprint, plus the corner
+ * reserve zones where a neighbouring corner cabinet's leg occupies this wall.
+ * Adjacent spans merge so the backsplash is unbroken around inside corners.
+ * Shared by the 3D scene and the 2D elevation so both agree.
+ */
+export function backsplashSpans(
+  floorItems: PlacedItem[],
+  wallLength: number,
+  reserve: { start: number; end: number }
+): Array<{ x1: number; x2: number }> {
+  const spans: Array<{ x1: number; x2: number }> = [];
+  for (const it of floorItems) {
+    if (!catalogById(it.catalogId).counter) continue; // only behind counters
+    spans.push({ x1: it.x, x2: it.x + footprintW(it) });
+  }
+  if (reserve.start > 0) spans.push({ x1: 0, x2: reserve.start });
+  if (reserve.end > 0) spans.push({ x1: wallLength - reserve.end, x2: wallLength });
+  if (!spans.length) return [];
+  spans.sort((a, b) => a.x1 - b.x1);
+  const merged: Array<{ x1: number; x2: number }> = [{ ...spans[0] }];
+  for (const s of spans.slice(1)) {
+    const last = merged[merged.length - 1];
+    if (s.x1 <= last.x2 + 1) last.x2 = Math.max(last.x2, s.x2); // 1" tolerance = touching
+    else merged.push({ ...s });
+  }
+  return merged.map((s) => ({ x1: Math.max(0, s.x1), x2: Math.min(wallLength, s.x2) }));
+}
+
 /** True when the item's wall is an island (back is exposed → back panels). */
 export function itemOnIsland(design: Design, it: PlacedItem): boolean {
   return design.walls.find((w) => w.id === it.wallId)?.ghost ?? false;
