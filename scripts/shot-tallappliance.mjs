@@ -1,6 +1,6 @@
 // Render the built-in oven/microwave + fridge tall cabinets (elevation) for review.
 import puppeteer from 'puppeteer-core';
-const BASE = 'http://localhost:5174';
+const BASE = 'http://localhost:5173';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await puppeteer.launch({
   executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',

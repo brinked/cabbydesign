@@ -578,7 +578,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
 
   // front faces — one-piece HDPE doors (grooved shaker or euro flat) + steel handle
   if (!steel && !isAppliance) {
-    type Front = { dx: number; dy: number; w: number; h: number; handle: 'v-left' | 'v-right' | 'h-center' | 'none'; slab?: boolean };
+    type Front = { dx: number; dy: number; w: number; h: number; handle: 'v-left' | 'v-right' | 'h-center' | 'none'; slab?: boolean; handleLow?: boolean };
     const fronts: Front[] = [];
     const fw = w - REVEAL * 2;
     const fh = carcassH - REVEAL * 2;
@@ -735,25 +735,27 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         break;
       }
       case 'applianceoven': {
-        // bottom drawer + top doors; the oven/microwave opening is built below
+        // bottom drawer + top doors; the oven/microwave opening is built below.
+        // Top doors sit high, so their handles go low (at the door bottom) for reach.
         const L = applianceTallLayout('applianceoven', fh);
         fronts.push({ dx: 0, dy: L.drawer!.dy, w: fw, h: L.drawer!.h, handle: 'h-center' });
         if (fw >= 24) {
-          fronts.push({ dx: -half / 2 - GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-right' });
-          fronts.push({ dx: half / 2 + GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-left' });
+          fronts.push({ dx: -half / 2 - GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-right', handleLow: true });
+          fronts.push({ dx: half / 2 + GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-left', handleLow: true });
         } else {
-          fronts.push({ dx: 0, dy: L.doors.dy, w: fw, h: L.doors.h, handle: oneDoorHandle });
+          fronts.push({ dx: 0, dy: L.doors.dy, w: fw, h: L.doors.h, handle: oneDoorHandle, handleLow: true });
         }
         break;
       }
       case 'fridgetall': {
-        // 2 doors at the top; the refrigerator opening is built below
+        // 2 doors at the top; the refrigerator opening is built below. The doors
+        // sit high, so their handles go low (at the door bottom) for reach.
         const L = applianceTallLayout('fridgetall', fh);
         if (fw >= 24) {
-          fronts.push({ dx: -half / 2 - GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-right' });
-          fronts.push({ dx: half / 2 + GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-left' });
+          fronts.push({ dx: -half / 2 - GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-right', handleLow: true });
+          fronts.push({ dx: half / 2 + GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-left', handleLow: true });
         } else {
-          fronts.push({ dx: 0, dy: L.doors.dy, w: fw, h: L.doors.h, handle: oneDoorHandle });
+          fronts.push({ dx: 0, dy: L.doors.dy, w: fw, h: L.doors.h, handle: oneDoorHandle, handleLow: true });
         }
         break;
       }
@@ -777,8 +779,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         bar.castShadow = true;
         if (isV) {
           bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + 1.6 : fr.w / 2 - 1.6;
-          // handle sits in the upper third of the door (per design reference)
-          bar.position.y = fr.h / 2 - len / 2 - 1.4;
+          // handle sits in the upper third of the door (per design reference), or
+          // the lower third for high-mounted doors (handleLow) so it's reachable
+          bar.position.y = fr.handleLow ? -fr.h / 2 + len / 2 + 1.4 : fr.h / 2 - len / 2 - 1.4;
         } else {
           bar.rotation.z = Math.PI / 2;
         }
