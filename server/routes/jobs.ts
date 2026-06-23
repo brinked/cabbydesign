@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db, type JobRow } from '../db.ts';
-import { requireAuth } from '../auth.ts';
+import { requireAdmin, requireAuth } from '../auth.ts';
 import { shapeJobFull, shapeJobSummary } from '../shape.ts';
 
 export const jobsRouter = Router();
@@ -10,6 +10,30 @@ jobsRouter.use(requireAuth);
 
 const listJobs = db.prepare('SELECT * FROM jobs WHERE user_id = ? ORDER BY updated_at DESC');
 const getJob = db.prepare('SELECT * FROM jobs WHERE id = ? AND user_id = ?');
+const getAnyJob = db.prepare('SELECT * FROM jobs WHERE id = ?');
+// Admin: every dealer's job with its owner's name/company/email.
+const listAllJobs = db.prepare(`
+  SELECT j.*, u.name AS owner_name, u.company_name AS owner_company, u.email AS owner_email
+  FROM jobs j JOIN users u ON u.id = j.user_id
+  ORDER BY j.updated_at DESC
+`);
+
+type JobWithOwner = JobRow & { owner_name: string; owner_company: string; owner_email: string };
+
+// Admin-only: list saved designs across all dealers. Declared before '/:id' so
+// the literal path isn't captured as an id.
+jobsRouter.get('/all', requireAdmin, (_req, res) => {
+  const rows = listAllJobs.all() as JobWithOwner[];
+  res.json({
+    jobs: rows.map((r) => ({
+      ...shapeJobSummary(r),
+      ownerId: r.user_id,
+      ownerName: r.owner_name,
+      ownerCompany: r.owner_company,
+      ownerEmail: r.owner_email,
+    })),
+  });
+});
 
 const jobSchema = z.object({
   name: z.string().min(1).max(200),
@@ -26,7 +50,9 @@ jobsRouter.get('/', (req, res) => {
 });
 
 jobsRouter.get('/:id', (req, res) => {
-  const row = getJob.get(Number(req.params.id), req.user!.id) as JobRow | undefined;
+  const id = Number(req.params.id);
+  // Admins may open any dealer's design (read-only viewing); others only their own.
+  const row = (req.user!.role === 'admin' ? getAnyJob.get(id) : getJob.get(id, req.user!.id)) as JobRow | undefined;
   if (!row) {
     res.status(404).json({ error: 'Job not found' });
     return;

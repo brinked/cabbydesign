@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, ApiError, type DealerInput, type DealerWithPrefs } from '../api/client';
+import { api, ApiError, type AdminJobSummary, type DealerInput, type DealerWithPrefs } from '../api/client';
 import { CATALOG } from '../model/catalog';
 import { useStore } from '../state/store';
 import { useSession } from '../state/session';
@@ -27,6 +27,7 @@ export default function AdminPanel() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState<DealerWithPrefs | 'new' | null>(null);
+  const [showDesigns, setShowDesigns] = useState(false);
   const setPricingOpen = useStore((s) => s.setPricingOpen);
   const setRetailPricingOpen = useStore((s) => s.setRetailPricingOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
@@ -115,6 +116,9 @@ export default function AdminPanel() {
           </button>
           <button className="btn-ghost" onClick={() => setAppliancesOpen(true)}>
             Appliances
+          </button>
+          <button className="btn-ghost" onClick={() => setShowDesigns(true)}>
+            Saved designs
           </button>
           <button className="btn-primary" onClick={() => setEditing('new')}>
             + Add dealer
@@ -212,8 +216,119 @@ export default function AdminPanel() {
           }}
         />
       )}
+
+      {showDesigns && <DesignsModal onClose={() => setShowDesigns(false)} />}
     </main>
   );
+}
+
+/** Admin view of every dealer's saved designs. Open one to load it (read-only)
+ *  into the designer for review. */
+function DesignsModal({ onClose }: { onClose: () => void }) {
+  const [jobs, setJobs] = useState<AdminJobSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
+  const loadDesign = useStore((s) => s.loadDesign);
+  const setScreen = useSession((s) => s.setScreen);
+  const setCurrentJob = useSession((s) => s.setCurrentJob);
+
+  useEffect(() => {
+    api
+      .listAllJobs()
+      .then(({ jobs }) => setJobs(jobs))
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load designs.'));
+  }, []);
+
+  async function open(j: AdminJobSummary) {
+    try {
+      const { job } = await api.getJob(j.id);
+      loadDesign(job.design);
+      // Viewing a dealer's design — not the admin's own job, so don't track it
+      // as the current (savable) job. Saving will create a new copy under admin.
+      setCurrentJob(null, null);
+      setScreen('design');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not open design.');
+    }
+  }
+
+  const shown = (jobs ?? []).filter((j) => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      j.name.toLowerCase().includes(q) ||
+      j.ownerName.toLowerCase().includes(q) ||
+      j.ownerCompany.toLowerCase().includes(q) ||
+      j.ownerEmail.toLowerCase().includes(q) ||
+      j.customerName.toLowerCase().includes(q)
+    );
+  });
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <h2>Saved designs</h2>
+            <p className="modal-sub">Every dealer's saved jobs. Open one to view it in the designer.</p>
+          </div>
+          <button className="btn-ghost" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+
+        {error && <div className="warn">{error}</div>}
+
+        <input
+          className="search-input"
+          placeholder="Search by dealer, company, job, or customer…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+
+        {jobs === null ? (
+          <p className="muted">Loading…</p>
+        ) : shown.length === 0 ? (
+          <p className="muted">{jobs.length === 0 ? 'No dealers have saved any designs yet.' : 'No designs match your search.'}</p>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Dealer</th>
+                <th>Job</th>
+                <th>Customer</th>
+                <th>Updated</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((j) => (
+                <tr key={j.id}>
+                  <td>
+                    <b>{j.ownerName}</b>
+                    {j.ownerCompany && <div className="muted" style={{ fontSize: 12 }}>{j.ownerCompany}</div>}
+                  </td>
+                  <td>{j.name}</td>
+                  <td>{j.customerName || '—'}</td>
+                  <td>{fmtJobDate(j.updatedAt)}</td>
+                  <td className="row-actions">
+                    <button className="btn-ghost" onClick={() => open(j)}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function fmtJobDate(iso: string): string {
+  const d = new Date(iso.replace(' ', 'T') + 'Z');
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
 }
 
 function TaxRateControl() {

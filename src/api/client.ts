@@ -53,6 +53,14 @@ export interface JobSummary {
 
 export type JobFull = JobSummary & { design: Design };
 
+/** A saved design plus its owning dealer — admin-only listing. */
+export type AdminJobSummary = JobSummary & {
+  ownerId: number;
+  ownerName: string;
+  ownerCompany: string;
+  ownerEmail: string;
+};
+
 /** A failed request carries the server's human-readable message + status. */
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -186,6 +194,8 @@ export const api = {
 
   // ---- jobs ----
   listJobs: () => request<{ jobs: JobSummary[] }>('GET', '/jobs'),
+  // admin: every dealer's saved designs
+  listAllJobs: () => request<{ jobs: AdminJobSummary[] }>('GET', '/jobs/all'),
   getJob: (id: number) => request<{ job: JobFull }>('GET', `/jobs/${id}`),
   createJob: (input: JobInput) => request<{ job: JobFull }>('POST', '/jobs', input),
   updateJob: (id: number, input: JobInput) => request<{ job: JobFull }>('PUT', `/jobs/${id}`, input),
