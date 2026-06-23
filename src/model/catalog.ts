@@ -72,6 +72,8 @@ export const CATALOG: CatalogItem[] = [
   { id: 'tall-pantry', name: 'Pantry', category: 'tall', front: 'pantry', lane: 'floor', w: 24, d: 24, h: 84, minW: 18, maxW: 36, stepW: 3, counter: false, formula: BOX },
   { id: 'tall-2door', name: '2-Door Tall', category: 'tall', front: 'door2', lane: 'floor', w: 30, d: 24, h: 84, minW: 24, maxW: 36, stepW: 3, counter: false, formula: BOX },
   { id: 'tall-broom', name: 'Utility / Broom', category: 'tall', front: 'door1', lane: 'floor', w: 18, d: 12, h: 84, minW: 18, maxW: 24, stepW: 3, counter: false, formula: BOX },
+  { id: 'tall-appliance', name: 'Built-In Oven/Microwave Cabinet', category: 'tall', front: 'applianceoven', lane: 'floor', w: 33, d: 24, h: 84, minW: 30, maxW: 36, stepW: 3, minH: 78, maxH: 96, counter: false, formula: BOX, note: 'Bottom drawer, oven/microwave opening, top doors.' },
+  { id: 'tall-fridge', name: 'Built-In Refrigerator Cabinet', category: 'tall', front: 'fridgetall', lane: 'floor', w: 36, d: 24, h: 84, minW: 30, maxW: 48, stepW: 3, minH: 78, maxH: 96, counter: false, formula: BOX, note: '2 doors over a built-in refrigerator opening.' },
 
   // ---------- Outdoor kitchen cabinets ----------
   // Grill/griddle cabinets: the appliance sets INTO the cabinet (recessed face

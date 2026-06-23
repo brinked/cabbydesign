@@ -15,6 +15,8 @@ export type FrontKind =
   | 'sink1f'
   | 'open'
   | 'pantry'
+  | 'applianceoven'
+  | 'fridgetall'
   | 'trash'
   | 'trashdrawer'
   | 'corner'

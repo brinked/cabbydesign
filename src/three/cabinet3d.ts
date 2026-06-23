@@ -340,6 +340,37 @@ function susanCarcass(w: number, d: number, h: number, legD: number, mat: THREE.
 
 const KICK_RECESS = 1; // toe-kick inset from the room-facing faces (matches standard cabinets)
 
+/**
+ * Face layout (face coords: 0 = face centre, +y up) for the built-in appliance
+ * tall cabinets. `applianceoven` = bottom drawer, oven/microwave opening, top
+ * doors; `fridgetall` = top doors over a refrigerator opening. `fh` is the face
+ * height (carcassH − reveals). Heights are clamped to fractions so the layout
+ * still reads on shorter cabinets.
+ */
+function applianceTallLayout(
+  front: 'applianceoven' | 'fridgetall',
+  fh: number
+): { drawer: { dy: number; h: number } | null; opening: { dy: number; h: number }; doors: { dy: number; h: number } } {
+  if (front === 'applianceoven') {
+    const drawerH = Math.min(11, fh * 0.16);
+    const openingH = Math.min(30, fh * 0.42);
+    const doorsH = Math.max(8, fh - drawerH - openingH - GAP * 2);
+    return {
+      drawer: { dy: -fh / 2 + drawerH / 2, h: drawerH },
+      opening: { dy: -fh / 2 + drawerH + GAP + openingH / 2, h: openingH },
+      doors: { dy: fh / 2 - doorsH / 2, h: doorsH },
+    };
+  }
+  // fridgetall: a shallow upper cabinet (2 doors) over the fridge opening
+  const doorsH = Math.min(16, fh * 0.22);
+  const openingH = Math.max(8, fh - doorsH - GAP);
+  return {
+    drawer: null,
+    opening: { dy: -fh / 2 + openingH / 2, h: openingH },
+    doors: { dy: fh / 2 - doorsH / 2, h: doorsH },
+  };
+}
+
 /** Recessed toe-kick block under a diagonal corner cabinet; sits at y∈[0, kick]. */
 function cornerKick(w: number, d: number, kick: number, c: number, mat: THREE.Material, side: 1 | -1): THREE.Mesh {
   const R = KICK_RECESS;
@@ -703,6 +734,29 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         });
         break;
       }
+      case 'applianceoven': {
+        // bottom drawer + top doors; the oven/microwave opening is built below
+        const L = applianceTallLayout('applianceoven', fh);
+        fronts.push({ dx: 0, dy: L.drawer!.dy, w: fw, h: L.drawer!.h, handle: 'h-center' });
+        if (fw >= 24) {
+          fronts.push({ dx: -half / 2 - GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-right' });
+          fronts.push({ dx: half / 2 + GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-left' });
+        } else {
+          fronts.push({ dx: 0, dy: L.doors.dy, w: fw, h: L.doors.h, handle: oneDoorHandle });
+        }
+        break;
+      }
+      case 'fridgetall': {
+        // 2 doors at the top; the refrigerator opening is built below
+        const L = applianceTallLayout('fridgetall', fh);
+        if (fw >= 24) {
+          fronts.push({ dx: -half / 2 - GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-right' });
+          fronts.push({ dx: half / 2 + GAP / 2, dy: L.doors.dy, w: half, h: L.doors.h, handle: 'v-left' });
+        } else {
+          fronts.push({ dx: 0, dy: L.doors.dy, w: fw, h: L.doors.h, handle: oneDoorHandle });
+        }
+        break;
+      }
       case 'trash':
         fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: 'h-center' });
         break;
@@ -889,6 +943,36 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       slat.position.set(0, yB + 0.5 + i * 0.5, d + 0.68);
       g.add(slat);
     }
+  }
+
+  // Built-in appliance openings (oven/microwave cabinet, refrigerator cabinet):
+  // a dark recessed niche framed by a body-colour reveal. The customer's
+  // appliance drops into this opening; the doors/drawer are built above.
+  if ((cat.front === 'applianceoven' || cat.front === 'fridgetall') && !isAppliance) {
+    const fwO = w - REVEAL * 2;
+    const fhO = carcassH - REVEAL * 2;
+    const L = applianceTallLayout(cat.front, fhO);
+    const centerY = kick + carcassH / 2 + L.opening.dy;
+    const openW = fwO;
+    const openH = L.opening.h;
+    // dark cavity panel (the niche)
+    const cav = box(openW, openH, 0.6, mats.dark);
+    cav.position.set(0, centerY, d + 0.1);
+    cav.receiveShadow = true;
+    g.add(cav);
+    // body-colour frame, slightly proud, so the cavity reads as recessed
+    const FR = 1.25;
+    const fz = d + 0.4;
+    const addFrame = (bw: number, bh: number, x: number, y: number) => {
+      const m = box(bw, bh, 0.5, mats.body);
+      m.position.set(x, y, fz);
+      m.castShadow = true;
+      g.add(m);
+    };
+    addFrame(openW, FR, 0, centerY + openH / 2 - FR / 2);
+    addFrame(openW, FR, 0, centerY - openH / 2 + FR / 2);
+    addFrame(FR, openH - FR * 2, -openW / 2 + FR / 2, centerY);
+    addFrame(FR, openH - FR * 2, openW / 2 - FR / 2, centerY);
   }
 
   // Built-in dishwasher / ice maker: stainless front, top control panel, tube
