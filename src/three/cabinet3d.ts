@@ -216,6 +216,17 @@ function applianceFaceW(w: number): number {
   return w - REVEAL * 2 - (GRILL_STILE + GAP) * 2;
 }
 
+/** Built-in appliances render at a realistic, fixed width so they don't stretch
+ *  when the housing cabinet is widened — the cabinet's framing stiles widen
+ *  instead. Capped to these per-type maxima; still shrinks to fit a narrow
+ *  cabinet. (Undefined types fill the whole face, e.g. side/power burners.) */
+const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, grill4: 44, griddle: 30 };
+function applianceOpeningW(front: string, w: number): number {
+  const faceW = applianceFaceW(w);
+  const max = APPLIANCE_MAX_W[front];
+  return max ? Math.min(faceW, max) : faceW;
+}
+
 /** Roll-top grill hood: rounded side profile extruded across the width. */
 function grillHood(gw: number, dh: number, hh: number, mat: THREE.Material): THREE.Mesh {
   const s = new THREE.Shape();
@@ -670,10 +681,13 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         }
         // apron band below the appliance
         fronts.push({ dx: 0, dy: -fh / 2 + doorH + GAP + apronH / 2, w: fw, h: apronH, handle: 'none', slab: true });
-        // side stiles wrapping the appliance face
+        // side stiles wrap the appliance face. They widen as the cabinet grows so
+        // the appliance opening stays a fixed (realistic) width, not stretched.
         const stileY = fh / 2 - applH / 2;
-        fronts.push({ dx: -fw / 2 + GRILL_STILE / 2, dy: stileY, w: GRILL_STILE, h: applH, handle: 'none', slab: true });
-        fronts.push({ dx: fw / 2 - GRILL_STILE / 2, dy: stileY, w: GRILL_STILE, h: applH, handle: 'none', slab: true });
+        const openW = applianceOpeningW(cat.front, w);
+        const stileW = Math.max(GRILL_STILE, (fw - openW - GAP * 2) / 2);
+        fronts.push({ dx: -fw / 2 + stileW / 2, dy: stileY, w: stileW, h: applH, handle: 'none', slab: true });
+        fronts.push({ dx: fw / 2 - stileW / 2, dy: stileY, w: stileW, h: applH, handle: 'none', slab: true });
         break;
       }
       case 'blind':
@@ -1066,8 +1080,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   };
   if ((cat.front === 'grill' || cat.front === 'grill4') && !isAppliance) {
     // Built-in grill set into the cabinet: recessed stainless control face
-    // framed by the cabinet, roll-top hood resting on the body above.
-    const gw = applianceFaceW(w);
+    // framed by the cabinet, roll-top hood resting on the body above. Fixed
+    // width (the cabinet frame widens around it), so it doesn't stretch.
+    const gw = applianceOpeningW(cat.front, w);
     const applH = 9;
     const faceY = kick + carcassH - REVEAL - applH / 2;
     const face = box(gw, applH, 1.5, mats.steel);
@@ -1099,12 +1114,14 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     // handle across the hood front
     addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.28, hoodFrontZ + 1.7);
   } else if (cat.front === 'griddle' && !isAppliance) {
-    const model = fitModel('griddle', GRIDDLE_MODEL_W_FRAC * w);
+    // Fixed griddle width (centered) so the unit doesn't stretch with the cabinet.
+    const openW = applianceOpeningW('griddle', w);
+    const model = fitModel('griddle', GRIDDLE_MODEL_W_FRAC * openW);
     if (model) {
       // Close the cabinet's appliance-face opening with a stainless panel set
       // back behind the unit, so no carcass shows but the model's own control
       // face (knobs/branding) stays visible in front of it.
-      const gw = applianceFaceW(w);
+      const gw = openW;
       const applH = 7;
       const faceY = kick + carcassH - REVEAL - applH / 2;
       const face = box(gw, applH, 0.6, mats.steelMatte);
@@ -1119,7 +1136,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       model.position.set(0, h + GRIDDLE_MODEL_PROUD - mh, d - md / 2 - GRIDDLE_MODEL_BACK);
       g.add(model);
     } else {
-      const gw = applianceFaceW(w);
+      const gw = openW;
       const applH = 7;
       const faceY = kick + carcassH - REVEAL - applH / 2;
       const face = box(gw, applH, 1.5, mats.steel);
