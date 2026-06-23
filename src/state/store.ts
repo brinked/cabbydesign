@@ -56,6 +56,7 @@ function defaultDesign(): Design {
 const ROUGHIN_DEFAULTS: Record<RoughInKind, { w: number; h: number; y: number }> = {
   plumbing: { w: 10, h: 8, y: 12 },
   electrical: { w: 4.5, h: 4.5, y: 24 },
+  gas: { w: 5, h: 5, y: 14 },
 };
 
 /** Minimum clearance a rough-in must keep from a cabinet end (inches). */

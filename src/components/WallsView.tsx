@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { FinishOption, PlacedItem, Wall } from '../model/types';
+import type { FinishOption, PlacedItem, RoughInKind, Wall } from '../model/types';
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, FINISHES, catalogById } from '../model/catalog';
 import { countertopById } from '../model/countertops';
 import { isReserveExempt, type CornerReserve } from '../model/geometry';
@@ -380,7 +380,6 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
   const updateWall = useStore((s) => s.updateWall);
   const removeWall = useStore((s) => s.removeWall);
   const openAdd = useStore((s) => s.openAdd);
-  const addRoughIn = useStore((s) => s.addRoughIn);
   const finish = useStore((s) => s.design.finishId);
   const fin = useFinish(finish);
 
@@ -434,12 +433,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
             ✕
           </button>
         )}
-        <button className="btn-soft" title="Add a plumbing stub-out" onClick={() => addRoughIn(wall.id, 'plumbing')}>
-          + Plumbing
-        </button>
-        <button className="btn-soft" title="Add an electrical outlet" onClick={() => addRoughIn(wall.id, 'electrical')}>
-          + Electrical
-        </button>
+        <RoughInAdd wallId={wall.id} />
         <button className="btn-dark" onClick={() => openAdd(wall.id)}>
           + Add
         </button>
@@ -447,6 +441,44 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
       <div className="wall-card-body" style={zoom > 1 ? { overflowX: 'auto' } : undefined}>
         <WallElevationSvg wall={wall} items={design.items} fin={fin} interactive reserve={reserve} zoom={zoom} />
       </div>
+    </div>
+  );
+}
+
+/** Add-rough-in dropdown: plumbing / electrical / gas under one button. */
+const ROUGHIN_KINDS: { kind: RoughInKind; label: string }[] = [
+  { kind: 'plumbing', label: 'Plumbing stub-out' },
+  { kind: 'electrical', label: 'Electrical outlet' },
+  { kind: 'gas', label: 'Gas stub-out' },
+];
+
+function RoughInAdd({ wallId }: { wallId: string }) {
+  const addRoughIn = useStore((s) => s.addRoughIn);
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="roughin-dd">
+      <button className="btn-soft" title="Add a plumbing, electrical, or gas rough-in" onClick={() => setOpen((o) => !o)}>
+        + Rough-in ▾
+      </button>
+      {open && (
+        <>
+          <div className="roughin-backdrop" onClick={() => setOpen(false)} />
+          <div className="roughin-menu">
+            {ROUGHIN_KINDS.map((k) => (
+              <button
+                key={k.kind}
+                className="roughin-menu-item"
+                onClick={() => {
+                  addRoughIn(wallId, k.kind);
+                  setOpen(false);
+                }}
+              >
+                {k.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

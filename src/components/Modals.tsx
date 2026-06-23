@@ -512,13 +512,20 @@ export function RoughInModal() {
   const conflict = roughInConflict(design, r);
   const set = (patch: Partial<typeof r>) => updateRoughIn(r.id, patch);
   return (
-    <Modal title={r.kind === 'plumbing' ? 'Plumbing Stub-Out' : 'Electrical Outlet'} sub={`On ${wall?.name ?? 'wall'}`} onClose={() => openRoughIn(null)}>
+    <Modal
+      title={r.kind === 'plumbing' ? 'Plumbing Stub-Out' : r.kind === 'gas' ? 'Gas Stub-Out' : 'Electrical Outlet'}
+      sub={`On ${wall?.name ?? 'wall'}`}
+      onClose={() => openRoughIn(null)}
+    >
       <div className="seg" style={{ marginBottom: 12 }}>
         <button className={r.kind === 'plumbing' ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ kind: 'plumbing' })}>
-          Plumbing (drain + 2 lines)
+          Plumbing
         </button>
         <button className={r.kind === 'electrical' ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ kind: 'electrical' })}>
           Electrical
+        </button>
+        <button className={r.kind === 'gas' ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ kind: 'gas' })}>
+          Gas
         </button>
       </div>
       {conflict && (

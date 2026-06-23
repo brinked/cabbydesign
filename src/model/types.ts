@@ -207,7 +207,7 @@ export interface FinishOption {
 }
 
 /** Plumbing or electrical rough-in / stub-out fixed to a wall. */
-export type RoughInKind = 'plumbing' | 'electrical';
+export type RoughInKind = 'plumbing' | 'electrical' | 'gas';
 export interface RoughIn {
   id: string;
   wallId: string;

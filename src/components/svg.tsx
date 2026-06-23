@@ -832,11 +832,24 @@ export function RoughInGlyph({ kind, w, h, conflict }: { kind: RoughInKind; w: n
           <circle cx={cx - w * 0.3} cy={cy} r={m * 0.11} />
           <circle cx={cx + w * 0.3} cy={cy} r={m * 0.11} />
         </g>
-      ) : (
+      ) : kind === 'electrical' ? (
         <g stroke={color} fill="none" strokeWidth={sw} strokeLinecap="round">
           <line x1={cx - w * 0.14} y1={cy - h * 0.22} x2={cx - w * 0.14} y2={cy - h * 0.02} />
           <line x1={cx + w * 0.14} y1={cy - h * 0.22} x2={cx + w * 0.14} y2={cy - h * 0.02} />
           <circle cx={cx} cy={cy + h * 0.18} r={m * 0.06} fill={color} />
+        </g>
+      ) : (
+        // gas — a flame
+        <g stroke={color} strokeWidth={sw} strokeLinejoin="round" strokeLinecap="round">
+          <path
+            fill="none"
+            d={`M ${cx} ${cy - m * 0.3} C ${cx + m * 0.24} ${cy - m * 0.02}, ${cx + m * 0.16} ${cy + m * 0.24}, ${cx} ${cy + m * 0.26} C ${cx - m * 0.16} ${cy + m * 0.24}, ${cx - m * 0.24} ${cy - m * 0.02}, ${cx} ${cy - m * 0.3} Z`}
+          />
+          <path
+            fill={color}
+            stroke="none"
+            d={`M ${cx} ${cy + m * 0.02} C ${cx + m * 0.12} ${cy + m * 0.1}, ${cx + m * 0.08} ${cy + m * 0.22}, ${cx} ${cy + m * 0.24} C ${cx - m * 0.08} ${cy + m * 0.22}, ${cx - m * 0.12} ${cy + m * 0.1}, ${cx} ${cy + m * 0.02} Z`}
+          />
         </g>
       )}
     </g>
