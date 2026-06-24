@@ -589,7 +589,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
 
   // front faces — one-piece HDPE doors (grooved shaker or euro flat) + steel handle
   if (!steel && !isAppliance) {
-    type Front = { dx: number; dy: number; w: number; h: number; handle: 'v-left' | 'v-right' | 'h-center' | 'none'; slab?: boolean; handleLow?: boolean };
+    type Front = { dx: number; dy: number; w: number; h: number; handle: 'v-left' | 'v-right' | 'h-center' | 'none'; slab?: boolean; handleLow?: boolean; handleTop?: boolean };
     const fronts: Front[] = [];
     const fw = w - REVEAL * 2;
     const fh = carcassH - REVEAL * 2;
@@ -745,6 +745,8 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
           w: fw,
           h: fh - top - GAP,
           handle: cat.front === 'trashdrawer' ? 'h-center' : oneDoorHandle,
+          // trash pull-out: handle at the top of the section, not centered
+          handleTop: cat.front === 'trashdrawer',
         });
         break;
       }
@@ -774,7 +776,8 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         break;
       }
       case 'trash':
-        fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: 'h-center' });
+        // trash pull-out: handle at the top of the door, not centered
+        fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: 'h-center', handleTop: true });
         break;
       case 'endcap':
       case 'filler':
@@ -798,6 +801,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
           bar.position.y = fr.handleLow ? -fr.h / 2 + len / 2 + 1.4 : fr.h / 2 - len / 2 - 1.4;
         } else {
           bar.rotation.z = Math.PI / 2;
+          // horizontal handle: centered by default, or near the top of the door
+          // for trash pull-outs (handleTop) so it reads like a top-mounted pull
+          if (fr.handleTop) bar.position.y = fr.h / 2 - 1.6;
         }
         bar.position.z = 1.1;
         fg.add(bar);
