@@ -1,4 +1,4 @@
-import type { CatalogItem, FinishOption, HingeSide, RoughInKind } from '../model/types';
+import type { CatalogItem, FinishOption, HingeSide, OpeningKind, RoughInKind } from '../model/types';
 import { COUNTER_T, TOEKICK_H } from '../model/catalog';
 
 // All SVG drawing is done in inch coordinates; the parent <svg> sets a
@@ -852,6 +852,41 @@ export function RoughInGlyph({ kind, w, h, conflict }: { kind: RoughInKind; w: n
           />
         </g>
       )}
+    </g>
+  );
+}
+
+/**
+ * Window / door glyph, drawn from (0,0) spanning w×h inches. Window = framed
+ * glass with mullions; door = framed slab with two recessed panels and a knob.
+ */
+export function OpeningGlyph({ kind, w, h }: { kind: OpeningKind; w: number; h: number }) {
+  const sw = Math.max(0.4, Math.min(w, h) * 0.04);
+  const frame = '#5b6470';
+  const inset = Math.max(1, Math.min(w, h) * 0.09);
+  if (kind === 'window') {
+    const gx = inset, gy = inset, gw = w - inset * 2, gh = h - inset * 2;
+    return (
+      <g>
+        <rect x={0} y={0} width={w} height={h} fill="#fbfbfc" stroke={frame} strokeWidth={sw} />
+        <rect x={gx} y={gy} width={gw} height={gh} fill="rgba(150,194,224,0.4)" stroke={frame} strokeWidth={sw * 0.7} />
+        <line x1={gx + gw / 2} y1={gy} x2={gx + gw / 2} y2={gy + gh} stroke={frame} strokeWidth={sw * 0.7} />
+        <line x1={gx} y1={gy + gh / 2} x2={gx + gw} y2={gy + gh / 2} stroke={frame} strokeWidth={sw * 0.7} />
+        <line x1={gx + gw * 0.12} y1={gy + gh * 0.1} x2={gx + gw * 0.34} y2={gy + gh * 0.5} stroke="rgba(255,255,255,0.65)" strokeWidth={sw * 0.6} />
+      </g>
+    );
+  }
+  // door — frame, two recessed panels, knob
+  const px = inset, pw = w - inset * 2;
+  const pTop = inset * 1.4;
+  const gap = h * 0.045;
+  const ph = (h - pTop - inset * 1.4 - gap) / 2;
+  return (
+    <g>
+      <rect x={0} y={0} width={w} height={h} fill="#efe7da" stroke={frame} strokeWidth={sw} />
+      <rect x={px} y={pTop} width={pw} height={Math.max(2, ph)} rx={Math.min(1, w * 0.05)} fill="rgba(0,0,0,0.05)" stroke={frame} strokeWidth={sw * 0.6} />
+      <rect x={px} y={pTop + ph + gap} width={pw} height={Math.max(2, ph)} rx={Math.min(1, w * 0.05)} fill="rgba(0,0,0,0.05)" stroke={frame} strokeWidth={sw * 0.6} />
+      <circle cx={w - inset - Math.min(2.5, w * 0.1)} cy={h * 0.5} r={Math.max(0.6, w * 0.03)} fill={frame} />
     </g>
   );
 }

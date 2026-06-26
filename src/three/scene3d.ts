@@ -210,6 +210,49 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   const BS_THICK = 0.75; // backsplash slab thickness off the wall
   const reserves = bsH > 0 ? reservesFor(design) : null; // corner zones for backsplash spans
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1eee7, roughness: 0.92 });
+  // window / door materials (built once, disposed with the scene)
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x3c4149, roughness: 0.6, metalness: 0.1 });
+  const glassMat = new THREE.MeshPhysicalMaterial({ color: 0xbcd4e6, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.4, transmission: 0.5, clearcoat: 0.6 });
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0xe6ded0, roughness: 0.7 });
+
+  /** A framed window (frame+glass+mullions) or door (frame+panel+knob), built
+   *  in local coords with its sill at y=0. */
+  const buildOpening = (o: { kind: 'window' | 'door'; w: number; h: number }): THREE.Group => {
+    const g2 = new THREE.Group();
+    const { w, h } = o;
+    const FT = 1.6; // frame face width
+    const FD = 2.2; // frame depth (out from wall)
+    const zc = 0.3; // proud of the room-facing wall surface
+    const addFrame = (bw: number, bh: number, x: number, y: number) => {
+      const m = box(bw, bh, FD, frameMat);
+      m.position.set(x, y, zc);
+      g2.add(m);
+    };
+    addFrame(w, FT, 0, h - FT / 2); // head
+    addFrame(w, FT, 0, FT / 2); // sill
+    addFrame(FT, h, -w / 2 + FT / 2, h / 2); // left jamb
+    addFrame(FT, h, w / 2 - FT / 2, h / 2); // right jamb
+    const iw = w - FT * 2, ih = h - FT * 2;
+    if (o.kind === 'window') {
+      const glass = box(iw, ih, 0.3, glassMat);
+      glass.position.set(0, h / 2, zc);
+      g2.add(glass);
+      const mv = box(0.8, ih, FD * 0.7, frameMat); // vertical mullion
+      mv.position.set(0, h / 2, zc);
+      g2.add(mv);
+      const mh = box(iw, 0.8, FD * 0.7, frameMat); // horizontal mullion
+      mh.position.set(0, h / 2, zc);
+      g2.add(mh);
+    } else {
+      const panel = box(iw, ih, 1.0, doorMat);
+      panel.position.set(0, h / 2, zc);
+      g2.add(panel);
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.7, 14, 12), mats.steel);
+      knob.position.set(w / 2 - FT - 1.6, h * 0.45, zc + 0.8);
+      g2.add(knob);
+    }
+    return g2;
+  };
 
   const frames = design.walls.map(frameForWall);
 
@@ -327,6 +370,13 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         place(bs, (s.x1 + s.x2) / 2, BS_THICK / 2, BASE_H + cT + bsH / 2);
       }
     }
+
+    // Windows / doors framed on the room-facing wall surface (real walls only).
+    if (!f.wall.ghost) {
+      for (const o of design.openings.filter((x) => x.wallId === f.wall.id)) {
+        place(buildOpening(o), o.x, 0, o.y);
+      }
+    }
   }
 
   const b = planBounds(frames, 10);
@@ -335,6 +385,9 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   const dispose = () => {
     disposeMats(mats);
     wallMat.dispose();
+    frameMat.dispose();
+    glassMat.dispose();
+    doorMat.dispose();
   };
   return { group, center, radius, dispose };
 }

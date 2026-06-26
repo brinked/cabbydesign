@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ApplianceBrands, ApplianceItem, Design, DimOverride, LayoutKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
+import type { ApplianceBrands, ApplianceItem, Design, DimOverride, LayoutKind, Opening, OpeningKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
 import { CATALOG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
@@ -46,9 +46,11 @@ function defaultDesign(): Design {
     counterThickness: COUNTER_T,
     counterId: DEFAULT_COUNTERTOP,
     backsplashHeight: 0,
+    dimFrom: 'left',
     walls: [{ id: uid('wall'), name: 'Front Wall', length: 110, height: 96, x: 0, y: 0, angle: 0, thickness: 5, ghost: false }],
     items: [],
     roughIns: [],
+    openings: [],
   };
 }
 
@@ -57,6 +59,12 @@ const ROUGHIN_DEFAULTS: Record<RoughInKind, { w: number; h: number; y: number }>
   plumbing: { w: 10, h: 8, y: 12 },
   electrical: { w: 4.5, h: 4.5, y: 24 },
   gas: { w: 5, h: 5, y: 14 },
+};
+
+/** Default size of a freshly added opening (inches). Doors sit on the floor. */
+const OPENING_DEFAULTS: Record<OpeningKind, { w: number; h: number; y: number }> = {
+  window: { w: 36, h: 36, y: 36 },
+  door: { w: 36, h: 80, y: 0 },
 };
 
 /** Minimum clearance a rough-in must keep from a cabinet end (inches). */
@@ -156,10 +164,11 @@ export function normalizeDesign(raw: Design): Design {
   const finishId = FINISH_MIGRATE[raw.finishId] ?? raw.finishId;
   const wallIds = new Set(walls.map((w) => w.id));
   const roughIns = (raw.roughIns ?? []).filter((r) => wallIds.has(r.wallId));
+  const openings = (raw.openings ?? []).filter((o) => wallIds.has(o.wallId));
   const counterThickness = raw.counterThickness && raw.counterThickness > 0 ? raw.counterThickness : COUNTER_T;
   const counterId = raw.counterId ?? DEFAULT_COUNTERTOP;
   const backsplashHeight = raw.backsplashHeight && raw.backsplashHeight > 0 ? raw.backsplashHeight : 0;
-  const result = { ...defaultDesign(), ...raw, finishId, doorStyle: raw.doorStyle ?? 'shaker', counterThickness, counterId, backsplashHeight, walls, items, roughIns };
+  const result = { ...defaultDesign(), ...raw, finishId, doorStyle: raw.doorStyle ?? 'shaker', counterThickness, counterId, backsplashHeight, dimFrom: raw.dimFrom ?? 'left', walls, items, roughIns, openings };
   alignFillers(result);
   return result;
 }
@@ -170,6 +179,7 @@ interface AppState {
   selectedId: string | null;
   editingId: string | null;
   editingRoughInId: string | null;
+  editingOpeningId: string | null;
   addToWallId: string | null;
   pricingOpen: boolean;
   retailPricingOpen: boolean;
@@ -195,7 +205,7 @@ interface AppState {
   setAppliances: (appliances: ApplianceItem[]) => void;
   setApplianceBrands: (brands: ApplianceBrands) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
-  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight'>>) => void;
+  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight' | 'dimFrom'>>) => void;
   applyPreset: (layout: LayoutKind) => void;
   addWall: () => void;
   addWallAt: (placement: { x: number; y: number; angle: number; length: number }) => void;
@@ -213,6 +223,10 @@ interface AppState {
   updateRoughIn: (id: string, patch: Partial<Omit<RoughIn, 'id' | 'wallId'>>) => void;
   removeRoughIn: (id: string) => void;
   openRoughIn: (id: string | null) => void;
+  addOpening: (wallId: string, kind: OpeningKind) => void;
+  updateOpening: (id: string, patch: Partial<Omit<Opening, 'id' | 'wallId'>>) => void;
+  removeOpening: (id: string) => void;
+  openOpening: (id: string | null) => void;
   select: (id: string | null) => void;
   openEditor: (id: string | null) => void;
   openAdd: (wallId: string | null) => void;
@@ -487,6 +501,7 @@ export const useStore = create<AppState>()(
       selectedId: null,
       editingId: null,
       editingRoughInId: null,
+      editingOpeningId: null,
       addToWallId: null,
       pricingOpen: false,
       retailPricingOpen: false,
@@ -726,6 +741,25 @@ export const useStore = create<AppState>()(
         })),
       openRoughIn: (id) => set({ editingRoughInId: id }),
 
+      addOpening: (wallId, kind) =>
+        set((s) => {
+          const wall = s.design.walls.find((w) => w.id === wallId);
+          const def = OPENING_DEFAULTS[kind];
+          const x = Math.round((wall?.length ?? 60) / 2);
+          const o: Opening = { id: uid('open'), wallId, kind, x, y: def.y, w: def.w, h: def.h };
+          return { design: { ...s.design, openings: [...s.design.openings, o] }, editingOpeningId: o.id };
+        }),
+      updateOpening: (id, patch) =>
+        set((s) => ({
+          design: { ...s.design, openings: s.design.openings.map((o) => (o.id === id ? { ...o, ...patch } : o)) },
+        })),
+      removeOpening: (id) =>
+        set((s) => ({
+          design: { ...s.design, openings: s.design.openings.filter((o) => o.id !== id) },
+          editingOpeningId: s.editingOpeningId === id ? null : s.editingOpeningId,
+        })),
+      openOpening: (id) => set({ editingOpeningId: id }),
+
       select: (id) => set({ selectedId: id }),
       openEditor: (id) => set({ editingId: id, selectedId: id }),
       openAdd: (wallId) => set({ addToWallId: wallId }),
@@ -746,9 +780,9 @@ export const useStore = create<AppState>()(
           return { retailPricing };
         }),
       setSnapshot: (dataUrl) => set({ snapshot3d: dataUrl }),
-      newDesign: () => set({ design: defaultDesign(), selectedId: null, editingId: null, editingRoughInId: null, snapshot3d: null }),
+      newDesign: () => set({ design: defaultDesign(), selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null }),
       loadDesign: (design) =>
-        set({ design: normalizeDesign(design), selectedId: null, editingId: null, editingRoughInId: null, snapshot3d: null }),
+        set({ design: normalizeDesign(design), selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null }),
     }),
     {
       name: 'cabdesign-v1',
@@ -765,6 +799,7 @@ export const useStore = create<AppState>()(
       onRehydrateStorage: () => (state) => {
         if (state?.design) {
           if (!Array.isArray(state.design.roughIns)) state.design.roughIns = [];
+          if (!Array.isArray(state.design.openings)) state.design.openings = [];
           state.design = withPack(state.design);
         }
       },

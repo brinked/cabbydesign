@@ -11,7 +11,7 @@ import {
   requiredCabinetWidth,
   selectedApplianceWidth,
 } from '../model/appliances';
-import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, PlacedItem } from '../model/types';
+import type { ApplianceItem, ApplianceSelection, CatalogItem, DimFrom, FrontKind, PlacedItem } from '../model/types';
 import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, useStore } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { CatalogThumb } from './CabinetImage';
@@ -498,6 +498,35 @@ export function EditItemModal() {
   );
 }
 
+/** Horizontal position rows whose editable field follows the "measure from" setting. */
+function PositionFields({ x, wallLen, dimFrom, onChange }: { x: number; wallLen: number; dimFrom: DimFrom; onChange: (x: number) => void }) {
+  const fromRight = Math.round(Math.max(0, wallLen - x) * 100) / 100;
+  if (dimFrom === 'right') {
+    return (
+      <>
+        <Stepper label="Center from right" value={fromRight} step={1} min={0} max={wallLen} onChange={(v) => onChange(Math.max(0, Math.min(wallLen, wallLen - v)))} />
+        <div className="stepper-row">
+          <span className="stepper-label">
+            Center from left<span className="stepper-note">auto</span>
+          </span>
+          <span className="stepper">{fmtIn(x)}</span>
+        </div>
+      </>
+    );
+  }
+  return (
+    <>
+      <Stepper label="Center from left" value={x} step={1} min={0} max={wallLen} onChange={onChange} />
+      <div className="stepper-row">
+        <span className="stepper-label">
+          Center from right<span className="stepper-note">auto</span>
+        </span>
+        <span className="stepper">{fmtIn(fromRight)}</span>
+      </div>
+    </>
+  );
+}
+
 export function RoughInModal() {
   const id = useStore((s) => s.editingRoughInId);
   const design = useStore((s) => s.design);
@@ -538,20 +567,54 @@ export function RoughInModal() {
       <div className="stepper-list">
         <Stepper label="Width" value={r.w} step={1} min={1} max={Math.max(1, wallLen)} onChange={(w) => set({ w })} />
         <Stepper label="Height" value={r.h} step={1} min={1} max={Math.max(1, wallH)} onChange={(h) => set({ h })} />
-        <Stepper label="Center from left" value={r.x} step={1} min={0} max={wallLen} onChange={(x) => set({ x })} />
+        <PositionFields x={r.x} wallLen={wallLen} dimFrom={design.dimFrom ?? 'left'} onChange={(x) => set({ x })} />
         <Stepper label="Height from floor" value={r.y} step={1} min={0} max={wallH} onChange={(y) => set({ y })} />
-        <div className="stepper-row">
-          <span className="stepper-label">
-            Center from right<span className="stepper-note">auto</span>
-          </span>
-          <span className="stepper">{fmtIn(Math.max(0, wallLen - r.x))}</span>
-        </div>
       </div>
       <div className="modal-actions">
         <button className="btn-danger" onClick={() => removeRoughIn(r.id)}>
           Remove
         </button>
         <button className="btn-primary" onClick={() => openRoughIn(null)}>
+          Save
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+export function OpeningModal() {
+  const id = useStore((s) => s.editingOpeningId);
+  const design = useStore((s) => s.design);
+  const updateOpening = useStore((s) => s.updateOpening);
+  const removeOpening = useStore((s) => s.removeOpening);
+  const openOpening = useStore((s) => s.openOpening);
+  const o = design.openings.find((x) => x.id === id);
+  if (!o) return null;
+  const wall = design.walls.find((w) => w.id === o.wallId);
+  const wallLen = wall?.length ?? 120;
+  const wallH = wall?.height ?? 96;
+  const set = (patch: Partial<typeof o>) => updateOpening(o.id, patch);
+  return (
+    <Modal title={o.kind === 'window' ? 'Window' : 'Door'} sub={`On ${wall?.name ?? 'wall'} · drag to position on the elevation`} onClose={() => openOpening(null)}>
+      <div className="seg" style={{ marginBottom: 12 }}>
+        <button className={o.kind === 'window' ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ kind: 'window' })}>
+          Window
+        </button>
+        <button className={o.kind === 'door' ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ kind: 'door', y: 0 })}>
+          Door
+        </button>
+      </div>
+      <div className="stepper-list">
+        <Stepper label="Width" value={o.w} step={1} min={6} max={Math.max(6, wallLen)} onChange={(w) => set({ w })} />
+        <Stepper label="Height" value={o.h} step={1} min={6} max={Math.max(6, wallH)} onChange={(h) => set({ h })} />
+        <PositionFields x={o.x} wallLen={wallLen} dimFrom={design.dimFrom ?? 'left'} onChange={(x) => set({ x })} />
+        <Stepper label="Sill height (from floor)" value={o.y} step={1} min={0} max={Math.max(0, wallH - o.h)} onChange={(y) => set({ y })} />
+      </div>
+      <div className="modal-actions">
+        <button className="btn-danger" onClick={() => removeOpening(o.id)}>
+          Remove
+        </button>
+        <button className="btn-primary" onClick={() => openOpening(null)}>
           Save
         </button>
       </div>

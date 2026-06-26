@@ -221,8 +221,26 @@ export interface RoughIn {
   h: number;
 }
 
+/** A window or door cut into a wall — framed, draggable/resizable in elevation. */
+export type OpeningKind = 'window' | 'door';
+export interface Opening {
+  id: string;
+  wallId: string;
+  kind: OpeningKind;
+  /** Distance from the left end of the wall to the opening's center (inches). */
+  x: number;
+  /** Height from the floor to the bottom (sill) of the opening (inches). */
+  y: number;
+  /** Opening size (inches). */
+  w: number;
+  h: number;
+}
+
 /** Fuel type for the gas appliances in a job. Undefined = not yet chosen. */
 export type GasType = 'ng' | 'lp';
+
+/** Which wall end horizontal positions are measured from in the editors. */
+export type DimFrom = 'left' | 'right';
 
 export interface Design {
   name: string;
@@ -239,9 +257,12 @@ export interface Design {
   /** Stone backsplash height up the wall in inches (0 = no backsplash). Uses
    *  the same stone as the countertop. */
   backsplashHeight: number;
+  /** Measure horizontal positions from the left or right wall end. */
+  dimFrom?: DimFrom;
   walls: Wall[];
   items: PlacedItem[];
   roughIns: RoughIn[];
+  openings: Opening[];
 }
 
 export interface PricedLine {

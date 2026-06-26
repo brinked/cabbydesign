@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react';
-import type { FinishOption, PlacedItem, RoughInKind, Wall } from '../model/types';
+import type { FinishOption, OpeningKind, PlacedItem, RoughInKind, Wall } from '../model/types';
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, FINISHES, catalogById } from '../model/catalog';
 import { countertopById } from '../model/countertops';
 import { isReserveExempt, type CornerReserve } from '../model/geometry';
 import { backsplashSpans, footprintW, laneItems, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
 import { ElevationCabinet } from './CabinetImage';
 import { NumberField } from './NumberField';
-import { DimH, DimV, RoughInGlyph, fmtIn } from './svg';
+import { DimH, DimV, OpeningGlyph, RoughInGlyph, fmtIn } from './svg';
 
 const SNAP = 1.25; // inches
 
@@ -56,6 +56,10 @@ export function WallElevationSvg({
   const updateRoughIn = useStore((s) => s.updateRoughIn);
   const editingRoughInId = useStore((s) => s.editingRoughInId);
   const wallRoughIns = design.roughIns.filter((r) => r.wallId === wall.id);
+  const updateOpening = useStore((s) => s.updateOpening);
+  const openOpening = useStore((s) => s.openOpening);
+  const editingOpeningId = useStore((s) => s.editingOpeningId);
+  const wallOpenings = design.openings.filter((o) => o.wallId === wall.id);
 
   const wallItems = items.filter((it) => it.wallId === wall.id);
   const floorY = wall.height;
@@ -193,6 +197,51 @@ export function WallElevationSvg({
     roughDrag.current = null;
     setDraggingRoughId(null);
     if (!d.moved) openRoughIn(r.id); // a click (no drag) opens the numeric editor
+  }
+
+  // --- window / door drag: 2D move (center x + sill y), live dimensions ---
+  const openDrag = useRef<{ id: string; startClientX: number; startClientY: number; startX: number; startY: number; scale: number; moved: boolean } | null>(null);
+  const [draggingOpenId, setDraggingOpenId] = useState<string | null>(null);
+
+  function onOpenDown(e: React.PointerEvent, o: (typeof wallOpenings)[number]) {
+    if (!interactive) return;
+    e.stopPropagation();
+    const svg = (e.currentTarget as SVGGElement).ownerSVGElement;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const scale = Math.min(rect.width / viewW, rect.height / viewH);
+    openDrag.current = { id: o.id, startClientX: e.clientX, startClientY: e.clientY, startX: o.x, startY: o.y, scale, moved: false };
+    try {
+      (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    select(null);
+  }
+
+  function onOpenMove(e: React.PointerEvent, o: (typeof wallOpenings)[number]) {
+    const d = openDrag.current;
+    if (!d || d.id !== o.id) return;
+    const dxPx = e.clientX - d.startClientX;
+    const dyPx = e.clientY - d.startClientY;
+    if (!d.moved) {
+      if (Math.abs(dxPx) < 3 && Math.abs(dyPx) < 3) return;
+      d.moved = true;
+      setDraggingOpenId(o.id);
+    }
+    let cx = d.startX + dxPx / d.scale;
+    cx = Math.max(o.w / 2, Math.min(cx, wall.length - o.w / 2));
+    let sill = d.startY - dyPx / d.scale; // dragging up raises the sill
+    sill = Math.max(0, Math.min(sill, wall.height - o.h));
+    updateOpening(o.id, { x: Math.round(cx * 8) / 8, y: Math.round(sill * 8) / 8 });
+  }
+
+  function onOpenUp(e: React.PointerEvent, o: (typeof wallOpenings)[number]) {
+    const d = openDrag.current;
+    if (!d || d.id !== o.id) return;
+    openDrag.current = null;
+    setDraggingOpenId(null);
+    if (!d.moved) openOpening(o.id);
   }
 
   return (
@@ -337,13 +386,14 @@ export function WallElevationSvg({
         const sel = editingRoughInId === r.id || dragging;
         return (
           <g key={r.id}>
-            {/* live distance read-outs while dragging: height off floor + from wall */}
+            {/* live distance read-outs while dragging: height off floor + from each wall end */}
             {dragging && (
               <g className="rough-dims">
                 <line x1={gx} y1={floorY} x2={gx} y2={floorY - r.y} stroke="#5b5bd6" strokeWidth={0.3} strokeDasharray="1.5 1" />
-                <line x1={0} y1={floorY - r.y} x2={r.x} y2={floorY - r.y} stroke="#5b5bd6" strokeWidth={0.3} strokeDasharray="1.5 1" />
+                <line x1={0} y1={floorY - r.y} x2={wall.length} y2={floorY - r.y} stroke="#5b5bd6" strokeWidth={0.3} strokeDasharray="1.5 1" />
                 <DimV y1={floorY - r.y} y2={floorY} x={gx - 3} label={`${fmtIn(r.y)} ↑`} />
                 <DimH x1={0} x2={r.x} y={floorY - r.y - 2} label={`${fmtIn(r.x)} →`} />
+                <DimH x1={r.x} x2={wall.length} y={floorY - r.y - 2} label={`← ${fmtIn(Math.max(0, wall.length - r.x))}`} />
               </g>
             )}
             <g
@@ -357,6 +407,39 @@ export function WallElevationSvg({
               <RoughInGlyph kind={r.kind} w={r.w} h={r.h} conflict={conflict} />
               {sel && interactive && (
                 <rect x={-1} y={-1} width={r.w + 2} height={r.h + 2} fill="none" stroke="#5b5bd6" strokeWidth={0.6} strokeDasharray="2 1.5" rx={1} />
+              )}
+            </g>
+          </g>
+        );
+      })}
+
+      {/* windows / doors — draggable framed openings on the wall */}
+      {wallOpenings.map((o) => {
+        const gx = o.x - o.w / 2;
+        const gy = floorY - o.y - o.h; // top-left (y is the sill / bottom height)
+        const dragging = draggingOpenId === o.id;
+        const sel = editingOpeningId === o.id || dragging;
+        return (
+          <g key={o.id}>
+            {dragging && (
+              <g className="rough-dims">
+                <line x1={0} y1={gy + o.h} x2={wall.length} y2={gy + o.h} stroke="#5b5bd6" strokeWidth={0.3} strokeDasharray="1.5 1" />
+                <DimH x1={0} x2={o.x} y={gy + o.h - 2} label={`${fmtIn(o.x)} →`} />
+                <DimH x1={o.x} x2={wall.length} y={gy + o.h - 2} label={`← ${fmtIn(Math.max(0, wall.length - o.x))}`} />
+                {o.y > 0.01 && <DimV y1={gy + o.h} y2={floorY} x={gx - 3} label={`${fmtIn(o.y)} ↑`} />}
+              </g>
+            )}
+            <g
+              data-opening={o.id}
+              transform={`translate(${gx} ${gy})`}
+              style={{ cursor: interactive ? (dragging ? 'grabbing' : 'grab') : 'default' }}
+              onPointerDown={(e) => onOpenDown(e, o)}
+              onPointerMove={(e) => onOpenMove(e, o)}
+              onPointerUp={(e) => onOpenUp(e, o)}
+            >
+              <OpeningGlyph kind={o.kind} w={o.w} h={o.h} />
+              {sel && interactive && (
+                <rect x={-1} y={-1} width={o.w + 2} height={o.h + 2} fill="none" stroke="#5b5bd6" strokeWidth={0.6} strokeDasharray="2 1.5" rx={1} />
               )}
             </g>
           </g>
@@ -434,6 +517,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
           </button>
         )}
         <RoughInAdd wallId={wall.id} />
+        <OpeningAdd wallId={wall.id} />
         <button className="btn-dark" onClick={() => openAdd(wall.id)}>
           + Add
         </button>
@@ -470,6 +554,43 @@ function RoughInAdd({ wallId }: { wallId: string }) {
                 className="roughin-menu-item"
                 onClick={() => {
                   addRoughIn(wallId, k.kind);
+                  setOpen(false);
+                }}
+              >
+                {k.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Add-opening dropdown: window / door under one button. */
+const OPENING_KINDS: { kind: OpeningKind; label: string }[] = [
+  { kind: 'window', label: 'Window' },
+  { kind: 'door', label: 'Door' },
+];
+
+function OpeningAdd({ wallId }: { wallId: string }) {
+  const addOpening = useStore((s) => s.addOpening);
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="roughin-dd">
+      <button className="btn-soft" title="Add a window or door" onClick={() => setOpen((o) => !o)}>
+        + Window/Door ▾
+      </button>
+      {open && (
+        <>
+          <div className="roughin-backdrop" onClick={() => setOpen(false)} />
+          <div className="roughin-menu">
+            {OPENING_KINDS.map((k) => (
+              <button
+                key={k.kind}
+                className="roughin-menu-item"
+                onClick={() => {
+                  addOpening(wallId, k.kind);
                   setOpen(false);
                 }}
               >

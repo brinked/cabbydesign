@@ -224,6 +224,13 @@ function SettingsMenu({
             </select>
           </label>
           <label className="settings-menu-row">
+            <span>Measure from</span>
+            <select className="select" value={design.dimFrom ?? 'left'} onChange={(e) => setDesignMeta({ dimFrom: e.target.value as Design['dimFrom'] })}>
+              <option value="left">Left end</option>
+              <option value="right">Right end</option>
+            </select>
+          </label>
+          <label className="settings-menu-row">
             <span>Gas type</span>
             <select className="select" value={design.gasType ?? ''} onChange={(e) => setDesignMeta({ gasType: (e.target.value || undefined) as Design['gasType'] })}>
               <option value="">Not set</option>
