@@ -162,6 +162,7 @@ function SettingsMenu({
   const setPricingOpen = useStore((s) => s.setPricingOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
+  const setMyAppliancesOpen = useStore((s) => s.setMyAppliancesOpen);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -246,6 +247,16 @@ function SettingsMenu({
             <span>Backsplash</span>
             <BacksplashControl value={design.backsplashHeight ?? 0} onChange={(v) => setDesignMeta({ backsplashHeight: v })} />
           </label>
+
+          {!isAdmin && (
+            <>
+              <div className="settings-menu-sep" />
+              <div className="settings-menu-label">Inventory</div>
+              <button className="settings-menu-item" onClick={() => openModal(setMyAppliancesOpen)}>
+                My appliances &amp; brands…
+              </button>
+            </>
+          )}
 
           {isAdmin && (
             <>

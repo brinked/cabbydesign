@@ -1059,6 +1059,22 @@ button:disabled {
   border-radius: 8px;
 }
 
+/* dealer brand on/off toggle (My appliances modal) */
+.brand-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.brand-toggle input {
+  accent-color: var(--accent);
+}
+
 .brand-cell-head {
   display: flex;
   align-items: center;

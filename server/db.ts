@@ -32,6 +32,9 @@ ensureColumn('dealer_prefs', 'tax_exempt', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('dealer_prefs', 'contractor_mode', "TEXT NOT NULL DEFAULT 'retail_discount'");
 ensureColumn('dealer_prefs', 'retail_discount_pct', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('dealer_prefs', 'own_pricing', "TEXT NOT NULL DEFAULT ''");
+// Per-dealer appliance inventory (JSON array) + hidden brands (JSON string array).
+ensureColumn('dealer_prefs', 'own_appliances', "TEXT NOT NULL DEFAULT ''");
+ensureColumn('dealer_prefs', 'hidden_brands', "TEXT NOT NULL DEFAULT ''");
 ensureColumn('dealer_branding', 'resale_cert', "TEXT NOT NULL DEFAULT ''");
 ensureColumn('dealer_branding', 'resale_cert_name', "TEXT NOT NULL DEFAULT ''");
 
@@ -96,6 +99,8 @@ export interface DealerPrefsRow {
   contractor_mode: 'retail_discount' | 'own';
   retail_discount_pct: number;
   own_pricing: string;
+  own_appliances: string;
+  hidden_brands: string;
   updated_at: string;
 }
 

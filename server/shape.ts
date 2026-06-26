@@ -55,6 +55,8 @@ export interface ApiPrefs {
   retailDiscountPct: number;
   /** Contractor 'own' mode: their own per-cabinet formulas (catalogId -> formula). */
   ownPricing: Record<string, string>;
+  /** Appliance brands this dealer has hidden from their own offering. */
+  hiddenBrands: string[];
 }
 
 const getPrefs = db.prepare('SELECT * FROM dealer_prefs WHERE user_id = ?');
@@ -83,7 +85,31 @@ export function prefsFor(userId: number): ApiPrefs {
     contractorMode: row.contractor_mode,
     retailDiscountPct: row.retail_discount_pct,
     ownPricing,
+    hiddenBrands: hiddenBrandsFor(userId),
   };
+}
+
+/** Parse a JSON string column to an array, tolerating empty/invalid values. */
+function parseArray(s: string | undefined): unknown[] {
+  if (!s) return [];
+  try {
+    const v = JSON.parse(s);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+/** A dealer's own appliance/liner inventory (added on top of the admin global). */
+export function ownAppliancesFor(userId: number): unknown[] {
+  const row = getPrefs.get(userId) as DealerPrefsRow | undefined;
+  return parseArray(row?.own_appliances);
+}
+
+/** Brands a dealer has chosen to hide from their offering. */
+export function hiddenBrandsFor(userId: number): string[] {
+  const row = getPrefs.get(userId) as DealerPrefsRow | undefined;
+  return parseArray(row?.hidden_brands).filter((b): b is string => typeof b === 'string');
 }
 
 export interface ApiCertInfo {

@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS dealer_prefs (
   contractor_mode     TEXT NOT NULL DEFAULT 'retail_discount' CHECK (contractor_mode IN ('retail_discount', 'own')),
   retail_discount_pct REAL NOT NULL DEFAULT 0,
   own_pricing         TEXT NOT NULL DEFAULT '', -- JSON: { catalogId: formula }
+  -- Dealer-added appliances/liners (JSON array) + brands they hide (JSON array).
+  own_appliances      TEXT NOT NULL DEFAULT '',
+  hidden_brands       TEXT NOT NULL DEFAULT '',
   updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 

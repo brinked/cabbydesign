@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db.ts';
 import { requireAdmin } from '../auth.ts';
+import { hiddenBrandsFor, ownAppliancesFor } from '../shape.ts';
 
 export const settingsRouter = Router();
 
@@ -153,7 +154,8 @@ const applianceSchema = z.object({
   panelCharge: z.number().min(0).max(1_000_000).optional(),
   active: z.boolean().optional(),
 });
-const appliancesSchema = z.array(applianceSchema).max(5000);
+// Exported so the dealer profile route can validate a dealer's own inventory.
+export const appliancesSchema = z.array(applianceSchema).max(5000);
 
 // A brand can be restricted to specific accounts (brand -> allowed user ids).
 // An unrestricted brand (absent / empty list) is visible to everyone.
@@ -165,20 +167,35 @@ function readRestrictedBrands(): Record<string, number[]> {
 }
 
 settingsRouter.get('/appliances', (req, res) => {
-  const all = readArray(APPLIANCES_KEY) as Array<{ brand?: string }>;
-  // Admins (and the inventory editor) see everything; everyone else only sees
-  // items whose brand isn't restricted away from them.
+  const all = readArray(APPLIANCES_KEY) as Array<{ id?: string; brand?: string }>;
+  // Admins (and the inventory editor) see only the shared global inventory.
   if (req.user?.role === 'admin') {
     res.json({ appliances: all });
     return;
   }
   const restricted = readRestrictedBrands();
   const uid = req.user?.id;
-  const visible = all.filter((a) => {
+  // Global items minus brands restricted away from this account.
+  const merged = all.filter((a) => {
     const allow = restricted[a.brand ?? ''];
     return !allow || allow.length === 0 || (uid !== undefined && allow.includes(uid));
   });
-  res.json({ appliances: visible });
+  // Add the dealer's own appliances (own id overrides a same-id global).
+  if (uid !== undefined) {
+    const own = ownAppliancesFor(uid) as Array<{ id?: string; brand?: string }>;
+    for (const a of own) {
+      const i = merged.findIndex((x) => x.id === a.id);
+      if (i >= 0) merged[i] = a;
+      else merged.push(a);
+    }
+    // Drop brands the dealer has hidden.
+    const hidden = new Set(hiddenBrandsFor(uid));
+    if (hidden.size) {
+      res.json({ appliances: merged.filter((a) => !hidden.has(a.brand ?? '')) });
+      return;
+    }
+  }
+  res.json({ appliances: merged });
 });
 
 settingsRouter.put('/appliances', requireAdmin, (req, res) => {

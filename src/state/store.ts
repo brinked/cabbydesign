@@ -185,6 +185,8 @@ interface AppState {
   retailPricingOpen: boolean;
   settingsOpen: boolean;
   appliancesOpen: boolean;
+  /** Dealer's own appliance-inventory modal. */
+  myAppliancesOpen: boolean;
   /** catalogId -> formula override (base / dealer cost) */
   pricing: Record<string, string>;
   /** catalogId -> retail price formula (basis for contractor "% off retail") */
@@ -202,6 +204,7 @@ interface AppState {
   setTab: (tab: Tab) => void;
   setSettingsOpen: (open: boolean) => void;
   setAppliancesOpen: (open: boolean) => void;
+  setMyAppliancesOpen: (open: boolean) => void;
   setAppliances: (appliances: ApplianceItem[]) => void;
   setApplianceBrands: (brands: ApplianceBrands) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
@@ -507,6 +510,7 @@ export const useStore = create<AppState>()(
       retailPricingOpen: false,
       settingsOpen: false,
       appliancesOpen: false,
+      myAppliancesOpen: false,
       pricing: {},
       retailPricing: {},
       dims: {},
@@ -518,6 +522,7 @@ export const useStore = create<AppState>()(
       setTab: (tab) => set({ tab }),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
       setAppliancesOpen: (open) => set({ appliancesOpen: open }),
+      setMyAppliancesOpen: (open) => set({ myAppliancesOpen: open }),
       setAppliances: (appliances) => set({ appliances }),
       setApplianceBrands: (applianceBrands) => set({ applianceBrands }),
       setDim: (catalogId, patch) =>

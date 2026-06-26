@@ -3,7 +3,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db.ts';
 import { requireAuth } from '../auth.ts';
-import { certInfoFor, logoFor, prefsFor } from '../shape.ts';
+import { certInfoFor, logoFor, ownAppliancesFor, prefsFor } from '../shape.ts';
+import { appliancesSchema } from './settings.ts';
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
@@ -14,6 +15,8 @@ const prefsSchema = z.object({
   priceMode: z.enum(['cost', 'marked_up']),
   markupMode: z.enum(['percent', 'flat']),
   flatAmount: z.number().min(0).max(100000),
+  // brands the dealer hides from their own offering
+  hiddenBrands: z.array(z.string().max(120)).max(2000).optional(),
   // taxExempt is intentionally NOT accepted here — only an admin can set it.
 });
 
@@ -22,7 +25,7 @@ const ensurePrefs = db.prepare('INSERT OR IGNORE INTO dealer_prefs (user_id) VAL
 const updatePrefs = db.prepare(`
   UPDATE dealer_prefs SET margin_pct = @marginPct, show_pricing = @showPricing,
     price_mode = @priceMode, markup_mode = @markupMode, flat_amount = @flatAmount,
-    updated_at = datetime('now') WHERE user_id = @userId
+    hidden_brands = @hiddenBrands, updated_at = datetime('now') WHERE user_id = @userId
 `);
 
 profileRouter.get('/prefs', (req, res) => {
@@ -37,6 +40,7 @@ profileRouter.put('/prefs', (req, res) => {
   }
   const userId = req.user!.id;
   ensurePrefs.run(userId);
+  const hidden = [...new Set(parsed.data.hiddenBrands ?? [])];
   updatePrefs.run({
     userId,
     marginPct: parsed.data.marginPct,
@@ -44,8 +48,30 @@ profileRouter.put('/prefs', (req, res) => {
     priceMode: parsed.data.priceMode,
     markupMode: parsed.data.markupMode,
     flatAmount: parsed.data.flatAmount,
+    hiddenBrands: JSON.stringify(hidden),
   });
   res.json({ prefs: prefsFor(userId) });
+});
+
+// ---- Dealer's own appliance/liner inventory (added on top of admin global) ----
+const updateOwnAppliances = db.prepare(`
+  UPDATE dealer_prefs SET own_appliances = @json, updated_at = datetime('now') WHERE user_id = @userId
+`);
+
+profileRouter.get('/appliances', (req, res) => {
+  res.json({ appliances: ownAppliancesFor(req.user!.id) });
+});
+
+profileRouter.put('/appliances', (req, res) => {
+  const parsed = appliancesSchema.safeParse(req.body?.appliances ?? req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid appliance inventory' });
+    return;
+  }
+  const userId = req.user!.id;
+  ensurePrefs.run(userId);
+  updateOwnAppliances.run({ userId, json: JSON.stringify(parsed.data) });
+  res.json({ appliances: parsed.data });
 });
 
 // ---- Resale tax certificate (image or PDF data URL, ~3 MB cap) ----

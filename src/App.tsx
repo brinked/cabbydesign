@@ -9,7 +9,7 @@ import ResetPassword from './components/ResetPassword';
 import AdminPanel from './components/AdminPanel';
 import JobsScreen from './components/JobsScreen';
 import ProfileScreen from './components/ProfileScreen';
-import { AddItemModal, AppliancesModal, EditItemModal, OpeningModal, PricingModal, RetailPricingModal, RoughInModal, SettingsModal } from './components/Modals';
+import { AddItemModal, AppliancesModal, EditItemModal, MyAppliancesModal, OpeningModal, PricingModal, RetailPricingModal, RoughInModal, SettingsModal } from './components/Modals';
 import SaveJobModal from './components/SaveJobModal';
 import { SvgDefs } from './components/svg';
 import { useStore } from './state/store';
@@ -86,6 +86,7 @@ export default function App() {
       <RetailPricingModal />
       <SettingsModal />
       <AppliancesModal />
+      <MyAppliancesModal />
       <SaveJobModal />
     </div>
   );

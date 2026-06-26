@@ -14,6 +14,7 @@ import {
 import type { ApplianceItem, ApplianceSelection, CatalogItem, DimFrom, FrontKind, PlacedItem } from '../model/types';
 import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, useStore } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
+import { useSession } from '../state/session';
 import { CatalogThumb } from './CabinetImage';
 import { useFinish } from './WallsView';
 import { fmtIn } from './svg';
@@ -1183,6 +1184,147 @@ export function AppliancesModal() {
           await api.setRestrictedBrands(restricted);
         }}
       />
+    </Modal>
+  );
+}
+
+/**
+ * Dealer-facing inventory: add your own appliances + insulated liners (on top of
+ * the admin-managed global list) and hide brands you don't want to offer. Your
+ * additions and hidden brands are private to your account.
+ */
+export function MyAppliancesModal() {
+  const open = useStore((s) => s.myAppliancesOpen);
+  const setOpen = useStore((s) => s.setMyAppliancesOpen);
+  const visible = useStore((s) => s.appliances); // dealer's current (merged) list
+  const prefs = useSession((s) => s.prefs);
+  const setPrefs = useSession((s) => s.setPrefs);
+  const refreshGlobals = useSession((s) => s.refreshGlobals);
+
+  const [own, setOwn] = useState<ApplianceItem[]>([]);
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setState('idle');
+    setError(null);
+    setHidden(prefs?.hiddenBrands ?? []);
+    api.getOwnAppliances().then(({ appliances }) => setOwn(appliances)).catch(() => setOwn([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Liners the dealer can attach to a grill = global (visible) + their own.
+  const liners = useMemo(() => {
+    const all = [...visible.filter((a) => a.category === 'liner'), ...own.filter((a) => a.category === 'liner')];
+    return [...new Map(all.map((l) => [l.id, l])).values()];
+  }, [visible, own]);
+
+  // Every brand the dealer could offer, including ones currently hidden (so they
+  // can be turned back on). Hidden brands are absent from `visible`, so add them.
+  const allBrands = useMemo(() => {
+    const s = new Set<string>(hidden);
+    for (const a of visible) if (a.brand) s.add(a.brand);
+    for (const a of own) if (a.brand) s.add(a.brand);
+    return [...s].sort((x, y) => x.localeCompare(y));
+  }, [visible, own, hidden]);
+
+  if (!open) return null;
+
+  const hiddenSet = new Set(hidden);
+  const toggleHidden = (brand: string) =>
+    setHidden((h) => (h.includes(brand) ? h.filter((b) => b !== brand) : [...h, brand]));
+
+  const updateOwn = (id: string, patch: Partial<ApplianceItem>) =>
+    setOwn((list) => {
+      let next = list.map((a) => (a.id === id ? { ...a, ...patch } : a));
+      if (patch.brand !== undefined || patch.model !== undefined) {
+        const a = next.find((x) => x.id === id)!;
+        const newId = applianceId(a.brand, a.model);
+        if (newId && newId !== id && !next.some((x) => x.id === newId)) {
+          next = next.map((x) => (x.id === id ? { ...x, id: newId } : x.linerId === id ? { ...x, linerId: newId } : x));
+        }
+      }
+      return next;
+    });
+
+  const addRow = () =>
+    setOwn((list) => [
+      ...list,
+      { id: `mine-${Math.max(1, Math.round(Date.now() % 1e6))}-${list.length}`, category: 'grill', brand: '', model: '', name: '', msrp: 0, active: true },
+    ]);
+
+  const removeRow = (id: string) =>
+    setOwn((list) => list.filter((a) => a.id !== id).map((a) => (a.linerId === id ? { ...a, linerId: undefined } : a)));
+
+  const save = async () => {
+    setError(null);
+    setState('saving');
+    try {
+      // Only persist rows that actually have a brand + model.
+      const clean = own.filter((a) => a.brand.trim() && a.model.trim());
+      await api.setOwnAppliances(clean);
+      if (prefs) await setPrefs({ ...prefs, hiddenBrands: hidden });
+      await refreshGlobals();
+      setState('saved');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save your inventory.');
+      setState('idle');
+    }
+  };
+
+  return (
+    <Modal
+      title="My appliances & brands"
+      sub="Add grills, griddles, burners, fridges and insulated liners you carry, and hide brands you don't want to offer. These are private to your account, on top of the standard catalog."
+      onClose={() => setOpen(false)}
+      wide
+    >
+      <h3 className="modal-h3">Brands I offer</h3>
+      <p className="card-sub">Uncheck a brand to hide all of its appliances from your designs and reports.</p>
+      <div className="brand-grid">
+        {allBrands.length === 0 && <span className="card-sub">No brands yet — add appliances below.</span>}
+        {allBrands.map((b) => (
+          <label key={b} className="brand-toggle">
+            <input type="checkbox" checked={!hiddenSet.has(b)} onChange={() => toggleHidden(b)} />
+            <span>{b}</span>
+          </label>
+        ))}
+      </div>
+
+      <h3 className="modal-h3" style={{ marginTop: 18 }}>
+        My added appliances
+      </h3>
+      <div className="appliance-row appliance-row-head">
+        <span>Category</span>
+        <span>Brand</span>
+        <span>Model #</span>
+        <span>Description</span>
+        <span>MSRP</span>
+        <span>Liner / Size W×D×H</span>
+        <span>Panel $</span>
+        <span></span>
+      </div>
+      <div className="appliance-list">
+        {own.map((a) => (
+          <ApplianceRow key={a.id} a={a} liners={liners} onChange={(patch) => updateOwn(a.id, patch)} onRemove={() => removeRow(a.id)} />
+        ))}
+        {own.length === 0 && <p className="card-sub">You haven't added any appliances yet. Click “Add appliance”.</p>}
+      </div>
+      <div className="appliance-tools">
+        <button className="btn-ghost" onClick={addRow}>
+          + Add appliance
+        </button>
+      </div>
+
+      <div className="modal-actions" style={{ alignItems: 'center' }}>
+        {error && <span className="warn-inline">{error}</span>}
+        {state === 'saved' && <span className="ok-inline">Saved.</span>}
+        <button className="btn-primary" disabled={state === 'saving'} onClick={save}>
+          {state === 'saving' ? 'Saving…' : 'Save my inventory'}
+        </button>
+      </div>
     </Modal>
   );
 }

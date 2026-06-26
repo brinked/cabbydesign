@@ -32,6 +32,8 @@ export interface DealerPrefs {
   contractorMode: 'retail_discount' | 'own';
   retailDiscountPct: number;
   ownPricing: Record<string, string>;
+  /** Appliance brands the dealer has hidden from their own offering. */
+  hiddenBrands: string[];
 }
 
 export interface CertInfo {
@@ -191,6 +193,10 @@ export const api = {
   setLogo: (logo: string) => request<{ logo: string }>('PUT', '/profile/logo', { logo }),
   setCert: (cert: string, name: string) => request<{ cert: CertInfo }>('PUT', '/profile/cert', { cert, name }),
   getCert: () => request<{ cert: string; name: string }>('GET', '/profile/cert'),
+  // dealer's own appliance/liner inventory (added on top of the admin global)
+  getOwnAppliances: () => request<{ appliances: ApplianceItem[] }>('GET', '/profile/appliances'),
+  setOwnAppliances: (appliances: ApplianceItem[]) =>
+    request<{ appliances: ApplianceItem[] }>('PUT', '/profile/appliances', { appliances }),
 
   // ---- jobs ----
   listJobs: () => request<{ jobs: JobSummary[] }>('GET', '/jobs'),
