@@ -10,16 +10,17 @@ import { DimH, DimV, OpeningGlyph, RoughInGlyph, fmtIn } from './svg';
 
 const SNAP = 1.25; // inches
 
-/** Contiguous runs of counter-topped floor items. */
-function counterRuns(items: PlacedItem[]): Array<{ x1: number; x2: number }> {
+/** Contiguous runs of counter-topped floor items at the same height. A height
+ *  change starts a new run so the counter steps to follow each cabinet. */
+function counterRuns(items: PlacedItem[]): Array<{ x1: number; x2: number; h: number }> {
   const tops = items
     .filter((it) => catalogById(it.catalogId).counter)
     .sort((a, b) => a.x - b.x);
-  const runs: Array<{ x1: number; x2: number }> = [];
+  const runs: Array<{ x1: number; x2: number; h: number }> = [];
   for (const it of tops) {
     const last = runs[runs.length - 1];
-    if (last && it.x <= last.x2 + 0.2) last.x2 = Math.max(last.x2, it.x + footprintW(it));
-    else runs.push({ x1: it.x, x2: it.x + footprintW(it) });
+    if (last && it.x <= last.x2 + 0.2 && Math.abs(last.h - it.h) < 0.01) last.x2 = Math.max(last.x2, it.x + footprintW(it));
+    else runs.push({ x1: it.x, x2: it.x + footprintW(it), h: it.h });
   }
   return runs;
 }
@@ -350,7 +351,7 @@ export function WallElevationSvg({
       {runs.map((r, i) => {
         const x1 = Math.max(r.x1 - COUNTER_OVERHANG, 0);
         const x2 = Math.min(r.x2 + COUNTER_OVERHANG, wall.length);
-        const cy = floorY - BASE_H - cT;
+        const cy = floorY - r.h - cT; // counter sits on top of this run's cabinets
         return (
           <g key={`c-${i}`}>
             <rect x={x1} y={cy + cT} width={x2 - x1} height={1.6} fill="url(#g-undercounter)" />
@@ -365,14 +366,14 @@ export function WallElevationSvg({
       {floorItems.map((it) => {
         const cat = catalogById(it.catalogId);
         if (!cat.counter) return null;
-        const cy = floorY - BASE_H - cT;
+        const cy = floorY - it.h - cT;
         const sides: Array<{ side: 'L' | 'R'; x: number }> = [];
         if (it.waterfallL) sides.push({ side: 'L', x: it.x - cT });
         if (it.waterfallR) sides.push({ side: 'R', x: it.x + footprintW(it) });
         return sides.map(({ side, x }) => (
           <g key={`wf-${it.id}-${side}`}>
-            <rect x={x} y={cy} width={cT} height={BASE_H + cT} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
-            <rect x={x} y={cy} width={cT} height={BASE_H + cT} fill="url(#g-counter)" />
+            <rect x={x} y={cy} width={cT} height={it.h + cT} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+            <rect x={x} y={cy} width={cT} height={it.h + cT} fill="url(#g-counter)" />
           </g>
         ));
       })}

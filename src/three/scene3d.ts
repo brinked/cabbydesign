@@ -7,7 +7,7 @@ import type { ApplianceItem, Design, FinishOption, PlacedItem } from '../model/t
 import { backsplashSpans, footprintW, laneItems, reservesFor } from '../state/store';
 import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, isSinkFront, sinkBasin } from './cabinet3d';
 
-function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: number }> {
+function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: number; h: number }> {
   // corner cabinets get their own shaped counter, so exclude them from runs
   const tops = items
     .filter((it) => {
@@ -15,13 +15,15 @@ function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: 
       return catalogById(it.catalogId).counter && f !== 'corner' && f !== 'susan';
     })
     .sort((a, b) => a.x - b.x);
-  const runs: Array<{ x1: number; x2: number; d: number }> = [];
+  const runs: Array<{ x1: number; x2: number; d: number; h: number }> = [];
   for (const it of tops) {
     const last = runs[runs.length - 1];
-    if (last && it.x <= last.x2 + 0.2) {
+    // Merge only with an adjacent cabinet of the same height — a height change
+    // starts a new run so the counter steps down to follow each cabinet.
+    if (last && it.x <= last.x2 + 0.2 && Math.abs(last.h - it.h) < 0.01) {
       last.x2 = Math.max(last.x2, it.x + footprintW(it));
       last.d = Math.max(last.d, it.d + it.outset);
-    } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset });
+    } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset, h: it.h });
   }
   return runs;
 }
@@ -106,7 +108,7 @@ export interface BuiltScene {
 }
 
 /** Angled (chamfered) countertop for a corner cabinet, with a front overhang. */
-function cornerCounter(w: number, d: number, side: 1 | -1, mat: THREE.Material, cT: number): THREE.Mesh {
+function cornerCounter(w: number, d: number, side: 1 | -1, mat: THREE.Material, cT: number, restH: number = BASE_H): THREE.Mesh {
   const O = COUNTER_OVERHANG;
   const c = cornerChamfer(d);
   const s = new THREE.Shape();
@@ -126,7 +128,7 @@ function cornerCounter(w: number, d: number, side: 1 | -1, mat: THREE.Material, 
   s.closePath();
   const geo = new THREE.ExtrudeGeometry(s, { depth: cT, bevelEnabled: false });
   geo.rotateX(Math.PI / 2); // depth → +z, extrude → −y
-  geo.translate(0, BASE_H + cT, 0); // sit on top of the base cabinet
+  geo.translate(0, restH + cT, 0); // sit on top of the base cabinet
   const m = new THREE.Mesh(geo, mat);
   m.castShadow = true;
   m.receiveShadow = true;
@@ -134,7 +136,7 @@ function cornerCounter(w: number, d: number, side: 1 | -1, mat: THREE.Material, 
 }
 
 /** L-shaped countertop for a lazy-susan cabinet, with a front overhang. */
-function susanCounter(w: number, d: number, side: 1 | -1, mat: THREE.Material, cT: number): THREE.Mesh {
+function susanCounter(w: number, d: number, side: 1 | -1, mat: THREE.Material, cT: number, restH: number = BASE_H): THREE.Mesh {
   const O = COUNTER_OVERHANG;
   const legD = CORNER_RETURN;
   // The notch (inner) edge faces the room too, so it carries the same overhang
@@ -159,7 +161,7 @@ function susanCounter(w: number, d: number, side: 1 | -1, mat: THREE.Material, c
   s.closePath();
   const geo = new THREE.ExtrudeGeometry(s, { depth: cT, bevelEnabled: false });
   geo.rotateX(Math.PI / 2);
-  geo.translate(0, BASE_H + cT, 0);
+  geo.translate(0, restH + cT, 0);
   const m = new THREE.Mesh(geo, mat);
   m.castShadow = true;
   m.receiveShadow = true;
@@ -175,7 +177,8 @@ function counterSlabHoles(
   depth: number,
   holes: Array<{ x1: number; x2: number; z1: number; z2: number }>,
   mat: THREE.Material,
-  cT: number
+  cT: number,
+  restH: number = BASE_H
 ): THREE.Mesh {
   const s = new THREE.Shape();
   s.moveTo(-runW / 2, 0);
@@ -194,7 +197,7 @@ function counterSlabHoles(
   }
   const geo = new THREE.ExtrudeGeometry(s, { depth: cT, bevelEnabled: false });
   geo.rotateX(Math.PI / 2); // shape Y → +z (depth), extrude → −y
-  geo.translate(0, BASE_H + cT, 0); // top surface at counter height
+  geo.translate(0, restH + cT, 0); // top surface at counter height
   const m = new THREE.Mesh(geo, mat);
   m.castShadow = true;
   m.receiveShadow = true;
@@ -301,7 +304,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         const side: 1 | -1 = cat.front === 'susan' ? geomSide : it.hinge === 'right' ? -1 : 1;
         const slabMat = mats.counter.clone();
         slabMat.map = mats.counterTex.clone();
-        const ct = cat.front === 'corner' ? cornerCounter(it.w, it.d, side, slabMat, cT) : susanCounter(it.w, it.d, side, slabMat, cT);
+        const ct = cat.front === 'corner' ? cornerCounter(it.w, it.d, side, slabMat, cT, it.h) : susanCounter(it.w, it.d, side, slabMat, cT, it.h);
         ct.position.copy(origin).addScaledVector(dir, it.x + it.w / 2).addScaledVector(nrm, it.outset);
         ct.position.y = it.mount;
         ct.rotation.y = yaw;
@@ -314,8 +317,8 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         const addWF = (alongEdge: number) => {
           const m = mats.counter.clone();
           m.map = mats.counterTex.clone();
-          const slab = box(cT, BASE_H + cT, depthWF, m);
-          place(slab, alongEdge, depthWF / 2, (BASE_H + cT) / 2);
+          const slab = box(cT, it.h + cT, depthWF, m);
+          place(slab, alongEdge, depthWF / 2, (it.h + cT) / 2);
         };
         if (it.waterfallL) addWF(it.x - cT / 2);
         if (it.waterfallR) addWF(it.x + footprintW(it) + cT / 2);
@@ -343,7 +346,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         });
       if (holes.length) {
         slabMat.map.repeat.set(1 / 48, 1 / 48);
-        const slab = counterSlabHoles(x2 - x1, depth, holes, slabMat, cT);
+        const slab = counterSlabHoles(x2 - x1, depth, holes, slabMat, cT, r.h);
         slab.position.copy(origin).addScaledVector(dir, runCenter);
         slab.position.y = 0;
         slab.rotation.y = yaw;
@@ -351,7 +354,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       } else {
         slabMat.map.repeat.set(Math.max(1, (x2 - x1) / 48), Math.max(1, depth / 48));
         const slab = box(x2 - x1, cT, depth, slabMat);
-        place(slab, runCenter, depth / 2, BASE_H + cT / 2);
+        place(slab, runCenter, depth / 2, r.h + cT / 2);
       }
     }
 
