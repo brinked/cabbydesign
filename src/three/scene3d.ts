@@ -311,17 +311,27 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         group.add(ct);
       }
 
-      // waterfall edges — counter material wrapping down a run-end side to floor
+      // waterfall edges — counter material wrapping down a run-end side to floor.
+      // Corner/lazy-susan cabinets have one full-depth (wall) side and one shorter
+      // (chamfer/notch) side, so each waterfall uses that side's actual depth —
+      // otherwise it juts past the angled front / into the notch.
       if (cat.counter && cat.lane === 'floor' && (it.waterfallL || it.waterfallR)) {
-        const depthWF = it.d + COUNTER_OVERHANG;
-        const addWF = (alongEdge: number) => {
+        const shaped = cat.front === 'corner' || cat.front === 'susan';
+        const cornSide: 1 | -1 = cat.front === 'susan' ? geomSide : it.hinge === 'right' ? -1 : 1;
+        const partialLen = cat.front === 'corner' ? it.d - cornerChamfer(it.d) : CORNER_RETURN;
+        const fullWF = it.d + COUNTER_OVERHANG;
+        const partialWF = partialLen + COUNTER_OVERHANG;
+        // cornSide 1 → chamfer/notch on the right; -1 → on the left
+        const leftWF = shaped && cornSide === -1 ? partialWF : fullWF;
+        const rightWF = shaped && cornSide === 1 ? partialWF : fullWF;
+        const addWF = (alongEdge: number, depthWF: number) => {
           const m = mats.counter.clone();
           m.map = mats.counterTex.clone();
           const slab = box(cT, it.h + cT, depthWF, m);
           place(slab, alongEdge, depthWF / 2, (it.h + cT) / 2);
         };
-        if (it.waterfallL) addWF(it.x - cT / 2);
-        if (it.waterfallR) addWF(it.x + footprintW(it) + cT / 2);
+        if (it.waterfallL) addWF(it.x - cT / 2, leftWF);
+        if (it.waterfallR) addWF(it.x + footprintW(it) + cT / 2, rightWF);
       }
     }
 

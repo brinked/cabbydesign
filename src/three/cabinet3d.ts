@@ -887,6 +887,20 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         const cx = cornerSide === -1 ? w / 2 - legD / 2 : -w / 2 + legD / 2;
         addPanel(legD, cx, d + END_PANEL_T / 2, 0);
       }
+    } else if (cat.front === 'corner') {
+      // Diagonal corner: the chamfered side only runs to (d − c), so its panel
+      // must stop at the chamfer — a full-depth panel would jut past the angled
+      // front. The other (wall) side is full depth, like a normal cabinet.
+      const c = cornerChamfer(d, legRet);
+      const chamferOnRight = cornerSide === 1;
+      if (endL) {
+        const len = chamferOnRight ? d : d - c;
+        addPanel(len, -(w / 2 + END_PANEL_T / 2), len / 2, -(Math.PI / 2));
+      }
+      if (endR) {
+        const len = chamferOnRight ? d - c : d;
+        addPanel(len, w / 2 + END_PANEL_T / 2, len / 2, Math.PI / 2);
+      }
     } else {
       for (const side of [-1, 1] as const) {
         if ((side === -1 && !endL) || (side === 1 && !endR)) continue;
