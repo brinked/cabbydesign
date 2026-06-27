@@ -827,6 +827,12 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       bar.position.set(cornerSide * (-span / 2 + 1.7), fh / 2 - len / 2 - 1.4, 1.1);
       door.add(bar);
       g.add(door);
+      // Finished (body-colored) straight front beside the diagonal door — matches
+      // the 2D elevation's body-colored returns; otherwise the carcass front
+      // reads as raw white. Sits proud of the carcass front to avoid z-fighting.
+      const frontPanel = box(w - c, carcassH, 0.5, mats.body);
+      frontPanel.position.set(cornerSide === 1 ? -c / 2 : c / 2, kick + carcassH / 2, d);
+      g.add(frontPanel);
     }
 
     // L-shaped lazy susan: two doors meeting at the notch corner (bi-fold look)
