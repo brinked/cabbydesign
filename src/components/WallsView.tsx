@@ -510,7 +510,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
         </span>
         <label className="wall-dim-field">
           Length
-          <NumberField value={wall.length} min={12} max={600} onCommit={(length) => updateWall(wall.id, { length })} />
+          <NumberField value={wall.length} min={4} max={600} onCommit={(length) => updateWall(wall.id, { length })} />
         </label>
         <label className="wall-dim-field">
           Height

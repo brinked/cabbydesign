@@ -1350,6 +1350,10 @@ button:disabled {
   margin: 2px 0 18px;
 }
 
+.cover-meta > div {
+  padding: 1px 0;
+}
+
 .cover-render {
   width: 100%;
   border-radius: 12px;

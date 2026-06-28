@@ -212,12 +212,15 @@ export default function Report() {
           {design.client ? `Prepared for ${design.client} · ` : ''}
           {date}
         </p>
-        <p className="cover-meta">
-          Finish: {fin.name} · Door style: {doorStyleLabel}
-          {` · Countertop: ${countertopById(design.counterId).name}, ${fmtIn(design.counterThickness)} thick (${counterSqft} sq ft)`}
-          {` · Gas: ${design.gasType === 'ng' ? 'Natural Gas' : design.gasType === 'lp' ? 'Liquid Propane' : 'Not specified'}`}
-          {` · Handles: ${totalHandles}`}
-        </p>
+        <div className="cover-meta">
+          <div>Finish: {fin.name}</div>
+          <div>Door style: {doorStyleLabel}</div>
+          <div>
+            Countertop: {countertopById(design.counterId).name}, {fmtIn(design.counterThickness)} thick ({counterSqft} sq ft)
+          </div>
+          <div>Gas: {design.gasType === 'ng' ? 'Natural Gas' : design.gasType === 'lp' ? 'Liquid Propane' : 'Not specified'}</div>
+          <div>Handles: {totalHandles}</div>
+        </div>
         {snapshot && <img className="cover-render" src={snapshot} alt="3D rendering" />}
         <p className="cover-foot">Design Report — plan, elevations &amp; estimate</p>
       </section>
