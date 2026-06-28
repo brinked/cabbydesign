@@ -290,7 +290,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' ? geomSide : undefined, applianceH, counterT: cT },
+        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT },
         mats
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;
@@ -301,7 +301,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
 
       // corner / susan cabinets get a shaped countertop matching their top
       if ((cat.front === 'corner' || cat.front === 'susan') && cat.counter) {
-        const side: 1 | -1 = cat.front === 'susan' ? geomSide : it.hinge === 'right' ? -1 : 1;
+        const side: 1 | -1 = geomSide;
         const slabMat = mats.counter.clone();
         slabMat.map = mats.counterTex.clone();
         const ct = cat.front === 'corner' ? cornerCounter(it.w, it.d, side, slabMat, cT, it.h) : susanCounter(it.w, it.d, side, slabMat, cT, it.h);

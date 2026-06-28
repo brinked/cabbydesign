@@ -404,7 +404,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as 'select' | 
                   onPointerMove={(e) => itemMove(e, it)}
                   onPointerUp={(e) => itemUp(e, it)}
                 >
-                  <CabinetTop cat={cat} w={fpw} d={it.d} fin={fin} hinge={cat.front === 'susan' ? susanHinge(it) : it.hinge} />
+                  <CabinetTop cat={cat} w={fpw} d={it.d} fin={fin} hinge={cat.front === 'susan' || cat.front === 'corner' ? susanHinge(it) : it.hinge} />
                   <circle cx={fpw / 2} cy={it.d / 2} r={3.4} fill="#fff" stroke="#5b6472" strokeWidth={0.35} />
                   <text x={fpw / 2} y={it.d / 2 + 1.3} textAnchor="middle" fontSize={3.6} fill="#33394a" fontWeight={600}>
                     {numbers.get(it.id)}

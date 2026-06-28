@@ -17,9 +17,15 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
   const counterT = useStore((s) => s.design.counterThickness);
   const appliances = useStore((s) => s.appliances);
   const modelsReady = useStore((s) => s.modelsReady);
-  // a lazy susan keeps its corner orientation from placement; hinge only moves
-  // the single handle, matching the 3D and plan views
-  const cornerSide: 1 | -1 | undefined = cat.front === 'susan' ? (it.x + (it.w + (it.endL ? 0.75 : 0) + (it.endR ? 0.75 : 0)) / 2 > wallLength / 2 ? -1 : 1) : undefined;
+  // corner & lazy-susan cabinets keep their orientation from placement (which
+  // wall end they sit at); hinge only moves the single handle — matching the 3D
+  // and plan views, so moving a corner cabinet never flips it the wrong way.
+  const cornerSide: 1 | -1 | undefined =
+    cat.front === 'susan' || cat.front === 'corner'
+      ? it.x + (it.w + (it.endL ? 0.75 : 0) + (it.endR ? 0.75 : 0)) / 2 > wallLength / 2
+        ? -1
+        : 1
+      : undefined;
   // fridge/ice-maker housings render the selected unit at its real height, so a
   // shorter unit shows a gap under the counter.
   const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
