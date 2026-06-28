@@ -1135,17 +1135,17 @@ export function AppliancesModal() {
       <h3 className="modal-h3" style={{ marginTop: 18 }}>
         Inventory
       </h3>
-      <div className="appliance-row appliance-row-head">
-        <span>Category</span>
-        <span>Brand</span>
-        <span>Model #</span>
-        <span>Description</span>
-        <span>MSRP</span>
-        <span>Liner / Size W×D×H</span>
-        <span>Panel $</span>
-        <span></span>
-      </div>
       <div className="appliance-list">
+        <div className="appliance-row appliance-row-head">
+          <span>Category</span>
+          <span>Brand</span>
+          <span>Model #</span>
+          <span>Description</span>
+          <span>MSRP</span>
+          <span>Liner / Size W×D×H</span>
+          <span>Panel $</span>
+          <span></span>
+        </div>
         {appliances.map((a) => (
           <ApplianceRow key={a.id} a={a} liners={liners} onChange={(patch) => updateAppliance(a.id, patch)} onRemove={() => removeRow(a.id)} />
         ))}
@@ -1310,17 +1310,17 @@ export function MyAppliancesModal() {
       <h3 className="modal-h3" style={{ marginTop: 18 }}>
         My added appliances
       </h3>
-      <div className="appliance-row appliance-row-head">
-        <span>Category</span>
-        <span>Brand</span>
-        <span>Model #</span>
-        <span>Description</span>
-        <span>MSRP</span>
-        <span>Liner / Size W×D×H</span>
-        <span>Panel $</span>
-        <span></span>
-      </div>
       <div className="appliance-list">
+        <div className="appliance-row appliance-row-head">
+          <span>Category</span>
+          <span>Brand</span>
+          <span>Model #</span>
+          <span>Description</span>
+          <span>MSRP</span>
+          <span>Liner / Size W×D×H</span>
+          <span>Panel $</span>
+          <span></span>
+        </div>
         {own.map((a) => (
           <ApplianceRow key={a.id} a={a} liners={liners} onChange={(patch) => updateOwn(a.id, patch)} onRemove={() => removeRow(a.id)} />
         ))}

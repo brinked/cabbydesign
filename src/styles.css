@@ -665,7 +665,7 @@ button:disabled {
 }
 
 .modal-wide {
-  width: 760px;
+  width: 880px;
 }
 
 .modal-head {
@@ -1127,11 +1127,22 @@ button:disabled {
 
 .appliance-row {
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr 1fr 1.2fr 0.7fr 1.7fr 0.7fr 28px;
+  grid-template-columns: 1.1fr 0.9fr 1fr 1.3fr 0.7fr 1.8fr 0.7fr 28px;
   gap: 8px;
   align-items: center;
   padding: 5px 0;
   border-bottom: 1px solid var(--line);
+}
+
+/* Keep fields from blowing out their column — without this a long <select>
+   option (a liner name) forces its grid cell wide and squashes the rest. */
+.appliance-row > * {
+  min-width: 0;
+}
+
+.appliance-row .select,
+.appliance-row .dim-input {
+  width: 100%;
 }
 
 .cutout-cell {
@@ -1155,11 +1166,19 @@ button:disabled {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
+  /* sit inside the scroll area and stick to the top so the header lines up
+     with the rows (and stays put while scrolling) */
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 1;
 }
 
 .appliance-list {
   max-height: 46vh;
   overflow-y: auto;
+  /* reserve the scrollbar gutter so columns don't shift when it appears */
+  scrollbar-gutter: stable;
 }
 
 .appliance-noliner {
