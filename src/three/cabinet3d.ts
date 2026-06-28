@@ -830,16 +830,6 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       bar.position.set(cornerSide * (-span / 2 + 1.7), fh / 2 - len / 2 - 1.4, 1.1);
       door.add(bar);
       g.add(door);
-      // Finished (body-colored) straight front beside the diagonal door — matches
-      // the 2D elevation's body-colored returns; otherwise the carcass front
-      // reads as raw white. A finished door-style panel (with the shaker groove)
-      // so it matches the rest of the cabinet; sits proud to avoid z-fighting.
-      const frontW = w - c;
-      const fpg = new THREE.Group();
-      fpg.add(box(frontW, carcassH, END_PANEL_T, mats.panel));
-      if (style === 'shaker' && carcassH >= 8 && frontW >= 8) fpg.add(grooveRing(frontW, carcassH, END_PANEL_T / 2, mats));
-      fpg.position.set(cornerSide === 1 ? -c / 2 : c / 2, kick + carcassH / 2, d);
-      g.add(fpg);
     }
 
     // L-shaped lazy susan: two doors meeting at the notch corner (bi-fold look)
