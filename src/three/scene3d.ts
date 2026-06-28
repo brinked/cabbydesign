@@ -325,14 +325,35 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
           m.map = mats.counterTex.clone();
           return m;
         };
-        // a side waterfall: thin along the wall, running `depth` into the room
-        const sideSlab = (along: number, depth: number) => place(box(cT, wfH, depth, wfMat()), along, depth / 2, wfH / 2);
+        // Top of an immediately-adjacent floor cabinet on a given side (its
+        // counter surface), or 0 (floor) if nothing abuts. A waterfall stops
+        // here instead of running to the floor past a neighbour.
+        const neighborTop = (side: 'L' | 'R'): number => {
+          const edge = side === 'L' ? it.x : it.x + fpw;
+          let top = 0;
+          for (const o of floorItems) {
+            if (o.id === it.id) continue;
+            const oEdge = side === 'L' ? o.x + footprintW(o) : o.x;
+            if (Math.abs(oEdge - edge) < 0.75) {
+              const oc = catalogById(o.catalogId);
+              top = Math.max(top, o.h + (oc.counter ? cT : 0));
+            }
+          }
+          return top;
+        };
+        // a side waterfall: thin along the wall, running `depth` into the room.
+        // `bottom` lifts the slab's foot to a neighbour's top so it stops there.
+        const sideSlab = (along: number, depth: number, bottom = 0) => {
+          const h = wfH - bottom;
+          if (h <= 0.05) return; // fully hidden behind a taller neighbour
+          place(box(cT, h, depth, wfMat()), along, depth / 2, bottom + h / 2);
+        };
         // a forward-facing waterfall at the cabinet front (thin in depth)
         const frontSlab = (along: number, widthX: number) => place(box(widthX, wfH, cT, wfMat()), along, it.d + O, wfH / 2);
         if (cat.front === 'susan') {
           const legD = CORNER_RETURN;
           const legAtipLeft = geomSide === -1; // own-wall leg tip is left vs right
-          if (legAtipLeft ? it.waterfallL : it.waterfallR) sideSlab(legAtipLeft ? it.x - cT / 2 : it.x + fpw + cT / 2, legD + O);
+          if (legAtipLeft ? it.waterfallL : it.waterfallR) sideSlab(legAtipLeft ? it.x - cT / 2 : it.x + fpw + cT / 2, legD + O, neighborTop(legAtipLeft ? 'L' : 'R'));
           if (legAtipLeft ? it.waterfallR : it.waterfallL) frontSlab(it.x + (geomSide === -1 ? fpw - legD / 2 : legD / 2), legD);
         } else if (cat.front === 'corner') {
           // Match the applied-end logic: the two exposed faces are the short
@@ -345,16 +366,16 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
           const chamferOnRight = geomSide === 1;
           if (chamferOnRight) {
             // right side short+exposed; front return on the left-front
-            if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, partial);
+            if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, partial, neighborTop('R'));
             if (it.waterfallL) frontSlab(it.x + fwid / 2, fwid);
           } else {
             // left side short+exposed; front return on the right-front
-            if (it.waterfallL) sideSlab(it.x - cT / 2, partial);
+            if (it.waterfallL) sideSlab(it.x - cT / 2, partial, neighborTop('L'));
             if (it.waterfallR) frontSlab(it.x + fpw - fwid / 2, fwid);
           }
         } else {
-          if (it.waterfallL) sideSlab(it.x - cT / 2, it.d + O);
-          if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, it.d + O);
+          if (it.waterfallL) sideSlab(it.x - cT / 2, it.d + O, neighborTop('L'));
+          if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, it.d + O, neighborTop('R'));
         }
       }
     }

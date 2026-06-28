@@ -57,7 +57,7 @@ export const CATALOG: CatalogItem[] = [
   { id: 'base-blindl', name: 'Left Blind Corner Base', category: 'base', front: 'blindl', lane: 'floor', w: 42, d: 24, h: BASE_H, minW: 39, maxW: 48, stepW: 3, counter: true, formula: BOX },
   { id: 'base-blindr', name: 'Right Blind Corner Base', category: 'base', front: 'blindr', lane: 'floor', w: 42, d: 24, h: BASE_H, minW: 39, maxW: 48, stepW: 3, counter: true, formula: BOX },
   { id: 'base-open', name: 'Open Shelf Base', category: 'base', front: 'open', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 18, maxW: 42, stepW: 3, counter: true, formula: BOX },
-  { id: 'base-pedestal', name: 'Pedestal Cabinet', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 24, h: 20, minW: 18, maxW: 42, stepW: 3, minH: 18, maxH: 34.5, counter: false, formula: WALLBOX, note: 'Short riser base — 20" tall by default (min 18").' },
+  { id: 'base-pedestal', name: 'Pedestal Cabinet', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 24, h: 20, minW: 18, maxW: 42, stepW: 3, minH: 18, maxH: 34.5, counter: true, formula: WALLBOX, note: 'Short riser base — 20" tall by default (min 18").' },
   { id: 'base-trash', name: 'Trash Pull-Out', category: 'base', front: 'trash', lane: 'floor', w: 15, d: 24, h: BASE_H, minW: 15, maxW: 18, stepW: 3, counter: true, formula: BOX },
   { id: 'base-trashdrawer', name: 'Trash Pull-Out + Drawer', category: 'base', front: 'trashdrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 21, stepW: 3, counter: true, formula: DRAWER1 },
 
