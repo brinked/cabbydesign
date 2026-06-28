@@ -503,15 +503,19 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   const cornerSide: 1 | -1 = dims.cornerSide ?? (hinge === 'right' ? -1 : 1);
   const legRet = cornerReturn(cat); // 24" base / 12" wall
   if (isCorner) {
-    // chamfered (angled-front) carcass on a recessed toe kick
+    // chamfered (angled-front) carcass on a recessed toe kick. A corner cabinet's
+    // sides are commonly exposed (it stands proud of the corner), so finish the
+    // carcass in the body color rather than raw white — applied ends then just
+    // add an optional shaker panel on top.
     const c = cornerChamfer(d, legRet);
-    const carc = cornerCarcass(w, d, carcassH, c, mats.carcass, cornerSide);
+    const carc = cornerCarcass(w, d, carcassH, c, mats.body, cornerSide);
     carc.position.y += kick;
     g.add(carc);
     if (kick > 0) g.add(cornerKick(w, d, kick, c, mats.kick, cornerSide));
   } else if (isSusan) {
-    // L-shaped pie-cut carcass (notched front corner) on a recessed toe kick
-    const carc = susanCarcass(w, d, carcassH, legRet, mats.carcass, cornerSide);
+    // L-shaped pie-cut carcass (notched front corner) on a recessed toe kick;
+    // finished body color since a susan's legs face the room.
+    const carc = susanCarcass(w, d, carcassH, legRet, mats.body, cornerSide);
     carc.position.y += kick;
     g.add(carc);
     if (kick > 0) g.add(susanKick(w, d, kick, legRet, mats.kick, cornerSide));
