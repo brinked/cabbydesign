@@ -32,7 +32,13 @@ function cornerCabinetProjections(wall: Wall, walls: Wall[], items: PlacedItem[]
       // the wall end the corner cabinet is against, and how far it reaches in
       const atStart = it.x <= other.length - (it.x + fw);
       const corner = atStart ? oe.p0 : oe.p1;
-      const length = it.d + it.outset;
+      // The applied end on the leg facing THIS wall (the non-own-wall end)
+      // extends the projection here by its 0.75″ panel. On the other wall the
+      // own tip is away from its corner, so the perpendicular end is the one on
+      // the corner side: left-half → left end, right-half → right end.
+      const onLeftHalf = it.x + it.w / 2 <= other.length / 2;
+      const perpEnd = onLeftHalf ? !!it.endL : !!it.endR;
+      const length = it.d + it.outset + (perpEnd ? 0.75 : 0);
       if (dist(corner.x, corner.y, me.p0.x, me.p0.y) < EPS) out.push({ fromStart: true, length });
       else if (dist(corner.x, corner.y, me.p1.x, me.p1.y) < EPS) out.push({ fromStart: false, length });
     }
@@ -450,12 +456,23 @@ export function TopViewSvg({ interactive = false, tool = 'select' as 'select' | 
               for (const it of floor) {
                 const ic = catalogById(it.catalogId);
                 const appl = ic.category !== 'appliance';
-                const exL = appl && it.endL ? E : 0;
-                const exR = appl && it.endR ? E : 0;
+                let exL = appl && it.endL ? E : 0;
+                let exR = appl && it.endR ? E : 0;
+                // A corner/susan has a leg on each wall, so one applied end runs
+                // along the PERPENDICULAR wall — only the own-wall end widens this
+                // wall (the other shows on the adjoining wall's dimensions).
+                if (ic.front === 'corner' || ic.front === 'susan') {
+                  // The corner is at the wall end the cabinet sits against; the
+                  // own-wall leg tip is the OTHER end. Left-half cabinet → tip on
+                  // the right (keep exR); right-half → tip on the left (keep exL).
+                  const onLeftHalf = it.x + it.w / 2 <= f.wall.length / 2;
+                  if (onLeftHalf) exL = 0;
+                  else exR = 0;
+                }
                 edges.add(r2(it.x));
                 if (exL) edges.add(r2(it.x + exL));
                 if (exR) edges.add(r2(it.x + exL + it.w));
-                edges.add(r2(it.x + footprintW(it)));
+                edges.add(r2(it.x + exL + it.w + exR));
               }
               // include the leg of any corner cabinet projecting in from a neighbour wall
               for (const p of cornerCabinetProjections(f.wall, design.walls, design.items)) {

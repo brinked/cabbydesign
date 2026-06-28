@@ -261,6 +261,13 @@ export function appliedEnds(it: PlacedItem): { l: boolean; r: boolean } {
 /** Overall width an item occupies on the wall: cabinet + applied end panels. */
 export function footprintW(it: PlacedItem): number {
   const e = appliedEnds(it);
+  // Corner & lazy-susan cabinets have a leg on each wall, so one applied end
+  // runs along the PERPENDICULAR wall and doesn't widen this wall — at most the
+  // own-wall tip end counts here (the other shows on the adjoining wall).
+  const cat = catalogById(it.catalogId);
+  if (cat.front === 'corner' || cat.front === 'susan') {
+    return it.w + (e.l || e.r ? END_PANEL_T : 0);
+  }
   return it.w + (e.l ? END_PANEL_T : 0) + (e.r ? END_PANEL_T : 0);
 }
 
