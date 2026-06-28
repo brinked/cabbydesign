@@ -891,18 +891,32 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         addPanel(legD, cx, d + END_PANEL_T / 2, 0);
       }
     } else if (cat.front === 'corner') {
-      // Diagonal corner: the chamfered side only runs to (d − c), so its panel
-      // must stop at the chamfer — a full-depth panel would jut past the angled
-      // front. The other (wall) side is full depth, like a normal cabinet.
+      // A diagonal corner cabinet has TWO backs (against each wall), TWO exposed
+      // "sides" and the angled door. The full deep side opposite the chamfer is
+      // the back against the perpendicular wall — never panelled. The two
+      // finishable sides are: the short exposed side beside the door, and the
+      // straight front return. Each applied end finishes the side on its hand.
       const c = cornerChamfer(d, legRet);
       const chamferOnRight = cornerSide === 1;
-      if (endL) {
-        const len = chamferOnRight ? d : d - c;
-        addPanel(len, -(w / 2 + END_PANEL_T / 2), len / 2, -(Math.PI / 2));
-      }
-      if (endR) {
-        const len = chamferOnRight ? d - c : d;
-        addPanel(len, w / 2 + END_PANEL_T / 2, len / 2, Math.PI / 2);
+      // Finished door-style panel over the straight front return (beside the door).
+      const addFrontReturn = () => {
+        const fw = w - c;
+        const fpg = new THREE.Group();
+        fpg.add(box(fw, carcassH, END_PANEL_T, mats.panel));
+        if (style === 'shaker' && carcassH >= 8 && fw >= 8) fpg.add(grooveRing(fw, carcassH, END_PANEL_T / 2, mats));
+        fpg.position.set(chamferOnRight ? -c / 2 : c / 2, kick + carcassH / 2, d);
+        g.add(fpg);
+      };
+      if (chamferOnRight) {
+        // chamfer on the right → right side is the short exposed side; the front
+        // return sits on the left-front. (Left deep side is the wall-side back.)
+        if (endR) addPanel(d - c, w / 2 + END_PANEL_T / 2, (d - c) / 2, Math.PI / 2);
+        if (endL) addFrontReturn();
+      } else {
+        // chamfer on the left → left side is the short exposed side; the front
+        // return sits on the right-front. (Right deep side is the wall-side back.)
+        if (endL) addPanel(d - c, -(w / 2 + END_PANEL_T / 2), (d - c) / 2, -(Math.PI / 2));
+        if (endR) addFrontReturn();
       }
     } else {
       for (const side of [-1, 1] as const) {
