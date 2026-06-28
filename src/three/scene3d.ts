@@ -381,8 +381,13 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     }
 
     for (const r of counterRuns3d(floorItems)) {
-      const x1 = Math.max(r.x1 - COUNTER_OVERHANG, 0);
-      const x2 = Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
+      // Overhang only exposed run ends. Where another cabinet abuts (e.g. a
+      // shorter neighbour in its own run), keep the counter flush so it doesn't
+      // cut over the adjoining cabinet.
+      const leftAbut = floorItems.some((o) => Math.abs(o.x + footprintW(o) - r.x1) < 0.75);
+      const rightAbut = floorItems.some((o) => Math.abs(o.x - r.x2) < 0.75);
+      const x1 = Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
+      const x2 = Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
       const depth = r.d + COUNTER_OVERHANG;
       const slabMat = mats.counter.clone();
       slabMat.map = mats.counterTex.clone();

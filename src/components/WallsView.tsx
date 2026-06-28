@@ -349,8 +349,12 @@ export function WallElevationSvg({
 
       {/* counters drawn over the carcasses, with a shadow band under the nose */}
       {runs.map((r, i) => {
-        const x1 = Math.max(r.x1 - COUNTER_OVERHANG, 0);
-        const x2 = Math.min(r.x2 + COUNTER_OVERHANG, wall.length);
+        // Overhang only exposed ends — keep flush where a neighbour abuts so the
+        // counter doesn't cut over an adjoining cabinet of a different height.
+        const leftAbut = floorItems.some((o) => Math.abs(o.x + footprintW(o) - r.x1) < 0.75);
+        const rightAbut = floorItems.some((o) => Math.abs(o.x - r.x2) < 0.75);
+        const x1 = Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
+        const x2 = Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), wall.length);
         const cy = floorY - r.h - cT; // counter sits on top of this run's cabinets
         return (
           <g key={`c-${i}`}>
@@ -362,20 +366,39 @@ export function WallElevationSvg({
         );
       })}
 
-      {/* waterfall edges — countertop wrapping down a run-end side to the floor */}
+      {/* waterfall edges — countertop wrapping down a run-end side. Stops at the
+          top of an adjoining cabinet (matching 3D) so it doesn't run over it. */}
       {floorItems.map((it) => {
         const cat = catalogById(it.catalogId);
         if (!cat.counter) return null;
         const cy = floorY - it.h - cT;
+        // top (height above floor) of an immediately-adjacent cabinet on a side
+        const neighborTop = (side: 'L' | 'R'): number => {
+          const edge = side === 'L' ? it.x : it.x + footprintW(it);
+          let top = 0;
+          for (const o of floorItems) {
+            if (o.id === it.id) continue;
+            const oEdge = side === 'L' ? o.x + footprintW(o) : o.x;
+            if (Math.abs(oEdge - edge) < 0.75) {
+              const oc = catalogById(o.catalogId);
+              top = Math.max(top, o.h + (oc.counter ? cT : 0));
+            }
+          }
+          return top;
+        };
         const sides: Array<{ side: 'L' | 'R'; x: number }> = [];
         if (it.waterfallL) sides.push({ side: 'L', x: it.x - cT });
         if (it.waterfallR) sides.push({ side: 'R', x: it.x + footprintW(it) });
-        return sides.map(({ side, x }) => (
-          <g key={`wf-${it.id}-${side}`}>
-            <rect x={x} y={cy} width={cT} height={it.h + cT} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
-            <rect x={x} y={cy} width={cT} height={it.h + cT} fill="url(#g-counter)" />
-          </g>
-        ));
+        return sides.map(({ side, x }) => {
+          const h = it.h + cT - neighborTop(side); // stop at the neighbour's top
+          if (h <= 0.05) return null; // fully hidden behind a taller neighbour
+          return (
+            <g key={`wf-${it.id}-${side}`}>
+              <rect x={x} y={cy} width={cT} height={h} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+              <rect x={x} y={cy} width={cT} height={h} fill="url(#g-counter)" />
+            </g>
+          );
+        });
       })}
 
       {/* plumbing / electrical rough-ins — draggable in 2D */}
