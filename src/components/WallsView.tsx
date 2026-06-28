@@ -262,6 +262,40 @@ export function WallElevationSvg({
       {/* floor line */}
       <line x1={-M} y1={floorY} x2={wall.length + M} y2={floorY} stroke="#c9cdd3" strokeWidth={0.5} />
 
+      {/* windows & doors — drawn on the wall, BEHIND the cabinets so cabinets
+          in front of them occlude the overlap */}
+      {wallOpenings.map((o) => {
+        const gx = o.x - o.w / 2;
+        const gy = floorY - o.y - o.h; // top-left (y is the sill / bottom height)
+        const dragging = draggingOpenId === o.id;
+        const sel = editingOpeningId === o.id || dragging;
+        return (
+          <g key={o.id}>
+            {dragging && (
+              <g className="rough-dims">
+                <line x1={0} y1={gy + o.h} x2={wall.length} y2={gy + o.h} stroke="#5b5bd6" strokeWidth={0.3} strokeDasharray="1.5 1" />
+                <DimH x1={0} x2={o.x} y={gy + o.h - 2} label={`${fmtIn(o.x)} →`} />
+                <DimH x1={o.x} x2={wall.length} y={gy + o.h - 2} label={`← ${fmtIn(Math.max(0, wall.length - o.x))}`} />
+                {o.y > 0.01 && <DimV y1={gy + o.h} y2={floorY} x={gx - 3} label={`${fmtIn(o.y)} ↑`} />}
+              </g>
+            )}
+            <g
+              data-opening={o.id}
+              transform={`translate(${gx} ${gy})`}
+              style={{ cursor: interactive ? (dragging ? 'grabbing' : 'grab') : 'default' }}
+              onPointerDown={(e) => onOpenDown(e, o)}
+              onPointerMove={(e) => onOpenMove(e, o)}
+              onPointerUp={(e) => onOpenUp(e, o)}
+            >
+              <OpeningGlyph kind={o.kind} w={o.w} h={o.h} />
+              {sel && interactive && (
+                <rect x={-1} y={-1} width={o.w + 2} height={o.h + 2} fill="none" stroke="#5b5bd6" strokeWidth={0.6} strokeDasharray="2 1.5" rx={1} />
+              )}
+            </g>
+          </g>
+        );
+      })}
+
       {/* reserved corner zones */}
       {reserve.start > 0 && (
         <g>
@@ -438,38 +472,6 @@ export function WallElevationSvg({
       })}
 
       {/* windows / doors — draggable framed openings on the wall */}
-      {wallOpenings.map((o) => {
-        const gx = o.x - o.w / 2;
-        const gy = floorY - o.y - o.h; // top-left (y is the sill / bottom height)
-        const dragging = draggingOpenId === o.id;
-        const sel = editingOpeningId === o.id || dragging;
-        return (
-          <g key={o.id}>
-            {dragging && (
-              <g className="rough-dims">
-                <line x1={0} y1={gy + o.h} x2={wall.length} y2={gy + o.h} stroke="#5b5bd6" strokeWidth={0.3} strokeDasharray="1.5 1" />
-                <DimH x1={0} x2={o.x} y={gy + o.h - 2} label={`${fmtIn(o.x)} →`} />
-                <DimH x1={o.x} x2={wall.length} y={gy + o.h - 2} label={`← ${fmtIn(Math.max(0, wall.length - o.x))}`} />
-                {o.y > 0.01 && <DimV y1={gy + o.h} y2={floorY} x={gx - 3} label={`${fmtIn(o.y)} ↑`} />}
-              </g>
-            )}
-            <g
-              data-opening={o.id}
-              transform={`translate(${gx} ${gy})`}
-              style={{ cursor: interactive ? (dragging ? 'grabbing' : 'grab') : 'default' }}
-              onPointerDown={(e) => onOpenDown(e, o)}
-              onPointerMove={(e) => onOpenMove(e, o)}
-              onPointerUp={(e) => onOpenUp(e, o)}
-            >
-              <OpeningGlyph kind={o.kind} w={o.w} h={o.h} />
-              {sel && interactive && (
-                <rect x={-1} y={-1} width={o.w + 2} height={o.h + 2} fill="none" stroke="#5b5bd6" strokeWidth={0.6} strokeDasharray="2 1.5" rx={1} />
-              )}
-            </g>
-          </g>
-        );
-      })}
-
       {/* dimensions */}
       {sortedEdges.slice(0, -1).map((x1, i) => {
         const x2 = sortedEdges[i + 1];

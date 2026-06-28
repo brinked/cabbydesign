@@ -238,7 +238,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   const reserves = bsH > 0 ? reservesFor(design) : null; // corner zones for backsplash spans
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1eee7, roughness: 0.92 });
   // window / door materials (built once, disposed with the scene)
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0x3c4149, roughness: 0.6, metalness: 0.1 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0xeeece6, roughness: 0.65, metalness: 0.05 });
   const glassMat = new THREE.MeshPhysicalMaterial({ color: 0xbcd4e6, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.4, transmission: 0.5, clearcoat: 0.6 });
   const doorMat = new THREE.MeshStandardMaterial({ color: 0xe6ded0, roughness: 0.7 });
 
@@ -261,15 +261,10 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     addFrame(FT, h, w / 2 - FT / 2, h / 2); // right jamb
     const iw = w - FT * 2, ih = h - FT * 2;
     if (o.kind === 'window') {
+      // a single clean glass pane in the frame — no mullions
       const glass = box(iw, ih, 0.3, glassMat);
       glass.position.set(0, h / 2, zc);
       g2.add(glass);
-      const mv = box(0.8, ih, FD * 0.7, frameMat); // vertical mullion
-      mv.position.set(0, h / 2, zc);
-      g2.add(mv);
-      const mh = box(iw, 0.8, FD * 0.7, frameMat); // horizontal mullion
-      mh.position.set(0, h / 2, zc);
-      g2.add(mh);
     } else {
       const panel = box(iw, ih, 1.0, doorMat);
       panel.position.set(0, h / 2, zc);
