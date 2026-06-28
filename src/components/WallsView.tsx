@@ -3,7 +3,7 @@ import type { FinishOption, OpeningKind, PlacedItem, RoughInKind, Wall } from '.
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, FINISHES, catalogById } from '../model/catalog';
 import { countertopById } from '../model/countertops';
 import { isReserveExempt, type CornerReserve } from '../model/geometry';
-import { backsplashSpans, footprintW, laneItems, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
+import { backsplashSpans, footprintW, laneItems, openingClash, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
 import { ElevationCabinet } from './CabinetImage';
 import { NumberField } from './NumberField';
 import { DimH, DimV, OpeningGlyph, RoughInGlyph, fmtIn } from './svg';
@@ -287,7 +287,7 @@ export function WallElevationSvg({
               onPointerMove={(e) => onOpenMove(e, o)}
               onPointerUp={(e) => onOpenUp(e, o)}
             >
-              <OpeningGlyph kind={o.kind} w={o.w} h={o.h} />
+              <OpeningGlyph kind={o.kind} w={o.w} h={o.h} clash={openingClash(o, items, cT)} />
               {sel && interactive && (
                 <rect x={-1} y={-1} width={o.w + 2} height={o.h + 2} fill="none" stroke="#5b5bd6" strokeWidth={0.6} strokeDasharray="2 1.5" rx={1} />
               )}

@@ -258,6 +258,28 @@ export function laneItems(items: PlacedItem[], wallId: string, lane: 'floor' | '
 
 const END_PANEL_T = 0.75;
 
+/** True when a window/door opening overlaps any cabinet on its wall (both
+ *  horizontally and vertically) — i.e. a cabinet is in the way of the opening. */
+export function openingClash(o: Opening, items: PlacedItem[], counterT: number): boolean {
+  const ox1 = o.x - o.w / 2;
+  const ox2 = o.x + o.w / 2;
+  const oy1 = o.y;
+  const oy2 = o.y + o.h;
+  for (const it of items) {
+    if (it.wallId !== o.wallId) continue;
+    const cat = catalogById(it.catalogId);
+    if (cat.front === 'filler') continue; // shallow trim doesn't block an opening
+    const ix1 = it.x;
+    const ix2 = it.x + footprintW(it);
+    if (ox1 >= ix2 || ox2 <= ix1) continue; // no horizontal overlap
+    const bottom = it.mount;
+    const top = it.mount + it.h + (cat.counter ? counterT : 0) + (cat.topGearH ?? 0);
+    if (oy1 >= top || oy2 <= bottom) continue; // no vertical overlap
+    return true;
+  }
+  return false;
+}
+
 /** Effective applied-end panels for an item. Appliances and appliance openings
  *  (fridges, ice makers) never have them — regardless of stale stored flags. */
 export function appliedEnds(it: PlacedItem): { l: boolean; r: boolean } {

@@ -860,18 +860,21 @@ export function RoughInGlyph({ kind, w, h, conflict }: { kind: RoughInKind; w: n
  * Window / door glyph, drawn from (0,0) spanning w×h inches. Window = framed
  * glass with mullions; door = framed slab with two recessed panels and a knob.
  */
-export function OpeningGlyph({ kind, w, h }: { kind: OpeningKind; w: number; h: number }) {
+export function OpeningGlyph({ kind, w, h, clash }: { kind: OpeningKind; w: number; h: number; clash?: boolean }) {
   // Simple outdoor-style frame: a clean white frame around a single pane/slab.
-  const frame = '#9aa1ad';
-  const frameFill = '#f1efe9';
-  const sw = Math.max(0.4, Math.min(w, h) * 0.03);
+  // When a cabinet clashes with the opening, render it red as a warning.
+  const frame = clash ? '#d23b3b' : '#9aa1ad';
+  const frameFill = clash ? '#fbe4e4' : '#f1efe9';
+  const glass = clash ? 'rgba(210,59,59,0.28)' : 'rgba(168,205,228,0.45)';
+  const slab = clash ? 'rgba(210,59,59,0.22)' : 'rgba(0,0,0,0.045)';
+  const sw = Math.max(0.4, Math.min(w, h) * 0.03) * (clash ? 1.6 : 1);
   const inset = Math.max(1.2, Math.min(w, h) * 0.1); // frame thickness
   const gx = inset, gy = inset, gw = w - inset * 2, gh = h - inset * 2;
   if (kind === 'window') {
     return (
       <g>
         <rect x={0} y={0} width={w} height={h} rx={0.6} fill={frameFill} stroke={frame} strokeWidth={sw} />
-        <rect x={gx} y={gy} width={gw} height={gh} fill="rgba(168,205,228,0.45)" stroke={frame} strokeWidth={sw * 0.6} />
+        <rect x={gx} y={gy} width={gw} height={gh} fill={glass} stroke={frame} strokeWidth={sw * 0.6} />
       </g>
     );
   }
@@ -879,7 +882,7 @@ export function OpeningGlyph({ kind, w, h }: { kind: OpeningKind; w: number; h: 
   return (
     <g>
       <rect x={0} y={0} width={w} height={h} rx={0.6} fill={frameFill} stroke={frame} strokeWidth={sw} />
-      <rect x={gx} y={gy} width={gw} height={gh} rx={Math.min(1, w * 0.04)} fill="rgba(0,0,0,0.045)" stroke={frame} strokeWidth={sw * 0.6} />
+      <rect x={gx} y={gy} width={gw} height={gh} rx={Math.min(1, w * 0.04)} fill={slab} stroke={frame} strokeWidth={sw * 0.6} />
       <circle cx={w - inset - Math.min(2.5, w * 0.12)} cy={h * 0.5} r={Math.max(0.6, w * 0.035)} fill={frame} />
     </g>
   );
