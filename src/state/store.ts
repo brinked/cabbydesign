@@ -4,7 +4,7 @@ import type { ApplianceBrands, ApplianceItem, Design, DimOverride, LayoutKind, O
 import { CATALOG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, CORNER_FILLER, cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot. */
 export const PANEL_RATE_PER_SQFT = 36;
@@ -169,6 +169,7 @@ export function normalizeDesign(raw: Design): Design {
   const counterId = raw.counterId ?? DEFAULT_COUNTERTOP;
   const backsplashHeight = raw.backsplashHeight && raw.backsplashHeight > 0 ? raw.backsplashHeight : 0;
   const result = { ...defaultDesign(), ...raw, finishId, doorStyle: raw.doorStyle ?? 'shaker', counterThickness, counterId, backsplashHeight, dimFrom: raw.dimFrom ?? 'left', walls, items, roughIns, openings };
+  autoCornerFillers(result);
   alignFillers(result);
   return result;
 }
@@ -379,7 +380,9 @@ export function spaceLeft(design: Design, wallId: string, lane: 'floor' | 'upper
   const wall = design.walls.find((w) => w.id === wallId);
   if (!wall) return 0;
   const r = lane === 'floor' ? reservesFor(design).get(wallId) ?? { start: 0, end: 0 } : { start: 0, end: 0 };
-  const used = laneItems(design.items, wallId, lane).reduce((s, it) => s + footprintW(it), 0);
+  // auto corner fillers live inside the already-reserved dead corner — don't
+  // double-count them against usable space.
+  const used = laneItems(design.items, wallId, lane).reduce((s, it) => s + (it.auto ? 0 : footprintW(it)), 0);
   return wall.length - r.start - r.end - used;
 }
 
@@ -496,9 +499,92 @@ function alignFillers(design: Design): void {
   }
 }
 
+/**
+ * Auto-place a 3″ base filler on each wall at an inside corner where a plain
+ * (non-corner) floor cabinet meets a plain floor cabinet on the adjoining wall
+ * — closing the dead-corner gap so the user doesn't have to add fillers by hand.
+ * These carry `auto: true`, are re-derived on every pack, and are not editable.
+ */
+function autoCornerFillers(design: Design): void {
+  // re-derive from scratch — drop any previously auto-placed fillers
+  design.items = design.items.filter((it) => !it.auto);
+  const fillerCat = catalogById('trim-basefiller');
+  const ep = (w: Wall) => wallEndpoints(w);
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+
+  // nearest non-filler floor cabinet to a wall end + its edge gap and corner-ness
+  const nearest = (wall: Wall, atEnd: 'start' | 'end') => {
+    let best: { it: PlacedItem; edge: number; corner: boolean } | null = null;
+    for (const it of laneItems(design.items, wall.id, 'floor')) {
+      const c = catalogById(it.catalogId);
+      if (c.front === 'filler') continue;
+      const fw = footprintW(it);
+      const edge = atEnd === 'start' ? it.x : wall.length - (it.x + fw);
+      if (!best || edge < best.edge) best = { it, edge, corner: isCornerFront(c) };
+    }
+    return best;
+  };
+
+  const add: PlacedItem[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < design.walls.length; i++) {
+    for (let j = i + 1; j < design.walls.length; j++) {
+      const A = design.walls[i];
+      const B = design.walls[j];
+      if (A.ghost || B.ghost) continue;
+      const a = ep(A);
+      const b = ep(B);
+      const combos: Array<['start' | 'end', 'start' | 'end', number]> = [
+        ['start', 'start', dist(a.p0, b.p0)],
+        ['start', 'end', dist(a.p0, b.p1)],
+        ['end', 'start', dist(a.p1, b.p0)],
+        ['end', 'end', dist(a.p1, b.p1)],
+      ];
+      for (const [eA, eB, d] of combos) {
+        if (d > CORNER_EPS) continue;
+        for (const [W, eW, O, eO] of [
+          [A, eA, B, eB],
+          [B, eB, A, eA],
+        ] as const) {
+          const nW = nearest(W, eW);
+          const nO = nearest(O, eO);
+          // both walls need a plain cabinet; a corner unit fills the corner itself
+          if (!nW || !nO || nW.corner || nO.corner) continue;
+          // only fill when W's cabinet actually borders the dead-corner zone
+          // (the other wall's depth + the 3″ clearance)
+          if (nW.edge > nO.it.d + nO.it.outset + CORNER_FILLER + 1) continue;
+          const id = `cf-${W.id}-${eW}`;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const x = eW === 'start' ? nW.it.x - CORNER_FILLER : nW.it.x + footprintW(nW.it);
+          add.push({
+            id,
+            wallId: W.id,
+            catalogId: 'trim-basefiller',
+            x: Math.max(0, Math.min(x, W.length - CORNER_FILLER)),
+            w: CORNER_FILLER,
+            d: fillerCat.d,
+            h: fillerCat.h,
+            outset: 0,
+            mount: 0,
+            hinge: 'left',
+            endL: false,
+            endR: false,
+            trays: 0,
+            auto: true,
+          });
+        }
+      }
+    }
+  }
+  design.items.push(...add);
+}
+
 function withPack(design: Design): Design {
-  const next = { ...design, items: design.items.map((it) => ({ ...it })) };
+  // pack real items first (auto-fillers are exempt trim and re-derived after)
+  const next = { ...design, items: design.items.filter((it) => !it.auto).map((it) => ({ ...it })) };
   packAll(next);
+  autoCornerFillers(next);
   alignFillers(next);
   return next;
 }

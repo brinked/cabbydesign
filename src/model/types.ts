@@ -189,6 +189,9 @@ export interface PlacedItem {
   /** Countertop waterfall edge down the left/right side (run ends only). */
   waterfallL?: boolean;
   waterfallR?: boolean;
+  /** Auto-placed dead-corner filler — re-derived on every layout change and
+   *  not hand-editable (managed by the app, not the user). */
+  auto?: boolean;
 }
 
 export type LayoutKind = 'linear' | 'l' | 'u';

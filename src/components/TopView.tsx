@@ -405,10 +405,10 @@ export function TopViewSvg({ interactive = false, tool = 'select' as 'select' | 
                 <g
                   key={it.id}
                   transform={`translate(${it.x} ${it.outset})`}
-                  style={{ cursor: interactive && tool === 'select' ? 'grab' : 'default' }}
-                  onPointerDown={(e) => itemDown(e, it)}
-                  onPointerMove={(e) => itemMove(e, it)}
-                  onPointerUp={(e) => itemUp(e, it)}
+                  style={{ cursor: interactive && tool === 'select' && !it.auto ? 'grab' : 'default' }}
+                  onPointerDown={it.auto ? undefined : (e) => itemDown(e, it)}
+                  onPointerMove={it.auto ? undefined : (e) => itemMove(e, it)}
+                  onPointerUp={it.auto ? undefined : (e) => itemUp(e, it)}
                 >
                   <CabinetTop cat={cat} w={fpw} d={it.d} fin={fin} hinge={cat.front === 'susan' || cat.front === 'corner' ? susanHinge(it) : it.hinge} />
                   <circle cx={fpw / 2} cy={it.d / 2} r={3.4} fill="#fff" stroke="#5b6472" strokeWidth={0.35} />

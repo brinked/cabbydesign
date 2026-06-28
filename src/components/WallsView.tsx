@@ -303,10 +303,10 @@ export function WallElevationSvg({
           <g
             key={it.id}
             transform={`translate(${it.x} ${y})`}
-            style={{ cursor: interactive ? 'grab' : 'default' }}
-            onPointerDown={(e) => onPointerDown(e, it)}
-            onPointerMove={(e) => onPointerMove(e, it)}
-            onPointerUp={(e) => onPointerUp(e, it)}
+            style={{ cursor: interactive && !it.auto ? 'grab' : 'default' }}
+            onPointerDown={it.auto ? undefined : (e) => onPointerDown(e, it)}
+            onPointerMove={it.auto ? undefined : (e) => onPointerMove(e, it)}
+            onPointerUp={it.auto ? undefined : (e) => onPointerUp(e, it)}
           >
             <ElevationCabinet cat={cat} it={it} fin={fin} wallLength={wall.length} />
             {numbers && (

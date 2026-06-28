@@ -17,7 +17,7 @@ export interface WallFrame {
 }
 
 export const WALL_T = 5; // drawn wall thickness in plan view, inches
-const CORNER_EPS = 2; // endpoints closer than this (inches) form a corner
+export const CORNER_EPS = 2; // endpoints closer than this (inches) form a corner
 
 export function frameForWall(wall: Wall): WallFrame {
   const rad = (wall.angle * Math.PI) / 180;
@@ -163,7 +163,7 @@ export interface CornerReserve {
 }
 
 /** Extra clearance reserved on each wall at a corner for door/drawer clearance. */
-const CORNER_FILLER = 3;
+export const CORNER_FILLER = 3;
 
 /**
  * Where two non-island walls meet, each wall reserves a "dead corner" only big
