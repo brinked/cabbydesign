@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BASE_H, CATALOG, CATEGORY_LABELS, COUNTER_T, catalogById, takesAppliedEnds } from '../model/catalog';
 import { money, tryFormula } from '../model/pricing';
 import {
@@ -11,8 +11,8 @@ import {
   requiredCabinetWidth,
   selectedApplianceWidth,
 } from '../model/appliances';
-import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, PlacedItem } from '../model/types';
-import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, useStore } from '../state/store';
+import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleItem, PlacedItem } from '../model/types';
+import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, uid, useStore } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { useSession } from '../state/session';
 import { CatalogThumb } from './CabinetImage';
@@ -663,6 +663,90 @@ function SaveGlobalFooter({ onSave }: { onSave: () => Promise<void> }) {
         {state === 'saving' ? 'Saving…' : 'Save for all dealers'}
       </button>
     </div>
+  );
+}
+
+/** One editable handle row: photo, name, retail & dealer price. */
+function HandleRow({ h, onChange, onRemove }: { h: HandleItem; onChange: (patch: Partial<HandleItem>) => void; onRemove: () => void }) {
+  const [name, setName] = useState(h.name);
+  const [retail, setRetail] = useState(h.retail ? String(h.retail) : '');
+  const [dealer, setDealer] = useState(h.dealer ? String(h.dealer) : '');
+  const fileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => setName(h.name), [h.name]);
+  const num = (s: string) => Math.max(0, parseFloat(s.replace(/[$,]/g, '')) || 0);
+  const pickPhoto = (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 1_500_000) {
+      alert('That image is too large — please use one under 1.5 MB.');
+      return;
+    }
+    const r = new FileReader();
+    r.onload = () => onChange({ photo: String(r.result) });
+    r.readAsDataURL(file);
+  };
+  return (
+    <div className="handle-row">
+      <div className="handle-photo" onClick={() => fileRef.current?.click()} title="Click to set a photo">
+        {h.photo ? <img src={h.photo} alt="" /> : <span>＋</span>}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) pickPhoto(f);
+            e.target.value = '';
+          }}
+        />
+      </div>
+      <input className="dim-input" value={name} placeholder="Handle name" onChange={(e) => setName(e.target.value)} onBlur={() => onChange({ name: name.trim() })} />
+      <input className="dim-input" value={retail} inputMode="decimal" placeholder="Retail" onChange={(e) => setRetail(e.target.value)} onBlur={() => onChange({ retail: num(retail) })} />
+      <input className="dim-input" value={dealer} inputMode="decimal" placeholder="Dealer" onChange={(e) => setDealer(e.target.value)} onBlur={() => onChange({ dealer: num(dealer) })} />
+      <button className="btn-danger-ghost" title="Remove" onClick={onRemove}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
+/** Admin: cabinet handle / hardware inventory with photos and pricing. */
+export function HandlesModal() {
+  const open = useStore((s) => s.handlesOpen);
+  const setOpen = useStore((s) => s.setHandlesOpen);
+  const handles = useStore((s) => s.handles);
+  const setHandles = useStore((s) => s.setHandles);
+  if (!open) return null;
+  const update = (id: string, patch: Partial<HandleItem>) => setHandles(handles.map((h) => (h.id === id ? { ...h, ...patch } : h)));
+  const remove = (id: string) => setHandles(handles.filter((h) => h.id !== id));
+  const add = () => setHandles([...handles, { id: uid('handle'), name: '', retail: 0, dealer: 0, active: true }]);
+  return (
+    <Modal
+      title="Cabinet handles"
+      sub="The pulls/knobs you offer — set a photo, the retail price and your dealer cost. The report counts the handles across a design and prices the one selected for the job."
+      onClose={() => setOpen(false)}
+      wide
+    >
+      <div className="handle-list">
+        <div className="handle-row handle-row-head">
+          <span>Photo</span>
+          <span>Name</span>
+          <span>Retail $</span>
+          <span>Dealer $</span>
+          <span></span>
+        </div>
+        {handles.map((h) => (
+          <HandleRow key={h.id} h={h} onChange={(patch) => update(h.id, patch)} onRemove={() => remove(h.id)} />
+        ))}
+        {handles.length === 0 && <p className="card-sub">No handles yet. Click “Add handle”.</p>}
+      </div>
+      <div className="appliance-tools">
+        <button className="btn-ghost" onClick={add}>
+          + Add handle
+        </button>
+      </div>
+      <SaveGlobalFooter onSave={async () => void (await api.setHandles(useStore.getState().handles))} />
+    </Modal>
   );
 }
 

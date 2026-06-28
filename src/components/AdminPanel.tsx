@@ -32,6 +32,7 @@ export default function AdminPanel() {
   const setRetailPricingOpen = useStore((s) => s.setRetailPricingOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
+  const setHandlesOpen = useStore((s) => s.setHandlesOpen);
 
   async function refresh() {
     try {
@@ -116,6 +117,9 @@ export default function AdminPanel() {
           </button>
           <button className="btn-ghost" onClick={() => setAppliancesOpen(true)}>
             Appliances
+          </button>
+          <button className="btn-ghost" onClick={() => setHandlesOpen(true)}>
+            Handles
           </button>
           <button className="btn-ghost" onClick={() => setShowDesigns(true)}>
             Saved designs

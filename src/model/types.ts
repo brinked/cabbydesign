@@ -88,6 +88,22 @@ export interface ApplianceItem {
  *  receives; the dealer automatically gets half of it. */
 export type ApplianceBrands = Record<string, { discountPct: number }>;
 
+/** One cabinet handle/pull in the admin-managed hardware inventory. */
+export interface HandleItem {
+  /** Stable slug id. */
+  id: string;
+  /** Display name (e.g. "6″ Brushed-Nickel Bar Pull"). */
+  name: string;
+  /** Optional product photo as a data-URL (base64). */
+  photo?: string;
+  /** Retail price per handle (what the customer pays). */
+  retail: number;
+  /** Dealer cost per handle. */
+  dealer: number;
+  /** Hidden from selection when false. Defaults to true. */
+  active?: boolean;
+}
+
 /** A placed cabinet's appliance choice (persisted in the design JSON). */
 export interface ApplianceSelection {
   /** 'inventory' = pick from the catalog; 'own' = customer-supplied (free text). */
@@ -262,6 +278,8 @@ export interface Design {
   backsplashHeight: number;
   /** Measure horizontal positions from the left or right wall end. */
   dimFrom?: DimFrom;
+  /** Selected cabinet handle/pull for the job (id into the handle inventory). */
+  handleId?: string;
   walls: Wall[];
   items: PlacedItem[];
   roughIns: RoughIn[];

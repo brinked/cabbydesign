@@ -163,6 +163,8 @@ function SettingsMenu({
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
   const setMyAppliancesOpen = useStore((s) => s.setMyAppliancesOpen);
+  const setHandlesOpen = useStore((s) => s.setHandlesOpen);
+  const handles = useStore((s) => s.handles);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -198,6 +200,19 @@ function SettingsMenu({
             <select className="select" value={design.doorStyle} onChange={(e) => setDesignMeta({ doorStyle: e.target.value as Design['doorStyle'] })}>
               <option value="shaker">Shaker (groove)</option>
               <option value="flat">Euro / flat</option>
+            </select>
+          </label>
+          <label className="settings-menu-row">
+            <span>Handle</span>
+            <select className="select" value={design.handleId ?? ''} onChange={(e) => setDesignMeta({ handleId: e.target.value || undefined })}>
+              <option value="">Not selected</option>
+              {handles
+                .filter((h) => h.active !== false)
+                .map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name || 'Unnamed handle'}
+                  </option>
+                ))}
             </select>
           </label>
           <label className="settings-menu-row">
@@ -263,6 +278,9 @@ function SettingsMenu({
               </button>
               <button className="settings-menu-item" onClick={() => openModal(setAppliancesOpen)}>
                 Appliances…
+              </button>
+              <button className="settings-menu-item" onClick={() => openModal(setHandlesOpen)}>
+                Cabinet handles…
               </button>
             </>
           )}

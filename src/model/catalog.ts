@@ -15,7 +15,7 @@ export const FINISHES: FinishOption[] = [
   { id: 'nutmeg', name: 'Nutmeg', body: '#8a7261', panel: '#8a7261', inner: '#735e4f', counter: '#e3e0da' },
   { id: 'tuscan', name: 'Tuscan', body: '#aa9d8d', panel: '#aa9d8d', inner: '#928574', counter: '#e3e0da' },
   { id: 'basil', name: 'Basil', body: '#5d6a5c', panel: '#5d6a5c', inner: '#4c584b', counter: '#e3e0da' },
-  { id: 'indigo', name: 'Indigo', body: '#273b58', panel: '#273b58', inner: '#1e2f47', counter: '#e3e0da' },
+  { id: 'indigo', name: 'Indigo Blue', body: '#273b58', panel: '#273b58', inner: '#1e2f47', counter: '#e3e0da' },
   { id: 'charcoal', name: 'Charcoal Gray', body: '#4a4d53', panel: '#4a4d53', inner: '#3b3e43', counter: '#e3e0da' },
   { id: 'slate', name: 'Slate Gray', body: '#7a7173', panel: '#7a7173', inner: '#665e60', counter: '#e3e0da' },
   { id: 'dolphin', name: 'Dolphin Gray', body: '#c7c4c8', panel: '#c7c4c8', inner: '#b0adb2', counter: '#3b3f44' },
@@ -141,4 +141,56 @@ export function takesAppliedEnds(cat: CatalogItem): boolean {
   if (cat.category === 'appliance') return false;
   if (cat.applianceCat && APPLIANCE_OPENING_CATS.includes(cat.applianceCat)) return false;
   return true;
+}
+
+/** How many door/drawer pulls (handles) a cabinet front needs. Open shelving,
+ *  fillers, false fronts and appliance openings have none. Two-door fronts use
+ *  a single door under 24″ wide. Used for the report hardware count. */
+export function handleCount(cat: CatalogItem, w: number): number {
+  const doublable = w >= 24 ? 2 : 1; // wide cabinets get a pair of doors
+  switch (cat.front) {
+    case 'door1':
+      return 1;
+    case 'door2':
+    case 'kamado':
+    case 'kamadoinsert':
+    case 'grill':
+    case 'griddle':
+    case 'burner':
+      return doublable;
+    case 'grill4':
+      return 4;
+    case 'drawers3':
+      return 3;
+    case 'drawers4':
+      return 4;
+    case 'doordrawer':
+      return 2;
+    case 'door2drawer':
+      return doublable + 1;
+    case 'applianceoven':
+      return doublable + 1;
+    case 'sink':
+    case 'sink2':
+      return 2; // false front carries no pull
+    case 'sink1':
+    case 'sink1f':
+    case 'fridgep':
+    case 'propane':
+    case 'trash':
+    case 'corner':
+    case 'susan':
+    case 'blind':
+    case 'blindl':
+    case 'blindr':
+      return 1;
+    case 'fridgetall':
+    case 'fridgep2':
+    case 'trashdrawer':
+    case 'propanedrawer':
+      return 2;
+    default:
+      // open, endcap, filler, fridge, fridge2, icemaker, pizza, cartgrill, dishwasher
+      return 0;
+  }
 }

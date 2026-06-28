@@ -1,11 +1,11 @@
 import { Fragment, useState } from 'react';
 import type { OrderLine } from '../api/client';
 import SubmitOrderModal from './SubmitOrderModal';
-import { TOEKICK_H, catalogById } from '../model/catalog';
+import { TOEKICK_H, catalogById, handleCount } from '../model/catalog';
 import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
 import { countertopById } from '../model/countertops';
-import { PANEL_RATE_PER_SQFT, appliedEnds, itemNumbers, itemOnIsland, itemPrice, reservesFor, useStore } from '../state/store';
+import { PANEL_RATE_PER_SQFT, appliedEnds, counterAreaSqft, itemNumbers, itemOnIsland, itemPrice, reservesFor, useStore } from '../state/store';
 import { useSession } from '../state/session';
 import { MAX_PANEL_W } from '../three/cabinet3d';
 import { TopViewSvg } from './TopView';
@@ -20,6 +20,7 @@ export default function Report() {
   const setTab = useStore((s) => s.setTab);
   const appliances = useStore((s) => s.appliances);
   const applianceBrands = useStore((s) => s.applianceBrands);
+  const handles = useStore((s) => s.handles);
   const prefs = useSession((s) => s.prefs);
   const role = useSession((s) => s.user?.role);
   const taxRate = useSession((s) => s.taxRate);
@@ -28,6 +29,11 @@ export default function Report() {
   const numbers = itemNumbers(design);
 
   const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  // Spec summary values for the cover/report.
+  const doorStyleLabel = design.doorStyle === 'flat' ? 'Euro / Flat' : 'Shaker (groove)';
+  const counterSqft = counterAreaSqft(design);
+  const totalHandles = design.items.reduce((n, it) => n + handleCount(catalogById(it.catalogId), it.w), 0);
 
   // Pricing preferences. Default to showing marked-up pricing.
   const showPricing = prefs?.showPricing ?? true;
@@ -134,10 +140,16 @@ export default function Report() {
   const applianceUnit = (msrp: number, net: number) => (isMarkedUp ? msrp : net);
   const applianceSubtotal = applianceLines.reduce((s, l) => s + l.p.total, 0);
 
+  // Cabinet handles: the selected handle priced across the whole design.
+  // Retail (customer) in marked-up mode, dealer cost in cost mode.
+  const handle = handles.find((h) => h.id === design.handleId);
+  const handleUnit = handle ? (isMarkedUp ? handle.retail : handle.dealer) : 0;
+  const handleSubtotal = handle ? totalHandles * handleUnit : 0;
+
   // Marked-up subtotals (percent factor, plus a flat $ on each priced cabinet).
   const cabinetSubtotalMk = cabinetSubtotalDisplayed;
   const panelSubtotalMk = (endSubtotal + backSubtotal) * factor;
-  const subtotalMk = cabinetSubtotalMk + panelSubtotalMk + applianceSubtotal;
+  const subtotalMk = cabinetSubtotalMk + panelSubtotalMk + applianceSubtotal + handleSubtotal;
   const taxAmount = isMarkedUp && !taxExempt ? (subtotalMk * taxRate) / 100 : 0;
   const grandTotal = subtotalMk + taxAmount;
 
@@ -201,9 +213,10 @@ export default function Report() {
           {date}
         </p>
         <p className="cover-meta">
-          Finish: {fin.name}
-          {design.gasType ? ` · Gas: ${design.gasType === 'ng' ? 'Natural Gas' : 'Liquid Propane'}` : ''}
-          {` · Countertop: ${countertopById(design.counterId).name}, ${fmtIn(design.counterThickness)} thick`}
+          Finish: {fin.name} · Door style: {doorStyleLabel}
+          {` · Countertop: ${countertopById(design.counterId).name}, ${fmtIn(design.counterThickness)} thick (${counterSqft} sq ft)`}
+          {` · Gas: ${design.gasType === 'ng' ? 'Natural Gas' : design.gasType === 'lp' ? 'Liquid Propane' : 'Not specified'}`}
+          {` · Handles: ${totalHandles}`}
         </p>
         {snapshot && <img className="cover-render" src={snapshot} alt="3D rendering" />}
         <p className="cover-foot">Design Report — plan, elevations &amp; estimate</p>
@@ -385,6 +398,36 @@ export default function Report() {
                 </tr>
               </tfoot>
             )}
+          </table>
+        )}
+
+        {totalHandles > 0 && (
+          <table className="schedule" style={{ marginTop: 22 }}>
+            <thead>
+              <tr>
+                <th>Hardware</th>
+                <th className="num">Qty</th>
+                {showPricing && <th className="num">Unit</th>}
+                {showPricing && <th className="num">Price</th>}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  {handle ? (
+                    <span className="handle-cell">
+                      {handle.photo && <img className="handle-thumb" src={handle.photo} alt="" />}
+                      {handle.name || 'Cabinet handle'}
+                    </span>
+                  ) : (
+                    'Cabinet handles (no handle selected)'
+                  )}
+                </td>
+                <td className="num">{totalHandles}</td>
+                {showPricing && <td className="num">{handle ? money(handleUnit) : '—'}</td>}
+                {showPricing && <td className="num">{handle ? money(handleSubtotal) : '—'}</td>}
+              </tr>
+            </tbody>
           </table>
         )}
 

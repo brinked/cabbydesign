@@ -15,6 +15,7 @@ const TAX_RATE_KEY = 'taxRate';
 const APPLIANCES_KEY = 'appliances';
 const APPLIANCE_BRANDS_KEY = 'applianceBrands';
 const RESTRICTED_BRANDS_KEY = 'restrictedBrands';
+const HANDLES_KEY = 'handles';
 const DEFAULT_TAX_RATE = 6.5; // Florida
 
 const getSetting = db.prepare('SELECT value FROM app_settings WHERE key = ?');
@@ -223,6 +224,31 @@ settingsRouter.put('/appliance-brands', requireAdmin, (req, res) => {
   }
   upsertSetting.run(APPLIANCE_BRANDS_KEY, JSON.stringify(parsed.data));
   res.json({ brands: parsed.data });
+});
+
+// Cabinet handle / hardware inventory (admin-managed, visible to everyone).
+const handleSchema = z.object({
+  id: z.string().min(1).max(120),
+  name: z.string().max(200).default(''),
+  photo: z.string().max(3_000_000).optional(),
+  retail: z.number().min(0).max(1_000_000),
+  dealer: z.number().min(0).max(1_000_000),
+  active: z.boolean().optional(),
+});
+const handlesSchema = z.array(handleSchema).max(2000);
+
+settingsRouter.get('/handles', (_req, res) => {
+  res.json({ handles: readArray(HANDLES_KEY) });
+});
+
+settingsRouter.put('/handles', requireAdmin, (req, res) => {
+  const parsed = handlesSchema.safeParse(req.body?.handles ?? req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid handle inventory' });
+    return;
+  }
+  upsertSetting.run(HANDLES_KEY, JSON.stringify(parsed.data));
+  res.json({ handles: parsed.data });
 });
 
 // Per-brand visibility: brand -> allowed account (user) ids. Admin-only; the

@@ -1,7 +1,7 @@
 // Typed client for the CabDesign API. All requests are same-origin (the Vite
 // dev server proxies /api to the Express backend), so the session cookie rides
 // along automatically with credentials: 'include'.
-import type { ApplianceBrands, ApplianceItem, Design } from '../model/types';
+import type { ApplianceBrands, ApplianceItem, Design, HandleItem } from '../model/types';
 
 export type Role = 'admin' | 'dealer' | 'contractor';
 
@@ -186,6 +186,10 @@ export const api = {
   getRestrictedBrands: () => request<{ restrictedBrands: RestrictedBrands }>('GET', '/settings/restricted-brands'),
   setRestrictedBrands: (restrictedBrands: RestrictedBrands) =>
     request<{ restrictedBrands: RestrictedBrands }>('PUT', '/settings/restricted-brands', { restrictedBrands }),
+
+  // ---- admin: cabinet handle/hardware inventory ----
+  getHandles: () => request<{ handles: HandleItem[] }>('GET', '/settings/handles'),
+  setHandles: (handles: HandleItem[]) => request<{ handles: HandleItem[] }>('PUT', '/settings/handles', { handles }),
 
   // ---- dealer profile ----
   getPrefs: () => request<{ prefs: DealerPrefs }>('GET', '/profile/prefs'),

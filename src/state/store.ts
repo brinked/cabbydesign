@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ApplianceBrands, ApplianceItem, Design, DimOverride, LayoutKind, Opening, OpeningKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
-import { CATALOG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
+import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, LayoutKind, Opening, OpeningKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
+import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
 import { CORNER_EPS, CORNER_FILLER, cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
@@ -188,6 +188,10 @@ interface AppState {
   appliancesOpen: boolean;
   /** Dealer's own appliance-inventory modal. */
   myAppliancesOpen: boolean;
+  /** Admin handle/hardware inventory modal. */
+  handlesOpen: boolean;
+  /** Admin-managed handle (cabinet pull) inventory. */
+  handles: HandleItem[];
   /** catalogId -> formula override (base / dealer cost) */
   pricing: Record<string, string>;
   /** catalogId -> retail price formula (basis for contractor "% off retail") */
@@ -208,8 +212,10 @@ interface AppState {
   setMyAppliancesOpen: (open: boolean) => void;
   setAppliances: (appliances: ApplianceItem[]) => void;
   setApplianceBrands: (brands: ApplianceBrands) => void;
+  setHandlesOpen: (open: boolean) => void;
+  setHandles: (handles: HandleItem[]) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
-  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight' | 'dimFrom'>>) => void;
+  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight' | 'dimFrom' | 'handleId'>>) => void;
   applyPreset: (layout: LayoutKind) => void;
   addWall: () => void;
   addWallAt: (placement: { x: number; y: number; angle: number; length: number }) => void;
@@ -499,6 +505,38 @@ function alignFillers(design: Design): void {
   }
 }
 
+/** Total countertop area (square feet) across all walls — continuous runs plus
+ *  each corner/lazy-susan's own shaped top. Front overhang is included; an
+ *  estimate for the report. */
+export function counterAreaSqft(design: Design): number {
+  let sqin = 0;
+  for (const wall of design.walls) {
+    const floor = laneItems(design.items, wall.id, 'floor');
+    // corner & susan units carry their own L-shaped top (≈ their footprint)
+    for (const it of floor) {
+      const c = catalogById(it.catalogId);
+      if (c.counter && (c.front === 'corner' || c.front === 'susan')) sqin += it.w * (it.d + it.outset);
+    }
+    // straight continuous runs of counter-bearing cabinets
+    const tops = floor
+      .filter((it) => {
+        const c = catalogById(it.catalogId);
+        return c.counter && c.front !== 'corner' && c.front !== 'susan';
+      })
+      .sort((a, b) => a.x - b.x);
+    const runs: Array<{ x1: number; x2: number; d: number }> = [];
+    for (const it of tops) {
+      const last = runs[runs.length - 1];
+      if (last && it.x <= last.x2 + 0.2) {
+        last.x2 = Math.max(last.x2, it.x + footprintW(it));
+        last.d = Math.max(last.d, it.d + it.outset);
+      } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset });
+    }
+    for (const r of runs) sqin += (r.x2 - r.x1) * (r.d + COUNTER_OVERHANG);
+  }
+  return Math.round((sqin / 144) * 10) / 10;
+}
+
 /**
  * Auto-place a 3″ base filler on each wall at an inside corner where a plain
  * (non-corner) floor cabinet meets a plain floor cabinet on the adjoining wall
@@ -605,6 +643,8 @@ export const useStore = create<AppState>()(
       settingsOpen: false,
       appliancesOpen: false,
       myAppliancesOpen: false,
+      handlesOpen: false,
+      handles: [],
       pricing: {},
       retailPricing: {},
       dims: {},
@@ -619,6 +659,8 @@ export const useStore = create<AppState>()(
       setMyAppliancesOpen: (open) => set({ myAppliancesOpen: open }),
       setAppliances: (appliances) => set({ appliances }),
       setApplianceBrands: (applianceBrands) => set({ applianceBrands }),
+      setHandlesOpen: (open) => set({ handlesOpen: open }),
+      setHandles: (handles) => set({ handles }),
       setDim: (catalogId, patch) =>
         set((s) => {
           const cur = s.dims[catalogId] ?? {};
