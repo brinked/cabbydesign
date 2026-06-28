@@ -564,9 +564,10 @@ function autoCornerFillers(design: Design): void {
             x: Math.max(0, Math.min(x, W.length - CORNER_FILLER)),
             w: CORNER_FILLER,
             d: fillerCat.d,
-            h: fillerCat.h,
+            // match the cabinet it abuts so it isn't a different height
+            h: nW.it.h,
             outset: 0,
-            mount: 0,
+            mount: nW.it.mount,
             hinge: 'left',
             endL: false,
             endR: false,
