@@ -225,13 +225,6 @@ function SettingsMenu({
             </select>
           </label>
           <label className="settings-menu-row">
-            <span>Measure from</span>
-            <select className="select" value={design.dimFrom ?? 'left'} onChange={(e) => setDesignMeta({ dimFrom: e.target.value as Design['dimFrom'] })}>
-              <option value="left">Left end</option>
-              <option value="right">Right end</option>
-            </select>
-          </label>
-          <label className="settings-menu-row">
             <span>Gas type</span>
             <select className="select" value={design.gasType ?? ''} onChange={(e) => setDesignMeta({ gasType: (e.target.value || undefined) as Design['gasType'] })}>
               <option value="">Not set</option>
@@ -282,11 +275,20 @@ function SettingsMenu({
 /** Countertop thickness (inches). Commits a positive number on blur/Enter. */
 function CounterThicknessInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const [text, setText] = useState(String(value));
-  useEffect(() => setText(String(value)), [value]);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setText(String(value));
+  }, [value, editing]);
   const commit = () => {
+    setEditing(false);
     const v = parseFloat(text);
     if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100) / 100);
     else setText(String(value));
+  };
+  // apply live as typed (no Enter needed) once it's a valid positive number
+  const live = (t: string) => {
+    const v = parseFloat(t);
+    if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100) / 100);
   };
   return (
     <span className="counter-thick" title="Countertop thickness in inches (default 1.25″ = 3cm)">
@@ -295,7 +297,11 @@ function CounterThicknessInput({ value, onChange }: { value: number; onChange: (
         className="counter-input"
         inputMode="decimal"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onFocus={() => setEditing(true)}
+        onChange={(e) => {
+          setText(e.target.value);
+          live(e.target.value);
+        }}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -312,13 +318,20 @@ const DEFAULT_BACKSPLASH_H = 4;
 function BacksplashControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const on = value > 0;
   const [text, setText] = useState(String(value || DEFAULT_BACKSPLASH_H));
+  const [editing, setEditing] = useState(false);
   useEffect(() => {
-    if (value > 0) setText(String(value));
-  }, [value]);
+    if (!editing && value > 0) setText(String(value));
+  }, [value, editing]);
   const commit = () => {
+    setEditing(false);
     const v = parseFloat(text);
     if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100) / 100);
     else setText(String(value || DEFAULT_BACKSPLASH_H));
+  };
+  // apply live as typed (no Enter needed) once it's a valid positive number
+  const live = (t: string) => {
+    const v = parseFloat(t);
+    if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100) / 100);
   };
   return (
     <span className="counter-thick" title="Stone backsplash height up the wall (inches). Uses the countertop stone.">
@@ -333,7 +346,11 @@ function BacksplashControl({ value, onChange }: { value: number; onChange: (v: n
         inputMode="decimal"
         value={text}
         disabled={!on}
-        onChange={(e) => setText(e.target.value)}
+        onFocus={() => setEditing(true)}
+        onChange={(e) => {
+          setText(e.target.value);
+          live(e.target.value);
+        }}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();

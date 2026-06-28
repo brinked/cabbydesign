@@ -11,7 +11,7 @@ import {
   requiredCabinetWidth,
   selectedApplianceWidth,
 } from '../model/appliances';
-import type { ApplianceItem, ApplianceSelection, CatalogItem, DimFrom, FrontKind, PlacedItem } from '../model/types';
+import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, PlacedItem } from '../model/types';
 import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, useStore } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { useSession } from '../state/session';
@@ -134,9 +134,14 @@ function Stepper({
   onChange: (v: number) => void;
 }) {
   const [text, setText] = useState(String(value));
-  useEffect(() => setText(String(value)), [value]);
+  const [editing, setEditing] = useState(false);
+  // don't fight the user's typing — only sync from the prop when not editing
+  useEffect(() => {
+    if (!editing) setText(String(value));
+  }, [value, editing]);
 
   const commit = () => {
+    setEditing(false);
     const v = parseFloat(text);
     if (Number.isNaN(v)) {
       setText(String(value));
@@ -147,24 +152,50 @@ function Stepper({
     if (r !== value) onChange(r);
   };
 
+  // Apply as the user types (no Enter needed) once it's a complete in-range
+  // number, so partial entries like "1" of "12" don't fire early.
+  const live = (t: string) => {
+    const v = parseFloat(t);
+    if (!Number.isFinite(v) || v < min || v > max) return;
+    const r = Math.round(v * 4) / 4;
+    if (r !== value) onChange(r);
+  };
+
+  const bump = (dir: 1 | -1) => {
+    const r = Math.min(max, Math.max(min, Math.round((value + dir * step) * 4) / 4));
+    setText(String(r));
+    if (r !== value) onChange(r);
+  };
+
   return (
     <div className="stepper-row">
       <span className="stepper-label">{label}</span>
       <div className="stepper">
-        <button onClick={() => onChange(Math.max(min, Math.round((value - step) * 4) / 4))} disabled={value - step < min - 0.001}>
+        <button onClick={() => bump(-1)} disabled={value - step < min - 0.001}>
           −
         </button>
         <input
           className="stepper-input"
           value={text}
           inputMode="decimal"
-          onChange={(e) => setText(e.target.value)}
+          onFocus={() => setEditing(true)}
+          onChange={(e) => {
+            setText(e.target.value);
+            live(e.target.value);
+          }}
           onBlur={commit}
           onKeyDown={(e) => {
             if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              bump(1);
+            } else if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              bump(-1);
+            }
           }}
         />
-        <button onClick={() => onChange(Math.min(max, Math.round((value + step) * 4) / 4))} disabled={value + step > max + 0.001}>
+        <button onClick={() => bump(1)} disabled={value + step > max + 0.001}>
           +
         </button>
       </div>
@@ -377,8 +408,8 @@ export function EditItemModal() {
       {cat.note && <div className="edit-note">{cat.note}</div>}
       <div className="stepper-list">
         <Stepper label="Width" value={it.w} step={1} min={minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
-        <Stepper label="Depth" value={it.d} step={3} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
-        <Stepper label="Height" value={it.h} step={1.5} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
+        <Stepper label="Depth" value={it.d} step={1} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
+        <Stepper label="Height" value={it.h} step={1} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
         {cat.front === 'filler' ? (
           <div className="stepper-row">
             <span className="stepper-label">
@@ -499,31 +530,14 @@ export function EditItemModal() {
   );
 }
 
-/** Horizontal position rows whose editable field follows the "measure from" setting. */
-function PositionFields({ x, wallLen, dimFrom, onChange }: { x: number; wallLen: number; dimFrom: DimFrom; onChange: (x: number) => void }) {
+/** Horizontal position rows — both the from-left and from-right distances are
+ *  directly editable (editing one updates the other). */
+function PositionFields({ x, wallLen, onChange }: { x: number; wallLen: number; onChange: (x: number) => void }) {
   const fromRight = Math.round(Math.max(0, wallLen - x) * 100) / 100;
-  if (dimFrom === 'right') {
-    return (
-      <>
-        <Stepper label="Center from right" value={fromRight} step={1} min={0} max={wallLen} onChange={(v) => onChange(Math.max(0, Math.min(wallLen, wallLen - v)))} />
-        <div className="stepper-row">
-          <span className="stepper-label">
-            Center from left<span className="stepper-note">auto</span>
-          </span>
-          <span className="stepper">{fmtIn(x)}</span>
-        </div>
-      </>
-    );
-  }
   return (
     <>
       <Stepper label="Center from left" value={x} step={1} min={0} max={wallLen} onChange={onChange} />
-      <div className="stepper-row">
-        <span className="stepper-label">
-          Center from right<span className="stepper-note">auto</span>
-        </span>
-        <span className="stepper">{fmtIn(fromRight)}</span>
-      </div>
+      <Stepper label="Center from right" value={fromRight} step={1} min={0} max={wallLen} onChange={(v) => onChange(Math.max(0, Math.min(wallLen, wallLen - v)))} />
     </>
   );
 }
@@ -568,7 +582,7 @@ export function RoughInModal() {
       <div className="stepper-list">
         <Stepper label="Width" value={r.w} step={1} min={1} max={Math.max(1, wallLen)} onChange={(w) => set({ w })} />
         <Stepper label="Height" value={r.h} step={1} min={1} max={Math.max(1, wallH)} onChange={(h) => set({ h })} />
-        <PositionFields x={r.x} wallLen={wallLen} dimFrom={design.dimFrom ?? 'left'} onChange={(x) => set({ x })} />
+        <PositionFields x={r.x} wallLen={wallLen} onChange={(x) => set({ x })} />
         <Stepper label="Height from floor" value={r.y} step={1} min={0} max={wallH} onChange={(y) => set({ y })} />
       </div>
       <div className="modal-actions">
@@ -608,7 +622,7 @@ export function OpeningModal() {
       <div className="stepper-list">
         <Stepper label="Width" value={o.w} step={1} min={6} max={Math.max(6, wallLen)} onChange={(w) => set({ w })} />
         <Stepper label="Height" value={o.h} step={1} min={6} max={Math.max(6, wallH)} onChange={(h) => set({ h })} />
-        <PositionFields x={o.x} wallLen={wallLen} dimFrom={design.dimFrom ?? 'left'} onChange={(x) => set({ x })} />
+        <PositionFields x={o.x} wallLen={wallLen} onChange={(x) => set({ x })} />
         <Stepper label="Sill height (from floor)" value={o.y} step={1} min={0} max={Math.max(0, wallH - o.h)} onChange={(y) => set({ y })} />
       </div>
       <div className="modal-actions">

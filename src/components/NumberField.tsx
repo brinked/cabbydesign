@@ -50,6 +50,16 @@ export function NumberField({
     if (r !== value) onCommit(r);
   };
 
+  // Apply as the user types (no Enter needed) once the value is a complete,
+  // in-range number — so partial entries like "1" of "12" don't fire early.
+  const live = (t: string) => {
+    const v = parseFloat(t);
+    if (!Number.isFinite(v) || v < min || v > max) return;
+    let r = round ? Math.round(v / round) * round : v;
+    r = Math.round(r * 100) / 100;
+    if (r !== value) onCommit(r);
+  };
+
   return (
     <input
       type="number"
@@ -61,7 +71,10 @@ export function NumberField({
       step={step}
       value={text}
       onFocus={() => setEditing(true)}
-      onChange={(e) => setText(e.target.value)}
+      onChange={(e) => {
+        setText(e.target.value);
+        live(e.target.value);
+      }}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();

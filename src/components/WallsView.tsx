@@ -543,7 +543,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
         <RoughInAdd wallId={wall.id} />
         <OpeningAdd wallId={wall.id} />
         <button className="btn-dark" onClick={() => openAdd(wall.id)}>
-          + Add
+          + Add Cabinet
         </button>
       </div>
       <div className="wall-card-body" style={zoom > 1 ? { overflowX: 'auto' } : undefined}>
