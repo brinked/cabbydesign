@@ -335,10 +335,23 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
           if (legAtipLeft ? it.waterfallL : it.waterfallR) sideSlab(legAtipLeft ? it.x - cT / 2 : it.x + fpw + cT / 2, legD + O);
           if (legAtipLeft ? it.waterfallR : it.waterfallL) frontSlab(it.x + (geomSide === -1 ? fpw - legD / 2 : legD / 2), legD);
         } else if (cat.front === 'corner') {
-          const partial = it.d - cornerChamfer(it.d) + O; // chamfered side stops short
-          const chamferOnRight = it.hinge !== 'right';
-          if (it.waterfallL) sideSlab(it.x - cT / 2, chamferOnRight ? it.d + O : partial);
-          if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, chamferOnRight ? partial : it.d + O);
+          // Match the applied-end logic: the two exposed faces are the short
+          // side beside the door and the straight front return. The full deep
+          // side opposite the chamfer is the back (against the wall) — no
+          // waterfall there. Orientation follows placement (geomSide), not hinge.
+          const c = cornerChamfer(it.d);
+          const partial = it.d - c + O; // the chamfered (short) exposed side
+          const fwid = it.w - c; // straight front-return width
+          const chamferOnRight = geomSide === 1;
+          if (chamferOnRight) {
+            // right side short+exposed; front return on the left-front
+            if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, partial);
+            if (it.waterfallL) frontSlab(it.x + fwid / 2, fwid);
+          } else {
+            // left side short+exposed; front return on the right-front
+            if (it.waterfallL) sideSlab(it.x - cT / 2, partial);
+            if (it.waterfallR) frontSlab(it.x + fpw - fwid / 2, fwid);
+          }
         } else {
           if (it.waterfallL) sideSlab(it.x - cT / 2, it.d + O);
           if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, it.d + O);
