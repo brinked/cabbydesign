@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, LayoutKind, Opening, OpeningKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
+import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, LayoutKind, Measurement, Opening, OpeningKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
 import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
@@ -51,6 +51,7 @@ function defaultDesign(): Design {
     items: [],
     roughIns: [],
     openings: [],
+    measurements: [],
   };
 }
 
@@ -237,6 +238,9 @@ interface AppState {
   updateOpening: (id: string, patch: Partial<Omit<Opening, 'id' | 'wallId'>>) => void;
   removeOpening: (id: string) => void;
   openOpening: (id: string | null) => void;
+  addMeasurement: (m: Measurement) => void;
+  updateMeasurement: (id: string, patch: Partial<Omit<Measurement, 'id'>>) => void;
+  removeMeasurement: (id: string) => void;
   select: (id: string | null) => void;
   openEditor: (id: string | null) => void;
   openAdd: (wallId: string | null) => void;
@@ -922,6 +926,12 @@ export const useStore = create<AppState>()(
           editingOpeningId: s.editingOpeningId === id ? null : s.editingOpeningId,
         })),
       openOpening: (id) => set({ editingOpeningId: id }),
+
+      addMeasurement: (m) => set((s) => ({ design: { ...s.design, measurements: [...(s.design.measurements ?? []), m] } })),
+      updateMeasurement: (id, patch) =>
+        set((s) => ({ design: { ...s.design, measurements: (s.design.measurements ?? []).map((m) => (m.id === id ? { ...m, ...patch } : m)) } })),
+      removeMeasurement: (id) =>
+        set((s) => ({ design: { ...s.design, measurements: (s.design.measurements ?? []).filter((m) => m.id !== id) } })),
 
       select: (id) => set({ selectedId: id }),
       openEditor: (id) => set({ editingId: id, selectedId: id }),

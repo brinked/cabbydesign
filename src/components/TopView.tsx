@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { COUNTER_OVERHANG, catalogById } from '../model/catalog';
 import { WALL_T, cornerNeedsFlip, frameForWall, isCornerFront, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints } from '../model/geometry';
-import type { PlacedItem, Wall } from '../model/types';
-import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, useStore } from '../state/store';
+import type { MeasureEnd, Measurement, PlacedItem, Wall } from '../model/types';
+import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, uid, useStore } from '../state/store';
 import { NumberField } from './NumberField';
 import { useFinish } from './WallsView';
 import { CabinetTop, DimH, fmtIn, susanCounterPts } from './svg';
@@ -71,7 +71,9 @@ function svgPoint(svg: SVGSVGElement, clientX: number, clientY: number): { x: nu
 
 type Draft = { x1: number; y1: number; x2: number; y2: number; len: number; angle: number };
 
-export function TopViewSvg({ interactive = false, tool = 'select' as 'select' | 'draw', onToolDone }: { interactive?: boolean; tool?: 'select' | 'draw'; onToolDone?: () => void }) {
+type Tool = 'select' | 'draw' | 'measure';
+
+export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measureTarget, onToolDone }: { interactive?: boolean; tool?: Tool; measureTarget?: number; onToolDone?: () => void }) {
   const design = useStore((s) => s.design);
   const openEditor = useStore((s) => s.openEditor);
   const openRoughIn = useStore((s) => s.openRoughIn);
@@ -81,7 +83,10 @@ export function TopViewSvg({ interactive = false, tool = 'select' as 'select' | 
   const select = useStore((s) => s.select);
   const updateWall = useStore((s) => s.updateWall);
   const addWallAt = useStore((s) => s.addWallAt);
+  const addMeasurement = useStore((s) => s.addMeasurement);
+  const removeMeasurement = useStore((s) => s.removeMeasurement);
   const fin = useFinish(design.finishId);
+  const measurements = design.measurements ?? [];
 
   const frames = design.walls.map(frameForWall);
   const bounds = planBounds(frames, tool === 'draw' ? 80 : 40);
@@ -210,6 +215,87 @@ export function TopViewSvg({ interactive = false, tool = 'select' as 'select' | 
     setDraft(null);
   }
 
+  // ----- measuring tape -----
+  const [measureDraft, setMeasureDraft] = useState<{ a: MeasureEnd; b: MeasureEnd } | null>(null);
+
+  // Resolve an endpoint to live plan coords (anchored points follow their wall).
+  const resolveEnd = (e: MeasureEnd): { x: number; y: number } => {
+    if (e.wallId && e.t != null) {
+      const w = design.walls.find((wl) => wl.id === e.wallId);
+      if (w) {
+        const { p0, p1 } = wallEndpoints(w);
+        return { x: p0.x + (p1.x - p0.x) * e.t, y: p0.y + (p1.y - p0.y) * e.t };
+      }
+    }
+    return { x: e.x, y: e.y };
+  };
+
+  // Snap a cursor point to the nearest wall line (anchored) or cabinet corner.
+  const snapMeasure = (p: { x: number; y: number }): MeasureEnd => {
+    let best: MeasureEnd = { x: p.x, y: p.y };
+    let bestD = Math.max(2, vb.w * 0.022);
+    for (const w of design.walls) {
+      const { p0, p1 } = wallEndpoints(w);
+      const vx = p1.x - p0.x;
+      const vy = p1.y - p0.y;
+      const len2 = vx * vx + vy * vy || 1;
+      let t = ((p.x - p0.x) * vx + (p.y - p0.y) * vy) / len2;
+      t = Math.max(0, Math.min(1, t));
+      const fx = p0.x + vx * t;
+      const fy = p0.y + vy * t;
+      const d = Math.hypot(p.x - fx, p.y - fy);
+      if (d < bestD) {
+        bestD = d;
+        best = { x: fx, y: fy, wallId: w.id, t };
+      }
+    }
+    for (const it of design.items) {
+      const wall = design.walls.find((w) => w.id === it.wallId);
+      if (!wall) continue;
+      const f = frameForWall(wall);
+      const fpw = footprintW(it);
+      const bx = f.ox + f.dx * it.x + f.nx * it.outset;
+      const by = f.oy + f.dy * it.x + f.ny * it.outset;
+      const corners = [
+        { x: bx, y: by },
+        { x: bx + f.dx * fpw, y: by + f.dy * fpw },
+        { x: bx + f.nx * it.d, y: by + f.ny * it.d },
+        { x: bx + f.dx * fpw + f.nx * it.d, y: by + f.dy * fpw + f.ny * it.d },
+      ];
+      for (const c of corners) {
+        const d = Math.hypot(p.x - c.x, p.y - c.y);
+        if (d < bestD) {
+          bestD = d;
+          best = { x: c.x, y: c.y };
+        }
+      }
+    }
+    return best;
+  };
+
+  function measureDown(e: React.PointerEvent<SVGSVGElement>) {
+    if (tool !== 'measure') return;
+    const a = snapMeasure(svgPoint(e.currentTarget, e.clientX, e.clientY));
+    setMeasureDraft({ a, b: a });
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function measureMove(e: React.PointerEvent<SVGSVGElement>) {
+    if (tool !== 'measure' || !measureDraft) return;
+    const b = snapMeasure(svgPoint(e.currentTarget, e.clientX, e.clientY));
+    setMeasureDraft({ a: measureDraft.a, b });
+  }
+
+  function measureUp() {
+    if (tool !== 'measure' || !measureDraft) return;
+    const A = resolveEnd(measureDraft.a);
+    const B = resolveEnd(measureDraft.b);
+    if (Math.hypot(B.x - A.x, B.y - A.y) >= 2) {
+      addMeasurement({ id: uid('m'), a: measureDraft.a, b: measureDraft.b, target: measureTarget && measureTarget > 0 ? measureTarget : undefined });
+    }
+    setMeasureDraft(null);
+  }
+
   // ----- wall moving -----
   function wallDown(e: React.PointerEvent, wallId: string) {
     if (!interactive || tool !== 'select') return;
@@ -332,10 +418,10 @@ export function TopViewSvg({ interactive = false, tool = 'select' as 'select' | 
     <svg
       ref={setSvgEl}
       viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-      style={{ width: '100%', maxHeight: '72vh', display: 'block', fontFamily: 'inherit', cursor: tool === 'draw' ? 'crosshair' : 'default', touchAction: 'none' }}
-      onPointerDown={tool === 'draw' ? drawDown : bgPanDown}
-      onPointerMove={tool === 'draw' ? drawMove : bgPanMove}
-      onPointerUp={tool === 'draw' ? drawUp : bgPanUp}
+      style={{ width: '100%', maxHeight: '72vh', display: 'block', fontFamily: 'inherit', cursor: tool === 'draw' || tool === 'measure' ? 'crosshair' : 'default', touchAction: 'none' }}
+      onPointerDown={tool === 'draw' ? drawDown : tool === 'measure' ? measureDown : bgPanDown}
+      onPointerMove={tool === 'draw' ? drawMove : tool === 'measure' ? measureMove : bgPanMove}
+      onPointerUp={tool === 'draw' ? drawUp : tool === 'measure' ? measureUp : bgPanUp}
     >
       {frames.map((f) => {
         const wallItems = design.items.filter((it) => it.wallId === f.wall.id);
@@ -509,6 +595,56 @@ export function TopViewSvg({ interactive = false, tool = 'select' as 'select' | 
           )}
         </g>
       )}
+
+      {/* measurements (persistent tape) */}
+      {(() => {
+        const sw = Math.max(0.3, vb.w * 0.003);
+        const fs = Math.max(3, vb.w * 0.02);
+        const tick = fs * 0.7;
+        const out: React.ReactElement[] = [];
+        const line = (A: { x: number; y: number }, B: { x: number; y: number }, target: number | undefined, key: string, isDraft: boolean) => {
+          const dist = Math.hypot(B.x - A.x, B.y - A.y);
+          const mx = (A.x + B.x) / 2;
+          const my = (A.y + B.y) / 2;
+          const nx = -(B.y - A.y) / (dist || 1);
+          const ny = (B.x - A.x) / (dist || 1);
+          const ok = target ? Math.abs(dist - target) <= 0.5 : false;
+          const color = isDraft ? '#5b5bd6' : target ? (ok ? '#1f9d55' : '#d23b3b') : '#5b5bd6';
+          const label = target ? `${fmtIn(dist)} / ${fmtIn(target)} target` : fmtIn(dist);
+          return (
+            <g key={key}>
+              <line x1={A.x} y1={A.y} x2={B.x} y2={B.y} stroke={color} strokeWidth={sw} strokeDasharray={isDraft ? `${sw * 3} ${sw * 2}` : undefined} />
+              <line x1={A.x - nx * tick} y1={A.y - ny * tick} x2={A.x + nx * tick} y2={A.y + ny * tick} stroke={color} strokeWidth={sw} />
+              <line x1={B.x - nx * tick} y1={B.y - ny * tick} x2={B.x + nx * tick} y2={B.y + ny * tick} stroke={color} strokeWidth={sw} />
+              <rect x={mx - fs * label.length * 0.31} y={my - fs * 0.95} width={fs * label.length * 0.62} height={fs * 1.4} rx={fs * 0.25} fill="#fff" opacity={0.92} />
+              <text x={mx} y={my + fs * 0.36} textAnchor="middle" fontSize={fs} fontWeight={700} fill={color}>
+                {label}
+              </text>
+            </g>
+          );
+        };
+        for (const m of measurements) {
+          const A = resolveEnd(m.a);
+          const B = resolveEnd(m.b);
+          out.push(line(A, B, m.target, m.id, false));
+          if (interactive && tool === 'select') {
+            const mx = (A.x + B.x) / 2;
+            const my = (A.y + B.y) / 2;
+            out.push(
+              <g key={`${m.id}-del`} style={{ cursor: 'pointer' }} onPointerDown={(e) => { e.stopPropagation(); removeMeasurement(m.id); }}>
+                <circle cx={mx + fs * 1.7} cy={my - fs * 1.2} r={fs * 0.72} fill="#d23b3b" />
+                <text x={mx + fs * 1.7} y={my - fs * 1.2 + fs * 0.34} textAnchor="middle" fontSize={fs * 0.95} fill="#fff" fontWeight={700}>
+                  ×
+                </text>
+              </g>
+            );
+          }
+        }
+        if (measureDraft) {
+          out.push(line(resolveEnd(measureDraft.a), resolveEnd(measureDraft.b), measureTarget && measureTarget > 0 ? measureTarget : undefined, 'draft-measure', true));
+        }
+        return <g className="measure-layer">{out}</g>;
+      })()}
     </svg>
     {interactive && (
       <div className="zoom-ctl">
@@ -528,7 +664,9 @@ export function TopViewSvg({ interactive = false, tool = 'select' as 'select' | 
 }
 
 export default function TopView() {
-  const [tool, setTool] = useState<'select' | 'draw'>('select');
+  const [tool, setTool] = useState<'select' | 'draw' | 'measure'>('select');
+  const [measureTargetText, setMeasureTargetText] = useState('');
+  const measureTarget = parseFloat(measureTargetText);
   const applyPreset = useStore((s) => s.applyPreset);
   const wallCount = useStore((s) => s.design.walls.length);
   const selectedId = useStore((s) => s.selectedId);
@@ -551,6 +689,23 @@ export default function TopView() {
             <button className={tool === 'draw' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('draw')}>
               ✏ Draw wall
             </button>
+            <button className={tool === 'measure' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('measure')} title="Drag between two points (snaps to walls & cabinets) to drop a measurement">
+              📏 Measure
+            </button>
+            {tool === 'measure' && (
+              <label className="tool-label" title="Optional target length. A measurement turns green when it matches this.">
+                Target:
+                <input
+                  className="counter-input"
+                  inputMode="decimal"
+                  style={{ width: 56, marginLeft: 6 }}
+                  value={measureTargetText}
+                  placeholder="any"
+                  onChange={(e) => setMeasureTargetText(e.target.value)}
+                />
+                ″
+              </label>
+            )}
           </div>
           <div className="tool-group">
             <span className="tool-label">Auto-arrange:</span>
@@ -577,7 +732,7 @@ export default function TopView() {
             />
             <label className="wall-dim-field">
               Length
-              <NumberField value={selectedWall.length} min={12} max={600} onCommit={(length) => updateWall(selectedWall.id, { length })} />
+              <NumberField value={selectedWall.length} min={4} max={600} onCommit={(length) => updateWall(selectedWall.id, { length })} />
             </label>
             <label className="wall-dim-field">
               Height
@@ -612,11 +767,13 @@ export default function TopView() {
             )}
           </div>
         )}
-        <TopViewSvg interactive tool={tool} onToolDone={() => setTool('select')} />
+        <TopViewSvg interactive tool={tool} measureTarget={Number.isFinite(measureTarget) ? measureTarget : undefined} onToolDone={() => setTool('select')} />
         <p className="plan-hint">
           {tool === 'draw'
             ? 'Click and drag to draw a wall — angles snap to 45°, ends snap to existing walls. Walls shorter than 12″ are discarded. Scroll to zoom.'
-            : 'Click a wall to select it, then “+ Add cabinet”. Drag cabinets along their wall, drag a wall to move the whole run, click a cabinet to edit. Scroll to zoom, drag empty space to pan.'}
+            : tool === 'measure'
+              ? 'Drag between two points to drop a measurement — ends snap to walls & cabinets and stay put. Set a Target to line up to (it turns green when matched), then switch to Select and drag a wall to hit it. Click a measurement’s × to remove it.'
+              : 'Click a wall to select it, then “+ Add cabinet”. Drag cabinets along their wall, drag a wall to move the whole run, click a cabinet to edit. Scroll to zoom, drag empty space to pan.'}
         </p>
       </div>
     </div>

@@ -261,6 +261,25 @@ export type GasType = 'ng' | 'lp';
 /** Which wall end horizontal positions are measured from in the editors. */
 export type DimFrom = 'left' | 'right';
 
+/** One end of a measurement. If wallId/t are set the point is anchored to that
+ *  wall (parametric position along it) and follows when the wall is moved;
+ *  otherwise it's a free point at x/y. */
+export interface MeasureEnd {
+  x: number;
+  y: number;
+  wallId?: string;
+  t?: number;
+}
+
+/** A persistent tape-measure annotation in the plan (top) view. */
+export interface Measurement {
+  id: string;
+  a: MeasureEnd;
+  b: MeasureEnd;
+  /** Optional manual target length (inches) to line up against. */
+  target?: number;
+}
+
 export interface Design {
   name: string;
   client: string;
@@ -284,6 +303,8 @@ export interface Design {
   items: PlacedItem[];
   roughIns: RoughIn[];
   openings: Opening[];
+  /** Persistent tape-measure annotations in the plan view. */
+  measurements?: Measurement[];
 }
 
 export interface PricedLine {
