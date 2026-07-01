@@ -6,7 +6,7 @@
 # that admin exists with that password so you can sign in. Remove them later.
 services:
   - type: web
-    name: cabdesign
+    name: cabbydesign
     runtime: node
     # A persistent disk requires a paid instance type (Starter or higher).
     plan: starter
@@ -23,14 +23,14 @@ services:
       - key: JWT_SECRET
         generateValue: true # Render generates and stores a strong secret once
       - key: DB_PATH
-        value: /var/data/cabdesign.db
+        value: /var/data/cabbydesign.db
       - key: ADMIN_EMAIL
         sync: false # set in dashboard (e.g. extcabinets@gmail.com)
       - key: ADMIN_PASSWORD
         sync: false # set in dashboard (min 8 chars) for first sign-in
       # Public URL of the deployed app — used in password-reset email links.
       - key: APP_URL
-        sync: false # e.g. https://cabdesign.onrender.com (or your custom domain)
+        sync: false # e.g. https://cabbydesign.onrender.com (or your custom domain)
       # Outbound email (Google Workspace SMTP). Order notifications + password
       # resets. SMTP_USER = info@extcabinets.com, SMTP_PASS = an App Password
       # (Google account → Security → 2-Step Verification → App passwords).
@@ -43,6 +43,6 @@ services:
       #   EMAIL_FROM ('EXT Cabinets <info@extcabinets.com>'),
       #   EMAIL_TO   (extcabinets@gmail.com — where orders are sent)
     disk:
-      name: cabdesign-data
+      name: cabbydesign-data
       mountPath: /var/data
       sizeGB: 1
