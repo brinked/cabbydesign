@@ -461,6 +461,16 @@ export function sinkBasin(w: number, d: number): { bw: number; bd: number; zc: n
   return { bw, bd, zc: d * 0.52, bowlH: 6.5 };
 }
 
+/** Counter cut-out (cabinet-local inches) for a drop-in grill/griddle: width,
+ *  depth, center-from-wall — so the appliance drops through the countertop and
+ *  the counter frames it. Returns null for non-grill fronts. */
+export function grillCutout(cat: CatalogItem, w: number, d: number): { bw: number; bd: number; zc: number } | null {
+  if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle') return null;
+  const bw = applianceOpeningW(cat.front, w) + 1; // small gap around the unit
+  const bd = Math.max(8, d - 5); // cooking area, leaving a front lip of counter
+  return { bw, bd, zc: d * 0.5 };
+}
+
 /** Vertical extent of gear drawn above the carcass (for sprite bounding boxes). */
 export function gearAbove(cat: CatalogItem): number {
   if (cat.topGearH) return cat.topGearH + (cat.counter ? COUNTER_T : 0);

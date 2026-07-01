@@ -5,7 +5,7 @@ import { selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import type { ApplianceItem, Design, FinishOption, PlacedItem, Wall } from '../model/types';
 import { backsplashSpans, footprintW, laneItems, reservesFor } from '../state/store';
-import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, isSinkFront, sinkBasin } from './cabinet3d';
+import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
 
 function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: number; h: number }> {
   // corner cabinets get their own shaped counter, so exclude them from runs
@@ -417,17 +417,20 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const slabMat = mats.counter.clone();
       slabMat.map = mats.counterTex.clone();
       const runCenter = (x1 + x2) / 2;
-      // sink basins in this run → cut holes so the basin shows through
+      // Sink basins and drop-in grills in this run → cut holes so the appliance
+      // shows through and the counter frames it.
       const holes = floorItems
         .filter((it) => {
-          if (!isSinkFront(catalogById(it.catalogId).front)) return false;
           const cx = it.x + footprintW(it) / 2;
-          return cx >= r.x1 - 0.1 && cx <= r.x2 + 0.1;
+          if (cx < r.x1 - 0.1 || cx > r.x2 + 0.1) return false;
+          const f = catalogById(it.catalogId).front;
+          return isSinkFront(f) || grillCutout(catalogById(it.catalogId), it.w, it.d) !== null;
         })
         .map((it) => {
-          const b = sinkBasin(it.w, it.d);
+          const cat = catalogById(it.catalogId);
           const cx = it.x + footprintW(it) / 2 - runCenter;
-          return { x1: cx - b.bw / 2, x2: cx + b.bw / 2, z1: b.zc - b.bd / 2, z2: b.zc + b.bd / 2 };
+          const cut = isSinkFront(cat.front) ? sinkBasin(it.w, it.d) : grillCutout(cat, it.w, it.d)!;
+          return { x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: cut.zc - cut.bd / 2, z2: cut.zc + cut.bd / 2 };
         });
       if (holes.length) {
         slabMat.map.repeat.set(1 / 48, 1 / 48);
