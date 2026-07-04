@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { FinishOption, OpeningKind, PlacedItem, RoughInKind, Wall } from '../model/types';
-import { BASE_H, COUNTER_OVERHANG, COUNTER_T, FINISHES, catalogById } from '../model/catalog';
+import { ALL_FINISHES, BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
+import { resolveItemFinish } from '../model/newage';
 import { countertopById } from '../model/countertops';
 import { isReserveExempt, type CornerReserve } from '../model/geometry';
 import { backsplashSpans, footprintW, laneItems, openingClash, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
@@ -333,6 +334,10 @@ export function WallElevationSvg({
         const cat = catalogById(it.catalogId);
         const y = floorY - it.mount - it.h;
         const sel = selectedId === it.id;
+        // per-cabinet finish (NewAge series/door options), resolved to a
+        // finish the unit is actually made in
+        const effFinId = resolveItemFinish(fin.id, it, cat);
+        const itFin = effFinId !== fin.id ? ALL_FINISHES.find((f) => f.id === effFinId) ?? fin : fin;
         return (
           <g
             key={it.id}
@@ -342,7 +347,7 @@ export function WallElevationSvg({
             onPointerMove={it.auto ? undefined : (e) => onPointerMove(e, it)}
             onPointerUp={it.auto ? undefined : (e) => onPointerUp(e, it)}
           >
-            <ElevationCabinet cat={cat} it={it} fin={fin} wallLength={wall.length} />
+            <ElevationCabinet cat={cat} it={it} fin={itFin} wallLength={wall.length} />
             {numbers && (
               <g>
                 <circle cx={footprintW(it) / 2} cy={it.h / 2} r={3.4} fill="#fff" stroke="#5b6472" strokeWidth={0.35} />
@@ -631,7 +636,7 @@ function OpeningAdd({ wallId }: { wallId: string }) {
 }
 
 export function useFinish(id: string): FinishOption {
-  return FINISHES.find((f) => f.id === id) ?? FINISHES[0];
+  return ALL_FINISHES.find((f) => f.id === id) ?? ALL_FINISHES[0];
 }
 
 export default function WallsView() {

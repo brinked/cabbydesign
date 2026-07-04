@@ -529,7 +529,7 @@ function DealerEditModal({
 
 /** Contractor pricing config inside the dealer edit modal (admin-controlled). */
 function ContractorPricing({ form, set }: { form: DealerInput; set: (patch: Partial<DealerInput>) => void }) {
-  const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch), []);
+  const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch && !c.line), []);
   return (
     <div className="card" style={{ marginTop: 12, padding: 12 }}>
       <h2 style={{ fontSize: 15 }}>Contractor pricing</h2>

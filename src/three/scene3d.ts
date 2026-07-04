@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
+import { ALL_FINISHES, BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
 import { CORNER_EPS, frameForWall, planBounds, wallEndpoints } from '../model/geometry';
 import { selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import type { ApplianceItem, Design, FinishOption, PlacedItem, Wall } from '../model/types';
+import { resolveItemFinish } from '../model/newage';
 import { backsplashSpans, footprintW, laneItems, reservesFor } from '../state/store';
 import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
 
@@ -232,6 +233,20 @@ function counterSlabHoles(
 export function buildDesignGroup(design: Design, fin: FinishOption, appliances: ApplianceItem[] = []): BuiltScene {
   const group = new THREE.Group();
   const mats = createMats(fin, countertopById(design.counterId));
+  // Per-cabinet finish overrides (NewAge series/door options) — one material
+  // set per distinct finish, created lazily and disposed with the scene.
+  const matsByFinish = new Map<string, ReturnType<typeof createMats>>();
+  const matsFor = (finishId: string | undefined): typeof mats => {
+    if (!finishId || finishId === fin.id) return mats;
+    const f = ALL_FINISHES.find((x) => x.id === finishId);
+    if (!f) return mats;
+    let m = matsByFinish.get(finishId);
+    if (!m) {
+      m = createMats(f, countertopById(design.counterId));
+      matsByFinish.set(finishId, m);
+    }
+    return m;
+  };
   const cT = design.counterThickness ?? COUNTER_T;
   const bsH = design.backsplashHeight ?? 0; // stone backsplash height up the wall (0 = none)
   const BS_THICK = 0.75; // backsplash slab thickness off the wall
@@ -310,7 +325,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const cab = buildCabinetLocal(
         cat,
         { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT },
-        mats
+        matsFor(resolveItemFinish(fin.id, it, cat))
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;
       cab.position.copy(origin).addScaledVector(dir, it.x + exL + it.w / 2).addScaledVector(nrm, it.outset);
@@ -475,6 +490,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   const radius = Math.max(b.w, b.h) / 2 + 30;
   const dispose = () => {
     disposeMats(mats);
+    for (const m of matsByFinish.values()) disposeMats(m);
     wallMat.dispose();
     frameMat.dispose();
     glassMat.dispose();

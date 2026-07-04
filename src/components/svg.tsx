@@ -99,6 +99,53 @@ function Shaker({ x, y, w, h, fin }: { x: number; y: number; w: number; h: numbe
   const inset = Math.min(2.5, w / 5, h / 5);
   const iw = Math.max(0.5, w - inset * 2);
   const ih = Math.max(0.5, h - inset * 2);
+  // NewAge louvered door: horizontal slats in the door finish over a dark backing
+  if (fin.naDoor === 'louvered' && h >= 8) {
+    const fr = 1.1;
+    const pitch = 2.1;
+    const n = Math.max(3, Math.floor((h - fr * 2) / pitch));
+    return (
+      <g filter="url(#f-door)">
+        <rect x={x} y={y} width={w} height={h} rx={0.35} fill={fin.panel} />
+        <rect x={x} y={y} width={w} height={h} rx={0.35} fill="url(#g-door)" />
+        {Array.from({ length: n }, (_, i) => {
+          const sy = y + fr + ((h - fr * 2) * (i + 1)) / (n + 0.0001);
+          return <line key={i} x1={x + fr} y1={sy} x2={x + w - fr} y2={sy} stroke={fin.inner} strokeWidth={0.5} opacity={0.85} />;
+        })}
+        <rect x={x} y={y} width={w} height={h} rx={0.35} fill="url(#g-sheen)" />
+        <rect x={x} y={y} width={w} height={h} rx={0.35} fill="none" stroke="rgba(0,0,0,0.25)" strokeWidth={0.22} />
+      </g>
+    );
+  }
+  // NewAge tempered-glass door: metal frame + tinted reflective pane
+  if (fin.naDoor === 'glass' && h >= 8) {
+    const fr = 1.6;
+    return (
+      <g filter="url(#f-door)">
+        <rect x={x} y={y} width={w} height={h} rx={0.35} fill={fin.body} />
+        <rect x={x} y={y} width={w} height={h} rx={0.35} fill="url(#g-door)" />
+        <rect x={x + fr} y={y + fr} width={Math.max(0.5, w - fr * 2)} height={Math.max(0.5, h - fr * 2)} fill={fin.panel} />
+        {/* diagonal glass glare */}
+        <path
+          d={`M ${x + fr} ${y + h - fr} L ${x + fr + (w - fr * 2) * 0.45} ${y + fr} L ${x + fr + (w - fr * 2) * 0.65} ${y + fr} L ${x + fr + (w - fr * 2) * 0.2} ${y + h - fr} Z`}
+          fill="#ffffff"
+          opacity={0.1}
+        />
+        <rect x={x + fr} y={y + fr} width={Math.max(0.5, w - fr * 2)} height={Math.max(0.5, h - fr * 2)} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth={0.2} />
+      </g>
+    );
+  }
+  // NewAge flat metal door (Classic series): plain slab, no shaker recess
+  if (fin.naDoor === 'flat') {
+    return (
+      <g filter="url(#f-door)">
+        <rect x={x} y={y} width={w} height={h} rx={0.35} fill={fin.panel} />
+        <rect x={x} y={y} width={w} height={h} rx={0.35} fill="url(#g-door)" />
+        <rect x={x} y={y} width={w} height={h} rx={0.35} fill="url(#g-sheen)" />
+        <line x1={x + 0.4} y1={y + 0.18} x2={x + w - 0.4} y2={y + 0.18} stroke="#ffffff" strokeWidth={0.22} opacity={0.5} />
+      </g>
+    );
+  }
   return (
     // the whole door sits proud of the cabinet and casts a soft shadow
     <g filter="url(#f-door)">
@@ -310,10 +357,14 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
   );
   const kickEl = kick > 0 ? <Toekick w={w} h={h} /> : null;
 
-  // Single doors: handle goes opposite the hinge.
+  // Single doors: handle goes opposite the hinge. NewAge handles follow the
+  // real products: Classic (flat metal) doors take horizontal pulls at the
+  // top corner; Louvered/Aluminum doors take a vertical edge bar.
+  const naBar = !!fin.line;
+  const naTopPull = naBar && fin.naDoor === 'flat';
   const doors = (n: number, y = 0, dh = fh) => {
     const dw = (w - gap * (n + 1)) / n;
-    const handleLen = Math.min(7, dh * 0.4);
+    const handleLen = naBar ? Math.min(14, dh * 0.5) : Math.min(7, dh * 0.4);
     return (
       <g>
         {Array.from({ length: n }, (_, i) => {
@@ -321,10 +372,13 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
           let hx: number;
           if (n === 1) hx = hinge === 'left' ? dx + dw - 1.8 : dx + 1.8;
           else hx = i < n / 2 ? dx + dw - 1.8 : dx + 1.8;
+          const topLen = Math.min(8, dw * 0.45);
           return (
             <g key={i}>
               <Shaker x={dx} y={y + gap} w={dw} h={dh - gap * 2} fin={fin} />
-              {dh > 14 ? (
+              {naTopPull && dh > 8 ? (
+                <BarHandle x={hx > dx + dw / 2 ? hx - topLen : hx} y={y + gap + 1.6} len={topLen} />
+              ) : dh > 14 ? (
                 <BarHandle x={hx} y={y + dh * 0.16} len={handleLen} vertical />
               ) : (
                 <Knob x={hx} y={y + dh / 2} />
@@ -364,7 +418,11 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
           const el = (
             <g key={i}>
               <Shaker x={gap} y={cy + gap} w={w - gap * 2} h={rh - gap * 2} fin={fin} />
-              <BarHandle x={w / 2 - Math.min(5, w / 4)} y={cy + rh / 2} len={Math.min(10, w / 2)} />
+              <BarHandle
+                x={w / 2 - (naBar ? Math.min(6, w * 0.25) : Math.min(5, w / 4))}
+                y={naBar ? cy + gap + 1.6 : cy + rh / 2}
+                len={naBar ? Math.min(12, w * 0.5) : Math.min(10, w / 2)}
+              />
             </g>
           );
           cy += rh;
@@ -385,7 +443,31 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
     case 'susan':
       front = doors(w >= 24 ? 2 : 1);
       break;
+    case 'flipup':
+      // gas-assist flip-up door: one full-width panel, pull at the bottom center
+      front = (
+        <g>
+          <Shaker x={gap} y={gap} w={w - gap * 2} h={fh - gap * 2} fin={fin} />
+          <BarHandle x={w / 2 - Math.min(5, w / 4)} y={fh - gap - 1.8} len={Math.min(10, w / 2)} />
+        </g>
+      );
+      break;
     case 'corner': {
+      // NewAge 90° corner: an open pentagon frame — posts + shelves, no door
+      if (naBar) {
+        const dw = (w - gap * 2) * 0.62;
+        const lx = (w - dw) / 2;
+        front = (
+          <g>
+            <rect x={lx} y={gap} width={dw} height={fh - gap * 2} fill={fin.inner} stroke="rgba(0,0,0,0.2)" strokeWidth={0.2} />
+            <rect x={lx} y={gap} width={dw} height={fh - gap * 2} fill="url(#g-shade)" opacity={0.6} />
+            <line x1={lx} y1={fh * 0.5} x2={lx + dw} y2={fh * 0.5} stroke={fin.body} strokeWidth={1.2} />
+            <rect x={lx} y={gap} width={1.4} height={fh - gap * 2} fill={fin.body} />
+            <rect x={lx + dw - 1.4} y={gap} width={1.4} height={fh - gap * 2} fill={fin.body} />
+          </g>
+        );
+        break;
+      }
       // angled corner-cabinet face: a centered door with body-colored returns
       const dw = (w - gap * 2) * 0.62;
       const lx = (w - dw) / 2;

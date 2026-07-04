@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { FINISHES } from '../model/catalog';
+import { finishesForLine } from '../model/catalog';
+import { LINE_LABELS } from '../model/newage';
 import { COUNTERTOPS, COUNTER_CATEGORY_LABELS, type CounterCategory } from '../model/countertops';
-import type { Design } from '../model/types';
+import type { Design, KitchenType, ProductLine } from '../model/types';
 import { useStore, type Tab } from '../state/store';
 import { useSession, type Screen } from '../state/session';
 
@@ -22,6 +23,7 @@ export default function Toolbar() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const user = useSession((s) => s.user);
+  const status = useSession((s) => s.status);
   const screen = useSession((s) => s.screen);
   const setScreen = useSession((s) => s.setScreen);
   const logout = useSession((s) => s.logout);
@@ -29,6 +31,8 @@ export default function Toolbar() {
   const setCurrentJob = useSession((s) => s.setCurrentJob);
   const currentJobName = useSession((s) => s.currentJobName);
   const isAdmin = user?.role === 'admin';
+  const isGuest = status === 'guest';
+  const [newOpen, setNewOpen] = useState(false);
 
   function exportDesign() {
     const blob = new Blob([JSON.stringify(design, null, 2)], { type: 'application/json' });
@@ -54,8 +58,8 @@ export default function Toolbar() {
 
   const navItems: Array<{ id: Screen; label: string; show: boolean }> = [
     { id: 'design', label: 'Designer', show: true },
-    { id: 'jobs', label: 'My Jobs', show: true },
-    { id: 'profile', label: 'Profile', show: true },
+    { id: 'jobs', label: 'My Jobs', show: !isGuest },
+    { id: 'profile', label: 'Profile', show: !isGuest },
     { id: 'admin', label: 'Admin', show: !!isAdmin },
   ];
 
@@ -100,27 +104,23 @@ export default function Toolbar() {
 
           <div className="toolbar-right">
             <SettingsMenu design={design} setDesignMeta={setDesignMeta} isAdmin={isAdmin} />
-            <button className="btn-primary" onClick={() => openSaveJob(true)} title="Save this design to your account">
-              Save job
-            </button>
-            <button className="btn-ghost" onClick={() => setScreen('jobs')} title="Open a saved job">
-              Open
-            </button>
+            {!isGuest && (
+              <>
+                <button className="btn-primary" onClick={() => openSaveJob(true)} title="Save this design to your account">
+                  Save job
+                </button>
+                <button className="btn-ghost" onClick={() => setScreen('jobs')} title="Open a saved job">
+                  Open
+                </button>
+              </>
+            )}
             <button className="btn-ghost" onClick={exportDesign} title="Download design file">
               Export
             </button>
             <button className="btn-ghost" onClick={() => fileRef.current?.click()} title="Import design file">
               Import
             </button>
-            <button
-              className="btn-ghost"
-              onClick={() => {
-                if (confirm('Start a new design? The current design stays in your browser until replaced.')) {
-                  newDesign();
-                  setCurrentJob(null, null);
-                }
-              }}
-            >
+            <button className="btn-ghost" onClick={() => setNewOpen(true)}>
               New
             </button>
             <input
@@ -140,12 +140,88 @@ export default function Toolbar() {
 
       <div className="toolbar-user">
         {screen === 'design' && currentJobName && <span className="job-chip">Job: {currentJobName}</span>}
-        <span className="user-name">{user?.name}</span>
+        <span className="user-name">{isGuest ? 'Guest' : user?.name}</span>
         <button className="btn-ghost" onClick={() => logout()}>
-          Log out
+          {isGuest ? 'Sign in' : 'Log out'}
         </button>
       </div>
+
+      {newOpen && (
+        <NewDesignModal
+          onClose={() => setNewOpen(false)}
+          onCreate={(kitchenType, line) => {
+            newDesign(kitchenType, line);
+            setCurrentJob(null, null);
+            setNewOpen(false);
+          }}
+        />
+      )}
     </header>
+  );
+}
+
+/** New-design chooser: indoor vs outdoor, then the cabinet product line. */
+function NewDesignModal({ onClose, onCreate }: { onClose: () => void; onCreate: (k: KitchenType, l: ProductLine) => void }) {
+  const [kitchen, setKitchen] = useState<KitchenType>('outdoor');
+  const [line, setLine] = useState<ProductLine>('ext');
+  const lines: Array<{ id: ProductLine; label: string; sub: string; outdoorOnly: boolean }> = [
+    { id: 'ext', label: LINE_LABELS.ext, sub: 'Made-to-size HDPE cabinets — any width, 12 colors.', outdoorOnly: false },
+    {
+      id: 'newage',
+      label: LINE_LABELS.newage,
+      sub: 'Classic Series modular units at set factory sizes — pick the series (304 stainless Classic/Louvered or aluminum) and door finish per cabinet.',
+      outdoorOnly: true,
+    },
+  ];
+  const effLine = kitchen === 'indoor' ? 'ext' : line;
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <h2>New design</h2>
+            <p className="modal-sub">Your current design stays in this browser until replaced.</p>
+          </div>
+          <button className="btn-ghost" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <div className="stepper-list">
+          <div className="stepper-row">
+            <span className="stepper-label">Kitchen type</span>
+            <div className="seg">
+              <button className={kitchen === 'outdoor' ? 'seg-btn active' : 'seg-btn'} onClick={() => setKitchen('outdoor')}>
+                Outdoor
+              </button>
+              <button className={kitchen === 'indoor' ? 'seg-btn active' : 'seg-btn'} onClick={() => setKitchen('indoor')}>
+                Indoor
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="settings-menu-label" style={{ marginTop: 10 }}>
+          Cabinet line
+        </div>
+        <div className="line-cards">
+          {lines
+            .filter((l) => kitchen === 'outdoor' || !l.outdoorOnly)
+            .map((l) => (
+              <button key={l.id} className={`cat-card ${effLine === l.id ? 'cat-card-active' : ''}`} onClick={() => setLine(l.id)} style={effLine === l.id ? { outline: '2px solid var(--accent, #2b6cb0)' } : undefined}>
+                <span className="cat-name">{l.label}</span>
+                <span className="cat-note">{l.sub}</span>
+              </button>
+            ))}
+        </div>
+        <div className="modal-actions">
+          <button className="btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn-primary" onClick={() => onCreate(kitchen, effLine)}>
+            Start designing
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -164,6 +240,7 @@ function SettingsMenu({
   const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
   const setMyAppliancesOpen = useStore((s) => s.setMyAppliancesOpen);
   const setHandlesOpen = useStore((s) => s.setHandlesOpen);
+  const setLine = useStore((s) => s.setLine);
   const handles = useStore((s) => s.handles);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -187,6 +264,12 @@ function SettingsMenu({
     setOpen(false);
   };
 
+  const line = design.line ?? 'ext';
+  const isNewAge = line !== 'ext';
+  const lineFinishes = finishesForLine(line);
+  // NewAge finishes group by series (Classic / Louvered / Aluminum).
+  const finishGroups = [...new Set(lineFinishes.map((f) => f.group ?? ''))];
+
   return (
     <div className="settings-dd" ref={ref}>
       <button className={open ? 'btn-ghost active' : 'btn-ghost'} onClick={() => setOpen((o) => !o)} title="Design & settings">
@@ -196,39 +279,85 @@ function SettingsMenu({
         <div className="settings-menu">
           <div className="settings-menu-label">Design</div>
           <label className="settings-menu-row">
-            <span>Door style</span>
-            <select className="select" value={design.doorStyle} onChange={(e) => setDesignMeta({ doorStyle: e.target.value as Design['doorStyle'] })}>
-              <option value="shaker">Shaker (groove)</option>
-              <option value="flat">Euro / flat</option>
-            </select>
-          </label>
-          <label className="settings-menu-row">
-            <span>Handle</span>
-            <select className="select" value={design.handleId ?? ''} onChange={(e) => setDesignMeta({ handleId: e.target.value || undefined })}>
-              <option value="">Not selected</option>
-              {handles
-                .filter((h) => h.active !== false)
-                .map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name || 'Unnamed handle'}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="settings-menu-row">
-            <span>Finish</span>
-            <select className="select" value={design.finishId} onChange={(e) => setDesignMeta({ finishId: e.target.value })}>
-              {FINISHES.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
+            <span>Cabinet line</span>
+            <select
+              className="select"
+              value={line}
+              onChange={(e) => {
+                const next = e.target.value as ProductLine;
+                if (next === line) return;
+                const dropped = design.items.filter((it) => !it.auto).length;
+                if (
+                  dropped === 0 ||
+                  confirm(
+                    `Switch to ${LINE_LABELS[next]}? The ${dropped} placed cabinet(s) belong to the current line and will be removed — walls, windows and stub-outs stay.`
+                  )
+                ) {
+                  setLine(next);
+                }
+              }}
+            >
+              {(['ext', 'newage'] as ProductLine[]).map((l) => (
+                <option key={l} value={l}>
+                  {LINE_LABELS[l]}
                 </option>
               ))}
+            </select>
+          </label>
+          {!isNewAge && (
+            <label className="settings-menu-row">
+              <span>Door style</span>
+              <select className="select" value={design.doorStyle} onChange={(e) => setDesignMeta({ doorStyle: e.target.value as Design['doorStyle'] })}>
+                <option value="shaker">Shaker (groove)</option>
+                <option value="flat">Euro / flat</option>
+              </select>
+            </label>
+          )}
+          {!isNewAge && (
+            <label className="settings-menu-row">
+              <span>Handle</span>
+              <select className="select" value={design.handleId ?? ''} onChange={(e) => setDesignMeta({ handleId: e.target.value || undefined })}>
+                <option value="">Not selected</option>
+                {handles
+                  .filter((h) => h.active !== false)
+                  .map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name || 'Unnamed handle'}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
+          <label className="settings-menu-row" title={isNewAge ? 'Default series & door finish for new cabinets — each cabinet can override this in its own settings' : undefined}>
+            <span>{isNewAge ? 'Default finish' : 'Finish'}</span>
+            <select className="select" value={design.finishId} onChange={(e) => setDesignMeta({ finishId: e.target.value })}>
+              {finishGroups.map((g) =>
+                g ? (
+                  <optgroup key={g} label={g}>
+                    {lineFinishes
+                      .filter((f) => (f.group ?? '') === g)
+                      .map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                ) : (
+                  lineFinishes
+                    .filter((f) => !f.group)
+                    .map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))
+                )
+              )}
             </select>
           </label>
           <label className="settings-menu-row">
             <span>Countertop</span>
             <select className="select" value={design.counterId} onChange={(e) => setDesignMeta({ counterId: e.target.value })}>
-              {(['solid', 'granite', 'quartzite', 'concrete'] as CounterCategory[]).map((cat) => (
+              {(['solid', 'granite', 'quartzite', 'concrete', 'metal'] as CounterCategory[]).map((cat) => (
                 <optgroup key={cat} label={COUNTER_CATEGORY_LABELS[cat]}>
                   {COUNTERTOPS.filter((c) => c.category === cat).map((c) => (
                     <option key={c.id} value={c.id}>

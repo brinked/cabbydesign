@@ -1,4 +1,5 @@
-import type { ApplianceCat, CatalogItem, FinishOption } from './types';
+import type { ApplianceCat, CatalogItem, FinishOption, KitchenType, ProductLine } from './types';
+import { NEWAGE_CATALOG, NEWAGE_FINISHES } from './newage';
 
 export const BASE_H = 34.5;
 /** Default countertop slab thickness (inches) — 3cm. Per-job override lives on
@@ -23,6 +24,16 @@ export const FINISHES: FinishOption[] = [
   { id: 'seafoam', name: 'Seafoam', body: '#f2ecdb', panel: '#f2ecdb', inner: '#ded6bf', counter: '#3b3f44' },
   { id: 'white', name: 'White/White', body: '#f7f6f3', panel: '#f7f6f3', inner: '#e5e3de', counter: '#3b3f44' },
 ];
+
+/** Every finish across all product lines (EXT HDPE + NewAge lines). */
+export const ALL_FINISHES: FinishOption[] = [...FINISHES, ...NEWAGE_FINISHES];
+
+/** Finishes offered for a product line. */
+export function finishesForLine(line: ProductLine | undefined): FinishOption[] {
+  const l = line ?? 'ext';
+  if (l === 'ext') return FINISHES;
+  return NEWAGE_FINISHES.filter((f) => f.line === l);
+}
 
 // Box formulas: width × depth + a fixed amount. The fixed amount is $500 for a
 // plain box, plus $150 per top drawer and $200 per larger drawer baked in. So a
@@ -108,6 +119,9 @@ export const CATALOG: CatalogItem[] = [
   { id: 'app-dishwasher', name: 'Dishwasher', category: 'appliance', front: 'dishwasher', lane: 'floor', w: 24, d: 24, h: BASE_H, minW: 18, maxW: 24, stepW: 3, counter: false, formula: '0' },
   { id: 'app-kamado', name: 'Kamado on Cart', category: 'appliance', front: 'kamado', lane: 'floor', w: 32, d: 30, h: 48, minW: 28, maxW: 36, stepW: 2, counter: false, formula: '0' },
   { id: 'app-pizza', name: 'Pizza Oven Cart', category: 'appliance', front: 'pizza', lane: 'floor', w: 36, d: 30, h: 64, minW: 30, maxW: 42, stepW: 2, counter: false, formula: '0' },
+
+  // ---------- NewAge Products modular lines (fixed factory sizes) ----------
+  ...NEWAGE_CATALOG,
 ];
 
 export const CATEGORY_LABELS: Record<string, string> = {
@@ -118,6 +132,35 @@ export const CATEGORY_LABELS: Record<string, string> = {
   trim: 'Fillers & Trim',
   appliance: 'Appliances',
 };
+
+/** Category tab labels for the NewAge lines (their catalog is smaller). */
+export const NEWAGE_CATEGORY_LABELS: Record<string, string> = {
+  base: 'Cabinets',
+  outdoor: 'Grill, Corner & Specialty',
+  wall: 'Wall Cabinets',
+};
+
+/** Freestanding EXT appliance carts that only make sense outdoors. */
+const OUTDOOR_ONLY_APPLIANCES = new Set(['app-cartgrill', 'app-kamado', 'app-pizza']);
+
+/**
+ * The catalog offered for a design: its product line's items, and for indoor
+ * EXT kitchens the outdoor-only categories/carts are hidden.
+ */
+export function catalogForDesign(line: ProductLine | undefined, kitchenType: KitchenType | undefined): CatalogItem[] {
+  const l = line ?? 'ext';
+  if (l !== 'ext') return CATALOG.filter((c) => c.line === l);
+  const items = CATALOG.filter((c) => !c.line);
+  if ((kitchenType ?? 'outdoor') === 'indoor') {
+    return items.filter((c) => c.category !== 'outdoor' && !OUTDOOR_ONLY_APPLIANCES.has(c.id));
+  }
+  return items;
+}
+
+/** Category tab labels applicable to a product line. */
+export function categoryLabelsForLine(line: ProductLine | undefined): Record<string, string> {
+  return (line ?? 'ext') === 'ext' ? CATEGORY_LABELS : NEWAGE_CATEGORY_LABELS;
+}
 
 /** Per-item option costs. (Drawer costs are baked into the box formulas.) */
 export const DEFAULT_RATES = {
@@ -139,6 +182,7 @@ const APPLIANCE_OPENING_CATS: ApplianceCat[] = ['fridge', 'icemaker'];
  *  real cabinets — including grill/griddle/burner/kamado cabinets — can. */
 export function takesAppliedEnds(cat: CatalogItem): boolean {
   if (cat.category === 'appliance') return false;
+  if (cat.line) return false; // NewAge metal units are factory-finished on all sides
   if (cat.applianceCat && APPLIANCE_OPENING_CATS.includes(cat.applianceCat)) return false;
   return true;
 }
@@ -147,6 +191,7 @@ export function takesAppliedEnds(cat: CatalogItem): boolean {
  *  fillers, false fronts and appliance openings have none. Two-door fronts use
  *  a single door under 24″ wide. Used for the report hardware count. */
 export function handleCount(cat: CatalogItem, w: number): number {
+  if (cat.line) return 0; // NewAge units ship with integrated handles
   const doublable = w >= 24 ? 2 : 1; // wide cabinets get a pair of doors
   switch (cat.front) {
     case 'door1':
@@ -178,6 +223,7 @@ export function handleCount(cat: CatalogItem, w: number): number {
     case 'fridgep':
     case 'propane':
     case 'trash':
+    case 'flipup':
     case 'corner':
     case 'susan':
     case 'blind':

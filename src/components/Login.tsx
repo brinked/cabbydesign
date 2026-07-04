@@ -4,6 +4,7 @@ import { ApiError, useSession } from '../state/session';
 
 export default function Login() {
   const login = useSession((s) => s.login);
+  const continueAsGuest = useSession((s) => s.continueAsGuest);
   const [mode, setMode] = useState<'login' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -89,7 +90,29 @@ export default function Login() {
         <div className="brand login-brand">
           Cab<span>Design</span>
         </div>
-        <p className="login-sub">Dealer sign in</p>
+        <p className="login-sub">Design your dream indoor or outdoor kitchen</p>
+        <button
+          type="button"
+          className="btn-primary login-btn"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await continueAsGuest();
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Start designing — no account needed
+        </button>
+        <p className="login-foot" style={{ marginTop: 4, marginBottom: 14 }}>
+          Build with EXT custom HDPE cabinets or NewAge Products modular outdoor kitchens (stainless steel &amp; aluminum), see
+          live pricing, and print your plan. Your design saves in this browser.
+        </p>
+        <p className="login-sub" style={{ marginTop: 0 }}>
+          Dealer / pro sign in
+        </p>
         {error && <div className="warn">{error}</div>}
         <label className="login-field">
           <span>Email</span>
@@ -118,7 +141,7 @@ export default function Login() {
         <button type="button" className="link-btn" onClick={() => { setMode('forgot'); setError(null); }}>
           Forgot password?
         </button>
-        <p className="login-foot">Need access? Contact your CabDesign administrator.</p>
+        <p className="login-foot">Dealer access is managed by your CabDesign administrator.</p>
       </form>
     </div>
   );

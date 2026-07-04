@@ -108,6 +108,19 @@ export function countertopTexture(ct: Countertop): THREE.CanvasTexture {
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
       }
+    } else if (ct.category === 'metal') {
+      // brushed stainless: fine horizontal grain lines
+      for (let i = 0; i < 900; i++) {
+        ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+        ctx.lineWidth = 0.5 + Math.random();
+        const y = Math.random() * s;
+        const x = Math.random() * s;
+        const len = 30 + Math.random() * 180;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + len, y);
+        ctx.stroke();
+      }
     } else {
       // solid + quartzite: soft mottle and flowing veins
       mottle(true, 45, 70, 0.035);
@@ -149,31 +162,67 @@ export interface CabMats {
   dark: THREE.Material;
   egg: THREE.Material;
   carcass: THREE.Material;
+  /** NewAge door construction (louvered slats / tempered glass); unset = slab. */
+  naDoor?: 'flat' | 'louvered' | 'glass';
+  /** Tinted tempered-glass pane material (NewAge aluminum doors). */
+  glassPane?: THREE.Material;
+  /** True for NewAge finishes — draws their long stainless bar pulls. */
+  naBar?: boolean;
 }
 
 export function createMats(fin: FinishOption, ct: Countertop = countertopById(DEFAULT_COUNTERTOP)): CabMats {
   const counterTex = countertopTexture(ct);
-  const counter = ct.matte
-    ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, roughness: 0.85, metalness: 0 })
-    : new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, roughness: 0.22, clearcoat: 0.5, clearcoatRoughness: 0.25 });
+  const counter =
+    ct.category === 'metal'
+      ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, metalness: 0.85, roughness: 0.32 })
+      : ct.matte
+        ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, roughness: 0.85, metalness: 0 })
+        : new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, roughness: 0.22, clearcoat: 0.5, clearcoatRoughness: 0.25 });
+  // Metallic finishes (NewAge stainless / aluminum) render with metalness so
+  // the boxes read as brushed metal rather than painted HDPE.
+  const metal = fin.metal ? { metalness: fin.metal === 'stainless' ? 0.85 : 0.65, roughness: fin.metal === 'stainless' ? 0.32 : 0.45 } : null;
+  // NewAge door faces: louvered slats are wood-look (Grove) or painted (White)
+  // — not bare metal; glass doors get a tinted pane inside the metal frame.
+  const louvered = fin.naDoor === 'louvered';
   return {
-    body: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), roughness: 0.55, clearcoat: 0.18, clearcoatRoughness: 0.6 }),
-    panel: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.5, clearcoat: 0.22, clearcoatRoughness: 0.55 }),
-    inner: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.6, clearcoat: 0.15, clearcoatRoughness: 0.6 }),
+    body: metal
+      ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), ...metal })
+      : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), roughness: 0.55, clearcoat: 0.18, clearcoatRoughness: 0.6 }),
+    panel: louvered
+      ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.58, metalness: 0.08, clearcoat: 0.1, clearcoatRoughness: 0.6 })
+      : metal
+        ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), ...metal })
+        : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.5, clearcoat: 0.22, clearcoatRoughness: 0.55 }),
+    inner: louvered
+      ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.7, metalness: 0.05 })
+      : metal
+        ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), ...metal })
+        : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.6, clearcoat: 0.15, clearcoatRoughness: 0.6 }),
     groove: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.inner).multiplyScalar(0.72), roughness: 0.85 }),
-    kick: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.body), roughness: 0.8 }),
+    kick: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.kick ?? fin.body), roughness: 0.75, metalness: fin.kick ? 0.35 : metal ? metal.metalness : 0 }),
+    naDoor: fin.naDoor,
+    naBar: !!fin.line,
+    glassPane:
+      fin.naDoor === 'glass'
+        ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), metalness: 0.1, roughness: 0.12, clearcoat: 0.8, clearcoatRoughness: 0.15, transparent: true, opacity: 0.88 })
+        : undefined,
     counterTex,
     counter,
     steel: new THREE.MeshStandardMaterial({ color: STEEL_3D, metalness: 0.9, roughness: 0.28 }),
     steelMatte: new THREE.MeshStandardMaterial({ color: 0x9a9ea3, metalness: 0.45, roughness: 0.5 }),
     dark: new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.6 }),
     egg: new THREE.MeshPhysicalMaterial({ color: 0x1f3a2e, roughness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.2 }),
-    carcass: new THREE.MeshPhysicalMaterial({ color: 0xeceef0, roughness: 0.55, clearcoat: 0.12, clearcoatRoughness: 0.6 }),
+    // NewAge metal units are factory-finished on every face — their "carcass"
+    // is the same brushed metal as the body, not raw white HDPE board.
+    carcass: metal
+      ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), ...metal })
+      : new THREE.MeshPhysicalMaterial({ color: 0xeceef0, roughness: 0.55, clearcoat: 0.12, clearcoatRoughness: 0.6 }),
   };
 }
 
 export function disposeMats(m: CabMats): void {
   for (const mat of [m.body, m.panel, m.inner, m.groove, m.kick, m.counter, m.steel, m.steelMatte, m.dark, m.egg, m.carcass]) mat.dispose();
+  m.glassPane?.dispose();
   m.counterTex.dispose();
 }
 
@@ -438,14 +487,59 @@ function susanKick(w: number, d: number, kick: number, legD: number, mat: THREE.
   return m;
 }
 
-/** One-piece HDPE door/drawer face: flat slab, optionally with a groove ring. */
+/** Door/drawer face. HDPE: flat slab, optionally with a shaker groove ring.
+ *  NewAge louvered: horizontal slat door (Grove wood-look / painted white).
+ *  NewAge glass: tinted tempered-glass pane in a body-metal frame. */
 function doorFace(w: number, h: number, style: DoorStyle, mats: CabMats): THREE.Group {
   const g = new THREE.Group();
+  // Louvered slat door — matches NewAge's Louvered series: angled horizontal
+  // slats over a dark backing, in a slim frame of the same finish.
+  if (mats.naDoor === 'louvered' && h >= 5.5 && w >= 8) {
+    const FR = 1.1; // frame width
+    g.add(box(w, h, 0.4, mats.inner)); // dark backing the slats sit over
+    // frame: stiles + rails in the door finish
+    g.add(boxAt(w, FR, 0.7, 0, h / 2 - FR / 2, 0.1, mats.panel));
+    g.add(boxAt(w, FR, 0.7, 0, -h / 2 + FR / 2, 0.1, mats.panel));
+    g.add(boxAt(FR, h - FR * 2, 0.7, -w / 2 + FR / 2, 0, 0.1, mats.panel));
+    g.add(boxAt(FR, h - FR * 2, 0.7, w / 2 - FR / 2, 0, 0.1, mats.panel));
+    // angled slats
+    const innerH = h - FR * 2 - 0.6;
+    const pitch = 2.1;
+    const n = Math.max(3, Math.floor(innerH / pitch));
+    const slatH = pitch * 1.25; // overlap so no gaps read through
+    for (let i = 0; i < n; i++) {
+      const y = -innerH / 2 + pitch * (i + 0.5);
+      const slat = box(w - FR * 2 - 0.3, slatH, 0.35, mats.panel);
+      slat.rotation.x = -0.42; // louver angle (top leans out)
+      slat.position.set(0, y, 0.18);
+      g.add(slat);
+    }
+    return g;
+  }
+  // Tempered-glass door — NewAge Aluminum series: metal frame + tinted pane.
+  if (mats.naDoor === 'glass' && mats.glassPane && h >= 5.5 && w >= 8) {
+    const FR = 1.6; // aluminum frame width
+    g.add(boxAt(w, FR, 0.7, 0, h / 2 - FR / 2, 0, mats.body));
+    g.add(boxAt(w, FR, 0.7, 0, -h / 2 + FR / 2, 0, mats.body));
+    g.add(boxAt(FR, h - FR * 2, 0.7, -w / 2 + FR / 2, 0, 0, mats.body));
+    g.add(boxAt(FR, h - FR * 2, 0.7, w / 2 - FR / 2, 0, 0, mats.body));
+    const pane = box(w - FR * 2 + 0.2, h - FR * 2 + 0.2, 0.35, mats.glassPane);
+    pane.position.z = -0.05;
+    g.add(pane);
+    return g;
+  }
   g.add(box(w, h, 0.7, mats.panel));
   if (style === 'shaker' && w >= 8 && h >= 8) {
     g.add(grooveRing(w, h, 0.35, mats));
   }
   return g;
+}
+
+/** box() positioned in one call. */
+function boxAt(w: number, h: number, d: number, x: number, y: number, z: number, mat: THREE.Material): THREE.Mesh {
+  const m = box(w, h, d, mat);
+  m.position.set(x, y, z);
+  return m;
 }
 
 /** Fronts that carry a dropped-in sink basin + faucet. */
@@ -512,7 +606,68 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   // the hinge toggle only moves the (single) handle.
   const cornerSide: 1 | -1 = dims.cornerSide ?? (hinge === 'right' ? -1 : 1);
   const legRet = cornerReturn(cat); // 24" base / 12" wall
-  if (isCorner) {
+  if (isCorner && mats.naBar) {
+    // NewAge 90° corner: an OPEN pentagon frame (chamfered front corner) —
+    // corner posts, base + mid shelf, integrated stainless top, panels only
+    // on the two wall sides. Matches the real product (open shelving).
+    const c = cornerChamfer(d, legRet);
+    const pent = (inset: number): THREE.Shape => {
+      const s = new THREE.Shape();
+      if (cornerSide === 1) {
+        s.moveTo(-w / 2 + inset, inset);
+        s.lineTo(w / 2 - inset, inset);
+        s.lineTo(w / 2 - inset, d - c);
+        s.lineTo(w / 2 - c, d - inset);
+        s.lineTo(-w / 2 + inset, d - inset);
+      } else {
+        s.moveTo(-w / 2 + inset, inset);
+        s.lineTo(w / 2 - inset, inset);
+        s.lineTo(w / 2 - inset, d - inset);
+        s.lineTo(-w / 2 + c, d - inset);
+        s.lineTo(-w / 2 + inset, d - c);
+      }
+      s.closePath();
+      return s;
+    };
+    const slab = (inset: number, thick: number, mat: THREE.Material, y: number) => {
+      const geo = new THREE.ExtrudeGeometry(pent(inset), { depth: thick, bevelEnabled: false });
+      geo.rotateX(Math.PI / 2);
+      const m = new THREE.Mesh(geo, mat);
+      m.position.y = y + thick;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      g.add(m);
+    };
+    slab(0.4, 0.9, mats.body, kick); // base deck
+    slab(1.2, 0.7, mats.body, kick + carcassH * 0.48); // mid shelf
+    slab(0, 1.1, mats.steelMatte, kick + carcassH - 1.1); // integrated stainless top
+    // corner posts (skip the inner wall corner)
+    const post = (px: number, pz: number) => {
+      const p = box(1.4, carcassH, 1.4, mats.body);
+      p.position.set(px, kick + carcassH / 2, pz);
+      p.castShadow = true;
+      g.add(p);
+    };
+    if (cornerSide === 1) {
+      post(w / 2 - 0.7, 0.7);
+      post(w / 2 - 0.7, d - c + 0.4);
+      post(w / 2 - c + 0.4, d - 0.7);
+      post(-w / 2 + 0.7, d - 0.7);
+    } else {
+      post(-w / 2 + 0.7, 0.7);
+      post(-w / 2 + 0.7, d - c + 0.4);
+      post(-w / 2 + c - 0.4, d - 0.7);
+      post(w / 2 - 0.7, d - 0.7);
+    }
+    // panels on the two wall-facing sides
+    const backPanel = box(w, carcassH, 0.6, mats.body);
+    backPanel.position.set(0, kick + carcassH / 2, 0.3);
+    g.add(backPanel);
+    const sidePanel = box(0.6, carcassH, d, mats.body);
+    sidePanel.position.set(cornerSide === 1 ? -w / 2 + 0.3 : w / 2 - 0.3, kick + carcassH / 2, d / 2);
+    g.add(sidePanel);
+    if (kick > 0) g.add(cornerKick(w, d, kick, c, mats.kick, cornerSide));
+  } else if (isCorner) {
     // chamfered (angled-front) carcass on a recessed toe kick. Sides are raw
     // (unfinished) carcass — like any cabinet, an end only gets a finished
     // colour/design when an applied end panel is added; otherwise a cabinet
@@ -602,7 +757,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
 
   // front faces — one-piece HDPE doors (grooved shaker or euro flat) + steel handle
   if (!steel && !isAppliance) {
-    type Front = { dx: number; dy: number; w: number; h: number; handle: 'v-left' | 'v-right' | 'h-center' | 'none'; slab?: boolean; handleLow?: boolean; handleTop?: boolean };
+    type Front = { dx: number; dy: number; w: number; h: number; handle: 'v-left' | 'v-right' | 'h-center' | 'none'; slab?: boolean; handleLow?: boolean; handleTop?: boolean; handleBottom?: boolean };
     const fronts: Front[] = [];
     const fw = w - REVEAL * 2;
     const fh = carcassH - REVEAL * 2;
@@ -792,6 +947,11 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         // trash pull-out: handle at the top of the door, not centered
         fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: 'h-center', handleTop: true });
         break;
+      case 'flipup':
+        // gas-assist flip-up door (NewAge wall cabinets): one full-width door
+        // hinged at the top, horizontal pull centered at the bottom edge
+        fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: 'h-center', handleBottom: true });
+        break;
       case 'endcap':
       case 'filler':
         // finished panel in the cabinet design, no door hardware
@@ -803,9 +963,24 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     for (const fr of fronts) {
       const fg = doorFace(fr.w, fr.h, fr.slab ? 'flat' : style, mats);
       if (fr.handle !== 'none') {
-        const isV = fr.handle !== 'h-center';
-        const len = isV ? Math.min(7, fr.h * 0.45) : Math.min(9, fr.w * 0.5);
-        const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
+        let isV = fr.handle !== 'h-center';
+        // NewAge handle styles (per product photos): drawers & flip-up doors
+        // take slim horizontal top/bottom-edge pulls; Classic (flat metal)
+        // doors ALSO use horizontal pulls at the door's top corner, while
+        // Louvered and Aluminum glass doors keep a vertical edge bar.
+        const naTopPull = mats.naBar && isV && mats.naDoor === 'flat';
+        if (naTopPull) isV = false;
+        const len = mats.naBar
+          ? isV
+            ? Math.min(14, fr.h * 0.5)
+            : naTopPull
+              ? Math.min(8, fr.w * 0.45)
+              : Math.min(12, fr.w * 0.5)
+          : isV
+            ? Math.min(7, fr.h * 0.45)
+            : Math.min(9, fr.w * 0.5);
+        const rad = mats.naBar ? 0.35 : 0.45;
+        const bar = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, len, 10), mats.steel);
         bar.castShadow = true;
         if (isV) {
           bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + 1.6 : fr.w / 2 - 1.6;
@@ -814,9 +989,17 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
           bar.position.y = fr.handleLow ? -fr.h / 2 + len / 2 + 1.4 : fr.h / 2 - len / 2 - 1.4;
         } else {
           bar.rotation.z = Math.PI / 2;
-          // horizontal handle: centered by default, or near the top of the door
-          // for trash pull-outs (handleTop) so it reads like a top-mounted pull
-          if (fr.handleTop) bar.position.y = fr.h / 2 - 1.6;
+          if (naTopPull) {
+            // Classic door: horizontal pull at the top, toward the seam edge
+            bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + len / 2 + 1.2 : fr.w / 2 - len / 2 - 1.2;
+            bar.position.y = fr.h / 2 - 1.3;
+          } else if (fr.handleBottom) {
+            // flip-up door: pull centered on the bottom edge
+            bar.position.y = -fr.h / 2 + 1.3;
+          } else if (fr.handleTop || mats.naBar) {
+            // trash pull-outs and all NewAge drawers: pull at the top edge
+            bar.position.y = fr.h / 2 - 1.5;
+          }
         }
         bar.position.z = 1.1;
         fg.add(bar);
@@ -826,7 +1009,8 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
 
     // lazy-susan corner cabinet: door flush on the 45° chamfer face
-    if (cat.front === 'corner') {
+    // (NewAge 90° corners are open frames — no door)
+    if (cat.front === 'corner' && !mats.naBar) {
       const c = cornerChamfer(d, legRet);
       const span = c * Math.SQRT2 - GAP * 2; // door width along the diagonal
       const door = doorFace(span, fh, style, mats);
@@ -834,7 +1018,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const nrm = 0.4;
       // midpoint of the chamfer face, nudged outward along its (±x, +z) normal
       door.position.set(cornerSide * (w / 2 - c / 2) + cornerSide * nrm * 0.707, kick + carcassH / 2, d - c / 2 + nrm * 0.707);
-      const len = Math.min(7, fh * 0.45);
+      const len = mats.naBar ? Math.min(15, fh * 0.55) : Math.min(7, fh * 0.45);
       const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
       bar.castShadow = true;
       bar.position.set(cornerSide * (-span / 2 + 1.7), fh / 2 - len / 2 - 1.4, 1.1);
@@ -871,6 +1055,30 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       if (!handleOnLegA) addBar(d2, cornerSide * (-doorW2 / 2 + 1.7));
       g.add(d2);
     }
+  }
+
+  // NewAge sink cabinets ship with an integrated stainless top (basin + faucet
+  // included) — they take no countertop, so build the top into the unit.
+  if (mats.naBar && isSinkFront(cat.front)) {
+    const topT = 1.0;
+    const slab = box(w + 0.3, topT, d + 0.5, mats.steelMatte);
+    slab.position.set(0, h - topT / 2, d / 2 + 0.15);
+    slab.castShadow = true;
+    g.add(slab);
+    const { bw, bd, zc } = sinkBasin(w, d);
+    const basin = box(bw, 0.5, bd, mats.dark);
+    basin.position.set(0, h - 0.2, zc);
+    g.add(basin);
+    // gooseneck faucet behind the basin
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 8.5, 10), mats.steel);
+    post.position.set(0, h + 4.25, d * 0.18);
+    post.castShadow = true;
+    g.add(post);
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 5, 10), mats.steel);
+    spout.rotation.x = Math.PI / 2;
+    spout.position.set(0, h + 8.3, d * 0.18 + 2.5);
+    spout.castShadow = true;
+    g.add(spout);
   }
 
   // applied end panels — finished door-style panel on exposed run ends

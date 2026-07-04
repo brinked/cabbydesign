@@ -2,6 +2,23 @@
 
 export type Lane = 'floor' | 'upper';
 
+/** Cabinet product line. 'ext' = EXT Cabinets custom HDPE (made-to-size);
+ *  'newage' = NewAge Products Classic Series modular outdoor cabinets (fixed
+ *  factory sizes; series & door finish — stainless Classic/Louvered or
+ *  aluminum tempered-glass — are chosen per cabinet). */
+export type ProductLine = 'ext' | 'newage';
+
+/** What the user is designing — filters the catalog offered. */
+export type KitchenType = 'indoor' | 'outdoor';
+
+/** One purchasable NewAge variant: the SKU + retail pricing for a catalog item
+ *  in a specific finish. `msrp` is the compare-at price (shown struck through). */
+export interface NaVariant {
+  sku: string;
+  price: number;
+  msrp: number;
+}
+
 export type FrontKind =
   | 'door1'
   | 'door2'
@@ -41,7 +58,8 @@ export type FrontKind =
   | 'dishwasher'
   | 'icemaker'
   | 'endcap'
-  | 'filler';
+  | 'filler'
+  | 'flipup';
 
 export type Category = 'base' | 'wall' | 'tall' | 'outdoor' | 'appliance' | 'trim';
 
@@ -150,6 +168,13 @@ export interface CatalogItem {
   note?: string;
   /** Appliance category this cabinet houses — enables the appliance dropdown. */
   applianceCat?: ApplianceCat;
+  /** Product line this item belongs to. Undefined = 'ext' (EXT HDPE custom). */
+  line?: ProductLine;
+  /** Factory-fixed dimensions — W/D/H are not editable (NewAge modular units). */
+  fixed?: boolean;
+  /** NewAge retail pricing per finish id (finish → SKU + price). A finish
+   *  missing from the map means the unit isn't made in that finish. */
+  naPricing?: Record<string, NaVariant>;
 }
 
 /** User override of a cabinet's allowed size range (Settings). */
@@ -208,6 +233,9 @@ export interface PlacedItem {
   /** Auto-placed dead-corner filler — re-derived on every layout change and
    *  not hand-editable (managed by the app, not the user). */
   auto?: boolean;
+  /** Per-cabinet series/door-finish override (NewAge units) — a finish id from
+   *  the NewAge palette. Unset = follow the design's default finish. */
+  finish?: string;
 }
 
 export type LayoutKind = 'linear' | 'l' | 'u';
@@ -223,6 +251,17 @@ export interface FinishOption {
   inner: string;
   /** Countertop color */
   counter: string;
+  /** Product line this finish belongs to. Undefined = 'ext' (HDPE colors). */
+  line?: ProductLine;
+  /** Metallic surface — the 3D engine renders these with metalness/roughness. */
+  metal?: 'stainless' | 'aluminum';
+  /** Door-style group label for NewAge finishes (e.g. "Classic Door"). */
+  group?: string;
+  /** NewAge door construction: flat metal slab, horizontal louvered slats, or
+   *  tempered glass in a metal frame. Drives 2D/3D door detailing. */
+  naDoor?: 'flat' | 'louvered' | 'glass';
+  /** Toe-kick/base color override (NewAge bases are black with levelers). */
+  kick?: string;
 }
 
 /** Plumbing or electrical rough-in / stub-out fixed to a wall. */
@@ -284,6 +323,10 @@ export interface Design {
   name: string;
   client: string;
   layout: LayoutKind;
+  /** Indoor or outdoor kitchen — filters the catalog. Default 'outdoor'. */
+  kitchenType?: KitchenType;
+  /** Cabinet product line for this design. Default 'ext' (EXT HDPE custom). */
+  line?: ProductLine;
   finishId: string;
   doorStyle: DoorStyle;
   /** Natural gas / liquid propane for the whole job (undefined = unset). */

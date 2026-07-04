@@ -3,7 +3,7 @@
 // veining, concrete = matte mottle, solid = light marble. The 3D engine builds
 // a canvas texture from these specs (see countertopTexture in three/cabinet3d).
 
-export type CounterCategory = 'solid' | 'granite' | 'quartzite' | 'concrete';
+export type CounterCategory = 'solid' | 'granite' | 'quartzite' | 'concrete' | 'metal';
 
 export interface Countertop {
   id: string;
@@ -45,6 +45,9 @@ export const COUNTERTOPS: Countertop[] = [
   { id: 'natural-concrete', name: 'Natural Concrete', category: 'concrete', base: '#b7b6b2', matte: true },
   { id: 'grey-concrete', name: 'Grey Concrete', category: 'concrete', base: '#8f9094', matte: true },
   { id: 'charcoal-concrete', name: 'Charcoal Concrete', category: 'concrete', base: '#54575b', matte: true },
+
+  // ---- Metal (NewAge modular kitchens) ----
+  { id: 'na-stainless', name: 'Stainless Steel (NewAge)', category: 'metal', base: '#c7cacd' },
 ];
 
 export const COUNTER_CATEGORY_LABELS: Record<CounterCategory, string> = {
@@ -52,6 +55,7 @@ export const COUNTER_CATEGORY_LABELS: Record<CounterCategory, string> = {
   granite: 'Granite',
   quartzite: 'Quartzite',
   concrete: 'Concrete',
+  metal: 'Stainless Steel',
 };
 
 export function countertopById(id: string | undefined): Countertop {

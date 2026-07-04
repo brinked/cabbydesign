@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { COUNTER_OVERHANG, catalogById } from '../model/catalog';
+import { ALL_FINISHES, COUNTER_OVERHANG, catalogById } from '../model/catalog';
+import { resolveItemFinish } from '../model/newage';
 import { WALL_T, cornerNeedsFlip, frameForWall, isCornerFront, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints } from '../model/geometry';
 import type { MeasureEnd, Measurement, PlacedItem, Wall } from '../model/types';
 import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, uid, useStore } from '../state/store';
@@ -487,6 +488,10 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
               const cat = catalogById(it.catalogId);
               const sel = selectedId === it.id;
               const fpw = footprintW(it);
+              // per-cabinet finish (NewAge series/door options), resolved to a
+              // finish the unit is actually made in
+              const effFinId = resolveItemFinish(fin.id, it, cat);
+              const itFin = effFinId !== fin.id ? ALL_FINISHES.find((f) => f.id === effFinId) ?? fin : fin;
               return (
                 <g
                   key={it.id}
@@ -496,7 +501,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
                   onPointerMove={it.auto ? undefined : (e) => itemMove(e, it)}
                   onPointerUp={it.auto ? undefined : (e) => itemUp(e, it)}
                 >
-                  <CabinetTop cat={cat} w={fpw} d={it.d} fin={fin} hinge={cat.front === 'susan' || cat.front === 'corner' ? susanHinge(it) : it.hinge} />
+                  <CabinetTop cat={cat} w={fpw} d={it.d} fin={itFin} hinge={cat.front === 'susan' || cat.front === 'corner' ? susanHinge(it) : it.hinge} />
                   <circle cx={fpw / 2} cy={it.d / 2} r={3.4} fill="#fff" stroke="#5b6472" strokeWidth={0.35} />
                   <text x={fpw / 2} y={it.d / 2 + 1.3} textAnchor="middle" fontSize={3.6} fill="#33394a" fontWeight={600}>
                     {numbers.get(it.id)}

@@ -4,12 +4,14 @@
 // designer store so every dealer designs against the same catalog rules.
 import { create } from 'zustand';
 import { api, ApiError, type ApiUser, type CertInfo, type DealerPrefs } from '../api/client';
+import { NEWAGE_DEFAULT_APPLIANCES } from '../model/newage';
 import { useStore } from './store';
 
 export type Screen = 'design' | 'admin' | 'jobs' | 'profile';
 
 interface SessionState {
-  status: 'loading' | 'authed' | 'anon';
+  /** 'guest' = designing without an account (consumer mode, local-only saves). */
+  status: 'loading' | 'authed' | 'guest' | 'anon';
   user: ApiUser | null;
   prefs: DealerPrefs | null;
   cert: CertInfo | null;
@@ -24,6 +26,8 @@ interface SessionState {
 
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  /** Enter consumer/guest mode — design without an account. */
+  continueAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
   setScreen: (screen: Screen) => void;
   setPrefs: (prefs: DealerPrefs) => Promise<void>;
@@ -51,6 +55,9 @@ async function pullGlobals(set: (partial: Partial<SessionState>) => void) {
   set({ taxRate: rate });
 }
 
+/** localStorage flag remembering that this browser chose guest mode. */
+const GUEST_KEY = 'cabdesign-guest';
+
 export const useSession = create<SessionState>()((set, get) => ({
   status: 'loading',
   user: null,
@@ -68,12 +75,17 @@ export const useSession = create<SessionState>()((set, get) => ({
       if (user) {
         await pullGlobals(set);
         set({ status: 'authed', user, prefs: prefs ?? null, cert: cert ?? null });
-      } else {
-        set({ status: 'anon', user: null, prefs: null, cert: null });
+        return;
       }
     } catch {
-      set({ status: 'anon', user: null, prefs: null, cert: null });
+      /* fall through to guest/anon below */
     }
+    // A returning guest goes straight back into the designer.
+    if (localStorage.getItem(GUEST_KEY)) {
+      await get().continueAsGuest();
+      return;
+    }
+    set({ status: 'anon', user: null, prefs: null, cert: null });
   },
 
   login: async (email, password) => {
@@ -82,7 +94,25 @@ export const useSession = create<SessionState>()((set, get) => ({
     set({ status: 'authed', user, prefs, cert, screen: 'design' });
   },
 
+  continueAsGuest: async () => {
+    // Globals (catalog rules, tax, appliances) are public reads — pull them if
+    // the API is reachable, but guests can design fully offline too.
+    try {
+      await pullGlobals(set);
+    } catch {
+      /* offline / no server — the built-in catalog still works */
+    }
+    // No admin appliance inventory? Seed the NewAge insert grills so the grill
+    // cabinets have real options to choose from.
+    if (useStore.getState().appliances.length === 0) {
+      useStore.setState({ appliances: NEWAGE_DEFAULT_APPLIANCES });
+    }
+    localStorage.setItem(GUEST_KEY, '1');
+    set({ status: 'guest', user: null, prefs: null, cert: null, screen: 'design' });
+  },
+
   logout: async () => {
+    localStorage.removeItem(GUEST_KEY);
     try {
       await api.logout();
     } catch {
@@ -114,7 +144,13 @@ export const useSession = create<SessionState>()((set, get) => ({
   openSaveJob: (open) => set({ saveJobOpen: open }),
 
   refreshGlobals: async () => {
-    if (get().status === 'authed') await pullGlobals(set);
+    if (get().status === 'authed' || get().status === 'guest') {
+      try {
+        await pullGlobals(set);
+      } catch {
+        /* tolerate missing server in guest mode */
+      }
+    }
   },
 }));
 

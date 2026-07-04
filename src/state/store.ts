@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, LayoutKind, Measurement, Opening, OpeningKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
-import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
+import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, Opening, OpeningKind, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
+import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, finishesForLine, takesAppliedEnds } from '../model/catalog';
+import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
 import { CORNER_EPS, CORNER_FILLER, cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
@@ -10,7 +11,12 @@ import { CORNER_EPS, CORNER_FILLER, cornerNeedsFlip, cornerReserves, isCornerFro
 export const PANEL_RATE_PER_SQFT = 36;
 
 /** Catalog ids that were renamed/removed — remap (or drop) on load. */
-const CATALOG_MIGRATE: Record<string, string> = { 'base-doordrawer': 'base-1door1drawer', 'base-blind': 'base-blindr', 'app-icemaker': 'out-icemaker' };
+const CATALOG_MIGRATE: Record<string, string> = {
+  'base-doordrawer': 'base-1door1drawer',
+  'base-blind': 'base-blindr',
+  'app-icemaker': 'out-icemaker',
+  ...NEWAGE_ID_MIGRATE,
+};
 const VALID_IDS = new Set(CATALOG.map((c) => c.id));
 
 /** Effective allowed size range for a cabinet, with user Settings overrides. */
@@ -19,6 +25,8 @@ export function effectiveDims(
   dims: Record<string, DimOverride>
 ): { minW: number; maxW: number; minD: number; maxD: number } {
   const cat = catalogById(catId);
+  // Factory-fixed sizes (NewAge modular) — no overrides apply.
+  if (cat.fixed) return { minW: cat.w, maxW: cat.w, minD: cat.d, maxD: cat.d };
   const o = dims[catId] ?? {};
   return {
     minW: o.minW ?? cat.minW,
@@ -36,15 +44,24 @@ export function uid(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${counter}`;
 }
 
-function defaultDesign(): Design {
+/** Per-line defaults when starting a design. */
+export function lineDefaults(line: ProductLine): { finishId: string; counterId: string; doorStyle: Design['doorStyle'] } {
+  if (line === 'newage') return { finishId: 'na-ss-steel', counterId: 'na-stainless', doorStyle: 'flat' };
+  return { finishId: 'indigo', counterId: DEFAULT_COUNTERTOP, doorStyle: 'shaker' };
+}
+
+function defaultDesign(kitchenType: KitchenType = 'outdoor', line: ProductLine = 'ext'): Design {
+  const d = lineDefaults(line);
   return {
-    name: 'My Outdoor Kitchen',
+    name: kitchenType === 'indoor' ? 'My Kitchen' : 'My Outdoor Kitchen',
     client: '',
     layout: 'linear',
-    finishId: 'indigo',
-    doorStyle: 'shaker',
+    kitchenType,
+    line,
+    finishId: d.finishId,
+    doorStyle: d.doorStyle,
     counterThickness: COUNTER_T,
-    counterId: DEFAULT_COUNTERTOP,
+    counterId: d.counterId,
     backsplashHeight: 0,
     dimFrom: 'left',
     walls: [{ id: uid('wall'), name: 'Front Wall', length: 110, height: 96, x: 0, y: 0, angle: 0, thickness: 5, ghost: false }],
@@ -162,14 +179,29 @@ export function normalizeDesign(raw: Design): Design {
         waterfallR: it.waterfallR ?? false,
       };
     });
-  const finishId = FINISH_MIGRATE[raw.finishId] ?? raw.finishId;
+  // Product line: map legacy per-material lines to the merged NewAge line and
+  // infer from placed items for pre-line saves; keep the finish within the
+  // line's palette.
+  const rawLine = raw.line as string | undefined;
+  const line: ProductLine =
+    rawLine === 'newage' || rawLine === 'newage-ss' || rawLine === 'newage-alu'
+      ? 'newage'
+      : rawLine === 'ext'
+        ? 'ext'
+        : items.some((it) => catalogById(it.catalogId).line)
+          ? 'newage'
+          : 'ext';
+  const kitchenType: KitchenType = raw.kitchenType ?? 'outdoor';
+  let finishId = FINISH_MIGRATE[raw.finishId] ?? raw.finishId;
+  const lineFins = finishesForLine(line);
+  if (!lineFins.some((f) => f.id === finishId)) finishId = lineFins[0].id;
   const wallIds = new Set(walls.map((w) => w.id));
   const roughIns = (raw.roughIns ?? []).filter((r) => wallIds.has(r.wallId));
   const openings = (raw.openings ?? []).filter((o) => wallIds.has(o.wallId));
   const counterThickness = raw.counterThickness && raw.counterThickness > 0 ? raw.counterThickness : COUNTER_T;
   const counterId = raw.counterId ?? DEFAULT_COUNTERTOP;
   const backsplashHeight = raw.backsplashHeight && raw.backsplashHeight > 0 ? raw.backsplashHeight : 0;
-  const result = { ...defaultDesign(), ...raw, finishId, doorStyle: raw.doorStyle ?? 'shaker', counterThickness, counterId, backsplashHeight, dimFrom: raw.dimFrom ?? 'left', walls, items, roughIns, openings };
+  const result = { ...defaultDesign(), ...raw, kitchenType, line, finishId, doorStyle: raw.doorStyle ?? 'shaker', counterThickness, counterId, backsplashHeight, dimFrom: raw.dimFrom ?? 'left', walls, items, roughIns, openings };
   autoCornerFillers(result);
   alignFillers(result);
   return result;
@@ -249,7 +281,10 @@ interface AppState {
   setRetailPricingOpen: (open: boolean) => void;
   setRetailFormula: (catalogId: string, formula: string | null) => void;
   setSnapshot: (dataUrl: string | null) => void;
-  newDesign: () => void;
+  newDesign: (kitchenType?: KitchenType, line?: ProductLine) => void;
+  /** Switch the design's cabinet line in place. Walls/openings stay; placed
+   *  cabinets from another line are removed (their catalogs don't overlap). */
+  setLine: (line: ProductLine) => void;
   loadDesign: (design: Design) => void;
 }
 
@@ -364,6 +399,13 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string, string>): ItemPrice {
   const cat = catalogById(it.catalogId);
   if (cat.category === 'appliance') return ZERO_PRICE;
+  // NewAge modular units: fixed retail price for the cabinet's series/finish
+  // (its own override, else the design default) — no trays, panels or formulas.
+  if (cat.naPricing) {
+    const nv = naVariantFor(cat, itemFinishId(design, it, cat));
+    const p = round2(nv?.price ?? 0);
+    return { ...ZERO_PRICE, cabinet: p, total: p };
+  }
   // fillers: priced per inch of width only
   if (cat.perInch) {
     const c = round2(cat.perInch * it.w);
@@ -614,6 +656,9 @@ function autoCornerFillers(design: Design): void {
           const nO = nearest(O, eO);
           // both walls need a plain cabinet; a corner unit fills the corner itself
           if (!nW || !nO || nW.corner || nO.corner) continue;
+          // NewAge modular kitchens don't use HDPE fillers — their corner
+          // cabinets close the corner instead.
+          if (catalogById(nW.it.catalogId).line || catalogById(nO.it.catalogId).line) continue;
           // only fill when W's cabinet actually borders the dead-corner zone
           // (the other wall's depth + the 3″ clearance)
           if (nW.edge > nO.it.d + nO.it.outset + CORNER_FILLER + 1) continue;
@@ -953,13 +998,31 @@ export const useStore = create<AppState>()(
           return { retailPricing };
         }),
       setSnapshot: (dataUrl) => set({ snapshot3d: dataUrl }),
-      newDesign: () => set({ design: defaultDesign(), selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null }),
+      newDesign: (kitchenType, line) =>
+        set({ design: defaultDesign(kitchenType, line), selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null }),
+
+      setLine: (line) =>
+        set((s) => {
+          if ((s.design.line ?? 'ext') === line) return s;
+          const d = lineDefaults(line);
+          // keep walls, openings & rough-ins; drop cabinets from the old line
+          const items = s.design.items.filter((it) => !it.auto && (catalogById(it.catalogId).line ?? 'ext') === line);
+          // NewAge modular lines are outdoor products
+          const kitchenType = line === 'ext' ? s.design.kitchenType : 'outdoor';
+          return {
+            design: withPack({ ...s.design, line, kitchenType, finishId: d.finishId, counterId: d.counterId, doorStyle: d.doorStyle, items }),
+            selectedId: null,
+            editingId: null,
+          };
+        }),
       loadDesign: (design) =>
         set({ design: normalizeDesign(design), selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null }),
     }),
     {
       name: 'cabdesign-v1',
-      version: 2,
+      // v3: NewAge lines merged into one ('newage') with per-item finish;
+      // legacy na-ss-*/na-alu-* catalog ids remap in normalizeDesign.
+      version: 3,
       migrate: (state) => {
         const s = state as { design?: Design } | undefined;
         if (s?.design) return { ...s, design: normalizeDesign(s.design) };
@@ -973,6 +1036,9 @@ export const useStore = create<AppState>()(
         if (state?.design) {
           if (!Array.isArray(state.design.roughIns)) state.design.roughIns = [];
           if (!Array.isArray(state.design.openings)) state.design.openings = [];
+          // backfill fields added since the save (product line, kitchen type)
+          if (!state.design.line) state.design.line = 'ext';
+          if (!state.design.kitchenType) state.design.kitchenType = 'outdoor';
           state.design = withPack(state.design);
         }
       },

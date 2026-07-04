@@ -1,7 +1,9 @@
 import { Fragment, useState } from 'react';
 import type { OrderLine } from '../api/client';
+import type { CatalogItem } from '../model/types';
 import SubmitOrderModal from './SubmitOrderModal';
-import { TOEKICK_H, catalogById, handleCount } from '../model/catalog';
+import { ALL_FINISHES, TOEKICK_H, catalogById, handleCount } from '../model/catalog';
+import { LINE_LABELS, NA_COUNTER_RATE_PER_SQFT, itemFinishId, naVariantFor } from '../model/newage';
 import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
 import { countertopById } from '../model/countertops';
@@ -23,6 +25,8 @@ export default function Report() {
   const handles = useStore((s) => s.handles);
   const prefs = useSession((s) => s.prefs);
   const role = useSession((s) => s.user?.role);
+  const sessionStatus = useSession((s) => s.status);
+  const isGuest = sessionStatus === 'guest';
   const taxRate = useSession((s) => s.taxRate);
   const logo = useSession((s) => s.user?.logo) ?? '';
   const fin = useFinish(design.finishId);
@@ -55,6 +59,8 @@ export default function Report() {
 
   /** Final displayed cabinet line price (box + trays) for the current account. */
   const cabinetDisplayed = (it: (typeof design.items)[number], costP: ReturnType<typeof itemPrice>): number => {
+    // NewAge units carry fixed retail (SKU) pricing — no markup/discount applies.
+    if (catalogById(it.catalogId).naPricing) return costP.cabinet;
     const trays = costP.trays;
     if (isContractor && isMarkedUp) {
       const box =
@@ -74,6 +80,22 @@ export default function Report() {
 
   const designName = design.doorStyle === 'shaker' ? 'Vibe' : 'Euro';
   const rate = PANEL_RATE_PER_SQFT;
+
+  // NewAge designs: item names carry the SKU for the selected finish; the
+  // stainless countertop gets an area-based estimate (final order uses
+  // NewAge's fixed-size top SKUs).
+  const line = design.line ?? 'ext';
+  const isNewAge = line !== 'ext';
+  const naCounterEstimate = isNewAge && design.counterId === 'na-stainless' ? round2(counterSqft * NA_COUNTER_RATE_PER_SQFT) : 0;
+  // NewAge line items: name + the finish actually chosen for that cabinet +
+  // its SKU (per-cabinet series/finish overrides included).
+  const lineName = (cat: CatalogItem, it: (typeof design.items)[number]) => {
+    if (!cat.naPricing) return cat.name;
+    const fid = itemFinishId(design, it, cat);
+    const nv = naVariantFor(cat, fid);
+    const f = ALL_FINISHES.find((x) => x.id === fid);
+    return nv ? `${cat.name} · ${f?.name ?? fid} · SKU ${nv.sku}` : cat.name;
+  };
 
   // Cabinet line items (cabinet price only — panels are itemized separately).
   const lines = [...design.items]
@@ -119,7 +141,8 @@ export default function Report() {
   let backArea = 0;
   for (const it of design.items) {
     const cat = catalogById(it.catalogId);
-    if (cat.category === 'appliance' || !itemOnIsland(design, it)) continue;
+    // NewAge metal units are finished on all sides — no applied back panels.
+    if (cat.category === 'appliance' || cat.line || !itemOnIsland(design, it)) continue;
     backCount += Math.ceil(it.w / MAX_PANEL_W);
     backArea += it.w * panelH(it);
   }
@@ -149,7 +172,7 @@ export default function Report() {
   // Marked-up subtotals (percent factor, plus a flat $ on each priced cabinet).
   const cabinetSubtotalMk = cabinetSubtotalDisplayed;
   const panelSubtotalMk = (endSubtotal + backSubtotal) * factor;
-  const subtotalMk = cabinetSubtotalMk + panelSubtotalMk + applianceSubtotal + handleSubtotal;
+  const subtotalMk = cabinetSubtotalMk + panelSubtotalMk + applianceSubtotal + handleSubtotal + naCounterEstimate;
   const taxAmount = isMarkedUp && !taxExempt ? (subtotalMk * taxRate) / 100 : 0;
   const grandTotal = subtotalMk + taxAmount;
 
@@ -158,7 +181,7 @@ export default function Report() {
   const orderLines: OrderLine[] = [
     ...lines.map((l) => ({
       n: l.n,
-      name: l.cat.name,
+      name: lineName(l.cat, l.it),
       location: l.wall?.name ?? '',
       size: `${fmtIn(l.it.w)} × ${fmtIn(l.it.d)} × ${fmtIn(l.it.h)}`,
       price: !showPricing ? '' : l.cat.category === 'appliance' ? '—' : l.error ? 'formula error' : l.price <= 0 ? '—' : money(l.displayed),
@@ -184,9 +207,11 @@ export default function Report() {
               Open 3D view
             </button>
           )}
-          <button className="btn-ghost" onClick={() => setOrderOpen(true)}>
-            Submit order for review
-          </button>
+          {!isGuest && (
+            <button className="btn-ghost" onClick={() => setOrderOpen(true)}>
+              Submit order for review
+            </button>
+          )}
           <button className="btn-primary" onClick={() => window.print()}>
             Print / Save as PDF
           </button>
@@ -213,8 +238,15 @@ export default function Report() {
           {date}
         </p>
         <div className="cover-meta">
-          <div>Finish: {fin.name}</div>
-          <div>Door style: {doorStyleLabel}</div>
+          <div>
+            Cabinet line: {LINE_LABELS[line]}
+            {design.kitchenType === 'indoor' ? ' · Indoor kitchen' : ' · Outdoor kitchen'}
+          </div>
+          <div>
+            Finish: {fin.group ? `${fin.group} · ` : ''}
+            {fin.name}
+          </div>
+          {!isNewAge && <div>Door style: {doorStyleLabel}</div>}
           <div>
             Countertop: {countertopById(design.counterId).name}, {fmtIn(design.counterThickness)} thick ({counterSqft} sq ft)
           </div>
@@ -272,7 +304,7 @@ export default function Report() {
             {lines.map((l) => (
               <tr key={l.it.id}>
                 <td>{l.n}</td>
-                <td>{l.cat.name}</td>
+                <td>{lineName(l.cat, l.it)}</td>
                 <td>{l.wall?.name ?? '—'}</td>
                 <td>
                   {fmtIn(l.it.w)} × {fmtIn(l.it.d)} × {fmtIn(l.it.h)}
@@ -434,6 +466,25 @@ export default function Report() {
           </table>
         )}
 
+        {showPricing && naCounterEstimate > 0 && (
+          <table className="schedule" style={{ marginTop: 22 }}>
+            <thead>
+              <tr>
+                <th>Countertops</th>
+                <th className="num">Area</th>
+                <th className="num">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>NewAge stainless steel countertops (estimate — final order uses NewAge's fixed-size tops)</td>
+                <td className="num">{counterSqft} sq ft</td>
+                <td className="num">{money(naCounterEstimate)}</td>
+              </tr>
+            </tbody>
+          </table>
+        )}
+
         {showPricing && (
           <table className="schedule" style={{ marginTop: 22 }}>
             <tfoot>
@@ -457,12 +508,20 @@ export default function Report() {
           </table>
         )}
 
-        {showPricing && (
+        {showPricing && !isNewAge && (
           <p className="report-note">
             Applied end and back panels bill at {money(rate * factor)}/sq ft (panel height excludes the 4″ toe kick) in the{' '}
             {designName} ({design.doorStyle === 'shaker' ? 'shaker' : 'flat'}) design; island cabinets receive finished back
             panels automatically, split into panels of {MAX_PANEL_W}″ max. Appliances shown for visual reference are not
             priced.
+          </p>
+        )}
+        {showPricing && isNewAge && (
+          <p className="report-note">
+            NewAge Products modular units are factory-built at set sizes with integrated handles — prices shown are the
+            per-SKU retail prices for the selected door &amp; finish. Grills, kamados and fridges are sold separately unless
+            selected above. Countertop pricing is an estimate; the final order is assembled from NewAge's fixed-size
+            stainless tops.
           </p>
         )}
 

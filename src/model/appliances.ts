@@ -116,7 +116,7 @@ export function appliancePrice(
     linerNet,
     panelCharge,
     total,
-    label: `${item.brand} ${item.model}`.trim(),
+    label: `${item.brand} ${item.model}${item.name ? ` — ${item.name}` : ''}`.trim(),
     byCustomer: false,
   };
 }

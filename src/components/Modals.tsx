@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BASE_H, CATALOG, CATEGORY_LABELS, COUNTER_T, catalogById, takesAppliedEnds } from '../model/catalog';
+import { BASE_H, CATALOG, COUNTER_T, catalogById, catalogForDesign, categoryLabelsForLine, finishesForLine, takesAppliedEnds } from '../model/catalog';
+import { NEWAGE_FINISHES, itemFinishId, naClosestFinish, naVariantFor } from '../model/newage';
 import { money, tryFormula } from '../model/pricing';
 import {
   APPLIANCE_CATS,
@@ -11,7 +12,7 @@ import {
   requiredCabinetWidth,
   selectedApplianceWidth,
 } from '../model/appliances';
-import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleItem, PlacedItem } from '../model/types';
+import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleItem, PlacedItem, ProductLine } from '../model/types';
 import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, uid, useStore } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { useSession } from '../state/session';
@@ -45,9 +46,68 @@ function Modal({ title, sub, onClose, children, wide }: { title: string; sub?: s
   );
 }
 
-function MiniPreview({ cat }: { cat: CatalogItem }) {
-  const fin = useFinish(useStore((s) => s.design.finishId));
+function MiniPreview({ cat, finishId }: { cat: CatalogItem; finishId?: string }) {
+  const defaultId = useStore((s) => s.design.finishId);
+  const fin = useFinish(finishId ?? defaultId);
   return <CatalogThumb cat={cat} fin={fin} />;
+}
+
+/** Series + door-finish picker shown at the top of the Add dialog. Sets the
+ *  DESIGN default finish, so every thumbnail/price below re-renders in it and
+ *  new cabinets match — individual cabinets can still override in their own
+ *  settings. */
+function FinishBar({ line, finishId, onPick }: { line: ProductLine | undefined; finishId: string; onPick: (id: string) => void }) {
+  const fins = finishesForLine(line);
+  const groups = [...new Set(fins.map((f) => f.group ?? ''))];
+  const cur = fins.find((f) => f.id === finishId) ?? fins[0];
+  const swatch = (color: string) => (
+    <span
+      style={{
+        display: 'inline-block',
+        width: 11,
+        height: 11,
+        borderRadius: 2,
+        background: color,
+        marginRight: 5,
+        border: '1px solid rgba(0,0,0,.28)',
+        verticalAlign: 'middle',
+      }}
+    />
+  );
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', margin: '8px 0 10px' }}>
+      {groups.length > 1 && (
+        <div className="seg">
+          {groups.map((g) => (
+            <button
+              key={g}
+              className={(cur.group ?? '') === g ? 'seg-btn active' : 'seg-btn'}
+              title={g}
+              onClick={() => {
+                const first = fins.find((f) => (f.group ?? '') === g);
+                if (first) onPick(first.id);
+              }}
+            >
+              {g ? g.split(' · ')[0] : 'Series'}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="seg" style={{ flexWrap: 'wrap' }}>
+        {fins
+          .filter((f) => (f.group ?? '') === (cur.group ?? ''))
+          .map((f) => (
+            <button key={f.id} className={f.id === finishId ? 'seg-btn active' : 'seg-btn'} title={f.name} onClick={() => onPick(f.id)}>
+              {swatch(f.body)}
+              {f.name}
+            </button>
+          ))}
+      </div>
+      <span className="stepper-note" style={{ fontSize: 11, opacity: 0.75 }}>
+        sets the whole kitchen — each cabinet can override in its settings
+      </span>
+    </div>
+  );
 }
 
 export function AddItemModal() {
@@ -55,6 +115,7 @@ export function AddItemModal() {
   const openAdd = useStore((s) => s.openAdd);
   const addItem = useStore((s) => s.addItem);
   const design = useStore((s) => s.design);
+  const setDesignMeta = useStore((s) => s.setDesignMeta);
   const dims = useStore((s) => s.dims);
   const [tab, setTab] = useState<string>('base');
   const [warn, setWarn] = useState<string | null>(null);
@@ -63,7 +124,13 @@ export function AddItemModal() {
   const wall = design.walls.find((w) => w.id === wallId);
   if (!wall) return null;
 
-  const cats = CATALOG.filter((c) => c.category === tab);
+  // Catalog scoped to this design's product line & kitchen type.
+  const available = catalogForDesign(design.line, design.kitchenType);
+  const labels = categoryLabelsForLine(design.line);
+  const tabEntries = Object.entries(labels).filter(([id]) => available.some((c) => c.category === id));
+  const activeTab = tabEntries.some(([id]) => id === tab) ? tab : tabEntries[0]?.[0] ?? 'base';
+
+  const cats = available.filter((c) => c.category === activeTab);
   const openFloor = largestOpening(design, wallId, 'floor').w;
   const openUpper = largestOpening(design, wallId, 'upper').w;
 
@@ -75,18 +142,32 @@ export function AddItemModal() {
       wide
     >
       <div className="cat-tabs">
-        {Object.entries(CATEGORY_LABELS).map(([id, label]) => (
-          <button key={id} className={tab === id ? 'cat-tab active' : 'cat-tab'} onClick={() => setTab(id)}>
+        {tabEntries.map(([id, label]) => (
+          <button key={id} className={activeTab === id ? 'cat-tab active' : 'cat-tab'} onClick={() => setTab(id)}>
             {label}
           </button>
         ))}
       </div>
+      <FinishBar line={design.line} finishId={design.finishId} onPick={(finishId) => setDesignMeta({ finishId })} />
+      {(design.line ?? 'ext') === 'ext' && (design.kitchenType ?? 'outdoor') === 'outdoor' && (
+        <p className="modal-sub" style={{ margin: '6px 0 10px' }}>
+          Looking for NewAge Products modular cabinets (stainless steel / aluminum)? Switch the cabinet line under ⚙ Settings →
+          Cabinet line.
+        </p>
+      )}
       {warn && <div className="warn">{warn}</div>}
       <div className="cat-grid">
         {cats.map((c) => {
           const open = openingFor(design, wallId, c).w;
           const minW = effectiveDims(c.id, dims).minW;
           const fits = minW <= open + 0.001;
+          // Preview & price in the closest finish the unit is actually made in
+          // — some units skip a finish (e.g. the 16″ louvered units come in
+          // Grove only, not Louvered White). Label the substitution honestly.
+          const effId = c.naPricing ? naClosestFinish(c, design.finishId) : design.finishId;
+          const substituted = c.naPricing && effId !== design.finishId;
+          const effName = NEWAGE_FINISHES.find((f) => f.id === effId)?.name ?? effId;
+          const nv = naVariantFor(c, effId);
           return (
             <button
               key={c.id}
@@ -100,11 +181,18 @@ export function AddItemModal() {
                 }
               }}
             >
-              <MiniPreview cat={c} />
+              <MiniPreview cat={c} finishId={effId} />
               <span className="cat-name">{c.name}</span>
               <span className="cat-size">
-                {fmtIn(c.w)} W × {fmtIn(c.d)} D × {fmtIn(c.h)} H
+                {fmtIn(c.w)} W × {fmtIn(c.d)} D × {fmtIn(c.h)} H{c.fixed ? ' · set size' : ''}
               </span>
+              {nv && (
+                <span className="cat-size">
+                  {money(nv.price)}
+                  {nv.msrp > nv.price ? ` (was ${money(nv.msrp)})` : ''}
+                </span>
+              )}
+              {substituted && <span className="cat-note">Only made in {effName} for this series — shown as offered.</span>}
               {c.note && <span className="cat-note">{c.note}</span>}
             </button>
           );
@@ -403,13 +491,90 @@ export function EditItemModal() {
   const island = wall.ghost;
   const maxTrays = cat.maxTrays ?? 0;
 
+  // NewAge units: series & door finish are per-cabinet options (like the
+  // manufacturer's own product page). Effective finish = the cabinet's own
+  // choice, else the kitchen default.
+  const effFinishId = cat.naPricing ? itemFinishId(design, it, cat) : design.finishId;
+  const naV = naVariantFor(cat, effFinishId);
+  const naFins = cat.naPricing ? NEWAGE_FINISHES.filter((f) => cat.naPricing![f.id]) : [];
+  const naGroups = [...new Set(naFins.map((f) => f.group!))];
+  const effGroup = naFins.find((f) => f.id === effFinishId)?.group;
+
   return (
-    <Modal title={`${fmtIn(it.w)} ${cat.name}`} sub={`Space left: ${fmtIn(Math.max(0, left))}`} onClose={() => openEditor(null)}>
+    <Modal title={cat.fixed ? cat.name : `${fmtIn(it.w)} ${cat.name}`} sub={`Space left: ${fmtIn(Math.max(0, left))}`} onClose={() => openEditor(null)}>
       {cat.note && <div className="edit-note">{cat.note}</div>}
       <div className="stepper-list">
-        <Stepper label="Width" value={it.w} step={1} min={minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
-        <Stepper label="Depth" value={it.d} step={1} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
-        <Stepper label="Height" value={it.h} step={1} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
+        {cat.fixed ? (
+          <>
+            <div className="stepper-row">
+              <span className="stepper-label">
+                Size
+                <span className="stepper-note">set by the manufacturer — not editable</span>
+              </span>
+              <span className="stepper">
+                {fmtIn(it.w)} W × {fmtIn(it.d)} D × {fmtIn(it.h)} H
+              </span>
+            </div>
+            {naGroups.length > 0 && (
+              <div className="stepper-row">
+                <span className="stepper-label">
+                  Series
+                  {naGroups.length === 1 && <span className="stepper-note">only series offered for this unit</span>}
+                </span>
+                <div className="seg">
+                  {naGroups.map((g) => (
+                    <button
+                      key={g}
+                      className={effGroup === g ? 'seg-btn active' : 'seg-btn'}
+                      title={g}
+                      onClick={() => {
+                        const first = naFins.find((f) => f.group === g);
+                        if (first) updateItem(it.id, { finish: first.id });
+                      }}
+                    >
+                      {g.split(' · ')[0]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {naFins.length > 0 && (
+              <div className="stepper-row">
+                <span className="stepper-label">
+                  Door finish
+                  {!it.finish && <span className="stepper-note">following the kitchen default</span>}
+                </span>
+                <div className="seg">
+                  {naFins
+                    .filter((f) => f.group === effGroup)
+                    .map((f) => (
+                      <button key={f.id} className={effFinishId === f.id ? 'seg-btn active' : 'seg-btn'} onClick={() => updateItem(it.id, { finish: f.id })}>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 10,
+                            height: 10,
+                            borderRadius: 2,
+                            background: f.body,
+                            marginRight: 6,
+                            border: '1px solid rgba(0,0,0,.25)',
+                            verticalAlign: 'middle',
+                          }}
+                        />
+                        {f.name}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <Stepper label="Width" value={it.w} step={1} min={minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
+            <Stepper label="Depth" value={it.d} step={1} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
+            <Stepper label="Height" value={it.h} step={1} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
+          </>
+        )}
         {cat.front === 'filler' ? (
           <div className="stepper-row">
             <span className="stepper-label">
@@ -450,7 +615,7 @@ export function EditItemModal() {
             </div>
           </div>
         )}
-        {cat.counter && cat.lane === 'floor' && (
+        {cat.counter && cat.lane === 'floor' && !cat.line && (
           <div className="stepper-row">
             <span className="stepper-label">
               Waterfall edge
@@ -500,7 +665,14 @@ export function EditItemModal() {
           On island — finished back panel applied automatically.
         </div>
       )}
-      {cat.category !== 'appliance' && (
+      {cat.category !== 'appliance' && cat.naPricing && naV && (
+        <div className="price-line">
+          Price: <b>{money(naV.price)}</b>
+          {naV.msrp > naV.price && <span className="price-sub"> (was {money(naV.msrp)})</span>}
+          <span className="price-sub"> · SKU {naV.sku}</span>
+        </div>
+      )}
+      {cat.category !== 'appliance' && !cat.naPricing && (
         <div className="price-line">
           Unit price: <b>{price.error ? '—' : money(price.total)}</b>
           {!price.error && (
@@ -756,7 +928,7 @@ export function PricingModal() {
   const pricing = useStore((s) => s.pricing);
   const setFormula = useStore((s) => s.setFormula);
 
-  const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch), []);
+  const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch && !c.line), []);
 
   if (!open) return null;
   return (
@@ -813,7 +985,7 @@ export function RetailPricingModal() {
   const retailPricing = useStore((s) => s.retailPricing);
   const setRetailFormula = useStore((s) => s.setRetailFormula);
 
-  const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch), []);
+  const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch && !c.line), []);
 
   if (!open) return null;
   return (
@@ -901,7 +1073,7 @@ export function SettingsModal() {
   const dims = useStore((s) => s.dims);
   const setDim = useStore((s) => s.setDim);
 
-  const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance'), []);
+  const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.line), []);
 
   if (!open) return null;
   return (
