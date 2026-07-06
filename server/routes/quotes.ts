@@ -65,6 +65,9 @@ quotesRouter.post('/submit', async (req, res) => {
   }
   const q = parsed.data;
 
+  // The consumer report hides pricing, so quote lines usually carry none —
+  // only render the price column when something actually has a price.
+  const hasPrices = q.lines.some((l) => l.price);
   const rows = q.lines
     .map(
       (l) =>
@@ -72,7 +75,8 @@ quotesRouter.post('/submit', async (req, res) => {
         `<td style="padding:4px 8px;border-bottom:1px solid #eee">${esc(l.name)}</td>` +
         `<td style="padding:4px 8px;border-bottom:1px solid #eee">${esc(l.location)}</td>` +
         `<td style="padding:4px 8px;border-bottom:1px solid #eee">${esc(l.size)}</td>` +
-        `<td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${esc(l.price)}</td></tr>`
+        (hasPrices ? `<td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${esc(l.price)}</td>` : '') +
+        `</tr>`
     )
     .join('');
 
@@ -90,9 +94,9 @@ quotesRouter.post('/submit', async (req, res) => {
         <thead><tr style="text-align:left;background:#f5f6f8">
           <th style="padding:4px 8px">#</th><th style="padding:4px 8px">Item</th>
           <th style="padding:4px 8px">Location</th><th style="padding:4px 8px">Size</th>
-          <th style="padding:4px 8px;text-align:right">Est. price</th>
+          ${hasPrices ? '<th style="padding:4px 8px;text-align:right">Est. price</th>' : ''}
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="5" style="padding:8px">No items.</td></tr>'}</tbody>
+        <tbody>${rows || `<tr><td colspan="${hasPrices ? 5 : 4}" style="padding:8px">No items.</td></tr>`}</tbody>
       </table>
       ${q.total ? `<p style="margin-top:8px"><b>Estimated total: ${esc(q.total)}</b></p>` : ''}
       <p style="color:#888;font-size:12px;margin-top:16px">Sent from the CabDesign consumer designer. The full design is attached as a .cabdesign.json file.</p>

@@ -42,8 +42,9 @@ export default function Report() {
   const counterSqft = counterAreaSqft(design);
   const totalHandles = design.items.reduce((n, it) => n + handleCount(catalogById(it.catalogId), it.w), 0);
 
-  // Pricing preferences. Default to showing marked-up pricing.
-  const showPricing = prefs?.showPricing ?? true;
+  // Pricing preferences. Default to showing marked-up pricing. End users
+  // (guests) never see pricing on the report — they request a quote instead.
+  const showPricing = isGuest ? false : prefs?.showPricing ?? true;
   const priceMode = prefs?.priceMode ?? 'marked_up';
   const isMarkedUp = priceMode === 'marked_up';
   const isContractor = role === 'contractor';
@@ -306,7 +307,7 @@ export default function Report() {
 
       {/* Schedule & pricing */}
       <section className="report-page">
-        <h2>Item Schedule &amp; Estimate</h2>
+        <h2>{showPricing ? <>Item Schedule &amp; Estimate</> : 'Item Schedule'}</h2>
         <table className="schedule">
           <thead>
             <tr>
