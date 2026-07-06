@@ -4,7 +4,7 @@ import WallsView from './components/WallsView';
 import TopView from './components/TopView';
 import View3D from './components/View3D';
 import Report from './components/Report';
-import Login from './components/Login';
+import StartScreen from './components/StartScreen';
 import ResetPassword from './components/ResetPassword';
 import AdminPanel from './components/AdminPanel';
 import JobsScreen from './components/JobsScreen';
@@ -61,7 +61,7 @@ export default function App() {
     );
   }
 
-  if (status === 'anon') return <Login />;
+  if (status === 'anon') return <StartScreen />;
 
   return (
     <div className="app">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { createLocalJob, getLocalJob, updateLocalJob } from '../state/localJobs';
 import { useStore } from '../state/store';
 import { useSession } from '../state/session';
 
@@ -9,6 +10,7 @@ export default function SaveJobModal() {
   const currentJobId = useSession((s) => s.currentJobId);
   const setCurrentJob = useSession((s) => s.setCurrentJob);
   const setScreen = useSession((s) => s.setScreen);
+  const isGuest = useSession((s) => s.status === 'guest');
   const design = useStore((s) => s.design);
   const setDesignMeta = useStore((s) => s.setDesignMeta);
 
@@ -29,6 +31,14 @@ export default function SaveJobModal() {
     setCustomerEmail('');
     setCustomerAddress('');
     setUpdateExisting(currentJobId != null);
+    if (isGuest) {
+      // Local jobs only store a name + the design itself.
+      if (currentJobId != null) {
+        const job = getLocalJob(currentJobId);
+        if (job) setName(job.name);
+      }
+      return;
+    }
     // We don't have the customer fields in `design`; they live on the job row.
     // When updating an existing job, fetch them so edits don't wipe them.
     if (currentJobId != null) {
@@ -42,7 +52,7 @@ export default function SaveJobModal() {
         })
         .catch(() => {});
     }
-  }, [open, currentJobId, design.name, design.client]);
+  }, [open, currentJobId, design.name, design.client, isGuest]);
 
   if (!open) return null;
 
@@ -52,6 +62,17 @@ export default function SaveJobModal() {
     // Keep design.client in sync with the customer name for the report cover.
     if (customerName.trim() && customerName !== design.client) setDesignMeta({ client: customerName.trim() });
     if (name.trim() && name !== design.name) setDesignMeta({ name: name.trim() });
+    if (isGuest) {
+      // No account — jobs are stored right in this browser.
+      const jobName = name.trim() || 'Untitled Design';
+      const d = useStore.getState().design;
+      const saved =
+        currentJobId != null && updateExisting ? (updateLocalJob(currentJobId, jobName, d) ?? createLocalJob(jobName, d)) : createLocalJob(jobName, d);
+      setCurrentJob(saved.id, saved.name);
+      setBusy(false);
+      openSaveJob(false);
+      return;
+    }
     const payload = {
       name: name.trim() || 'Untitled Design',
       customerName: customerName.trim(),
@@ -82,7 +103,9 @@ export default function SaveJobModal() {
         <div className="modal-head">
           <div>
             <h2>Save job</h2>
-            <p className="modal-sub">Store this design and its customer details to your account.</p>
+            <p className="modal-sub">
+              {isGuest ? 'Your job is saved right in this browser — reopen it anytime from Open job.' : 'Store this design and its customer details to your account.'}
+            </p>
           </div>
           <button className="btn-ghost" onClick={() => openSaveJob(false)}>
             ✕
@@ -92,22 +115,26 @@ export default function SaveJobModal() {
         {error && <div className="warn">{error}</div>}
 
         <div className="form-grid">
-          <label className="form-field">
+          <label className="form-field form-field-wide">
             <span>Job name</span>
             <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           </label>
-          <label className="form-field">
-            <span>Customer name</span>
-            <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-          </label>
-          <label className="form-field">
-            <span>Customer email</span>
-            <input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
-          </label>
-          <label className="form-field form-field-wide">
-            <span>Customer address</span>
-            <input value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} />
-          </label>
+          {!isGuest && (
+            <>
+              <label className="form-field">
+                <span>Customer name</span>
+                <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+              </label>
+              <label className="form-field">
+                <span>Customer email</span>
+                <input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
+              </label>
+              <label className="form-field form-field-wide">
+                <span>Customer address</span>
+                <input value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} />
+              </label>
+            </>
+          )}
         </div>
 
         {currentJobId != null && (

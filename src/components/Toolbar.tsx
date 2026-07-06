@@ -19,8 +19,6 @@ export default function Toolbar() {
   const design = useStore((s) => s.design);
   const setDesignMeta = useStore((s) => s.setDesignMeta);
   const newDesign = useStore((s) => s.newDesign);
-  const loadDesign = useStore((s) => s.loadDesign);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const user = useSession((s) => s.user);
   const status = useSession((s) => s.status);
@@ -34,31 +32,9 @@ export default function Toolbar() {
   const isGuest = status === 'guest';
   const [newOpen, setNewOpen] = useState(false);
 
-  function exportDesign() {
-    const blob = new Blob([JSON.stringify(design, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${(design.name || 'design').replace(/[^\w-]+/g, '_')}.cabdesign.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  function importDesign(file: File) {
-    file.text().then((text) => {
-      try {
-        const d = JSON.parse(text) as Design;
-        if (!d || !Array.isArray(d.walls) || !Array.isArray(d.items)) throw new Error('bad file');
-        loadDesign(d);
-        setCurrentJob(null, null);
-      } catch {
-        alert('That file does not look like a saved design.');
-      }
-    });
-  }
-
   const navItems: Array<{ id: Screen; label: string; show: boolean }> = [
     { id: 'design', label: 'Designer', show: true },
-    { id: 'jobs', label: 'My Jobs', show: !isGuest },
+    { id: 'jobs', label: 'My Jobs', show: true },
     { id: 'profile', label: 'Profile', show: !isGuest },
     { id: 'admin', label: 'Admin', show: !!isAdmin },
   ];
@@ -104,46 +80,29 @@ export default function Toolbar() {
 
           <div className="toolbar-right">
             <SettingsMenu design={design} setDesignMeta={setDesignMeta} isAdmin={isAdmin} />
-            {!isGuest && (
-              <>
-                <button className="btn-primary" onClick={() => openSaveJob(true)} title="Save this design to your account">
-                  Save job
-                </button>
-                <button className="btn-ghost" onClick={() => setScreen('jobs')} title="Open a saved job">
-                  Open
-                </button>
-              </>
-            )}
-            <button className="btn-ghost" onClick={exportDesign} title="Download design file">
-              Export
+            <button className="btn-primary" onClick={() => openSaveJob(true)} title="Save this design">
+              Save job
             </button>
-            <button className="btn-ghost" onClick={() => fileRef.current?.click()} title="Import design file">
-              Import
+            <button className="btn-ghost" onClick={() => setScreen('jobs')} title="Open a saved job">
+              Open job
             </button>
             <button className="btn-ghost" onClick={() => setNewOpen(true)}>
               New
             </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".json,application/json"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) importDesign(f);
-                e.target.value = '';
-              }}
-            />
           </div>
         </>
       )}
 
       <div className="toolbar-user">
         {screen === 'design' && currentJobName && <span className="job-chip">Job: {currentJobName}</span>}
-        <span className="user-name">{isGuest ? 'Guest' : user?.name}</span>
-        <button className="btn-ghost" onClick={() => logout()}>
-          {isGuest ? 'Sign in' : 'Log out'}
-        </button>
+        {!isGuest && (
+          <>
+            <span className="user-name">{user?.name}</span>
+            <button className="btn-ghost" onClick={() => logout()}>
+              Log out
+            </button>
+          </>
+        )}
       </div>
 
       {newOpen && (
@@ -160,64 +119,36 @@ export default function Toolbar() {
   );
 }
 
-/** New-design chooser: indoor vs outdoor, then the cabinet product line. */
+/** New-design chooser: the same three kitchen options as the start screen. */
 function NewDesignModal({ onClose, onCreate }: { onClose: () => void; onCreate: (k: KitchenType, l: ProductLine) => void }) {
-  const [kitchen, setKitchen] = useState<KitchenType>('outdoor');
-  const [line, setLine] = useState<ProductLine>('ext');
-  const lines: Array<{ id: ProductLine; label: string; sub: string; outdoorOnly: boolean }> = [
-    { id: 'ext', label: LINE_LABELS.ext, sub: 'Made-to-size HDPE cabinets — any width, 12 colors.', outdoorOnly: false },
-    {
-      id: 'newage',
-      label: LINE_LABELS.newage,
-      sub: 'Classic Series modular units at set factory sizes — pick the series (304 stainless Classic/Louvered or aluminum) and door finish per cabinet.',
-      outdoorOnly: true,
-    },
+  const options: Array<{ k: KitchenType; l: ProductLine; label: string; sub: string }> = [
+    { k: 'indoor', l: 'ext', label: 'Indoor Kitchen Cabinets', sub: 'Made-to-size cabinets — any width, 12 colors, shaker or flat doors.' },
+    { k: 'outdoor', l: 'ext', label: 'Outdoor Kitchen Cabinets', sub: 'Weatherproof HDPE cabinets made to size around your grill and appliances.' },
+    { k: 'outdoor', l: 'newage', label: 'NewAge Outdoor Kitchen Cabinets', sub: 'Modular 304 stainless or aluminum units at factory sizes.' },
   ];
-  const effLine = kitchen === 'indoor' ? 'ext' : line;
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <h2>New design</h2>
-            <p className="modal-sub">Your current design stays in this browser until replaced.</p>
+            <p className="modal-sub">Pick a kitchen to start fresh. Save the current design first if you want to keep it.</p>
           </div>
           <button className="btn-ghost" onClick={onClose}>
             ✕
           </button>
         </div>
-        <div className="stepper-list">
-          <div className="stepper-row">
-            <span className="stepper-label">Kitchen type</span>
-            <div className="seg">
-              <button className={kitchen === 'outdoor' ? 'seg-btn active' : 'seg-btn'} onClick={() => setKitchen('outdoor')}>
-                Outdoor
-              </button>
-              <button className={kitchen === 'indoor' ? 'seg-btn active' : 'seg-btn'} onClick={() => setKitchen('indoor')}>
-                Indoor
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="settings-menu-label" style={{ marginTop: 10 }}>
-          Cabinet line
-        </div>
         <div className="line-cards">
-          {lines
-            .filter((l) => kitchen === 'outdoor' || !l.outdoorOnly)
-            .map((l) => (
-              <button key={l.id} className={`cat-card ${effLine === l.id ? 'cat-card-active' : ''}`} onClick={() => setLine(l.id)} style={effLine === l.id ? { outline: '2px solid var(--accent, #2b6cb0)' } : undefined}>
-                <span className="cat-name">{l.label}</span>
-                <span className="cat-note">{l.sub}</span>
-              </button>
-            ))}
+          {options.map((o) => (
+            <button key={`${o.k}-${o.l}`} className="cat-card" onClick={() => onCreate(o.k, o.l)}>
+              <span className="cat-name">{o.label}</span>
+              <span className="cat-note">{o.sub}</span>
+            </button>
+          ))}
         </div>
         <div className="modal-actions">
           <button className="btn-ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button className="btn-primary" onClick={() => onCreate(kitchen, effLine)}>
-            Start designing
           </button>
         </div>
       </div>
