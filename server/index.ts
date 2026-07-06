@@ -20,7 +20,7 @@ import { quotesRouter } from './routes/quotes.ts';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-app.use(express.json({ limit: '4mb' })); // designs can be large
+app.use(express.json({ limit: '25mb' })); // designs + quote report PDFs can be large
 app.use(cookieParser());
 
 // Dev: allow the Vite origin to send/receive the session cookie. (In prod the

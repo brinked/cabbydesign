@@ -17,7 +17,7 @@ export const CARCASS_TOP = '#f6f7f8';
  */
 export function SvgDefs() {
   return (
-    <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden focusable="false">
+    <svg id="svg-shared-defs" width={0} height={0} style={{ position: 'absolute' }} aria-hidden focusable="false">
       <defs>
         <linearGradient id="g-steel" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#eef1f3" />

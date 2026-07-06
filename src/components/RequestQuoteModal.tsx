@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, ApiError, type OrderLine, type QuoteInput } from '../api/client';
 import type { Design } from '../model/types';
+import { buildReportPdf } from './reportPdf';
 
 /** Consumer "request a quote" modal — captures the lead's contact details and
  *  emails the design to EXT Cabinets. Name, email, phone and address required. */
@@ -39,6 +40,9 @@ export default function RequestQuoteModal({
     }
     setStatus('sending');
     setError(null);
+    // Snapshot the report as a PDF so the email includes a readable copy of
+    // the design; the request still goes out if generation fails.
+    const pdf = await buildReportPdf(lines);
     const input: QuoteInput = {
       projectName: design.name || 'Untitled Design',
       contact: { name: name.trim(), email: email.trim(), phone: phone.trim(), address: address.trim() },
@@ -46,6 +50,7 @@ export default function RequestQuoteModal({
       total,
       lines,
       design,
+      pdf: pdf ?? undefined,
     };
     try {
       await api.requestQuote(input);

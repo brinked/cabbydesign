@@ -23,7 +23,7 @@ export interface MailInput {
   html: string;
   text?: string;
   replyTo?: string;
-  attachments?: { filename: string; content: string; contentType?: string }[];
+  attachments?: { filename: string; content: string; contentType?: string; encoding?: string }[];
 }
 
 /** Send an email. Returns { sent } — false (not thrown) when email is disabled. */

@@ -145,6 +145,8 @@ export interface QuoteInput {
   total: string;
   lines: OrderLine[];
   design: Design;
+  /** Report PDF (base64, no data: prefix) — attached to the lead email. */
+  pdf?: string;
 }
 
 export const api = {

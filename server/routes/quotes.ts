@@ -50,6 +50,8 @@ const quoteSchema = z.object({
   lines: z.array(lineSchema).max(2000).default([]),
   // the full design blob, attached so EXT can open it in the tool
   design: z.object({}).passthrough(),
+  // report PDF rendered client-side (base64, ~15MB cap post-encoding)
+  pdf: z.string().max(20_000_000).optional(),
 });
 
 quotesRouter.post('/submit', async (req, res) => {
@@ -103,14 +105,18 @@ quotesRouter.post('/submit', async (req, res) => {
     </div>`;
 
   const safeName = (q.projectName || 'design').replace(/[^\w-]+/g, '_');
+  const attachments: NonNullable<Parameters<typeof sendMail>[0]['attachments']> = [
+    { filename: `${safeName}.cabdesign.json`, content: JSON.stringify(q.design, null, 2), contentType: 'application/json' },
+  ];
+  if (q.pdf) {
+    attachments.unshift({ filename: `${safeName}.pdf`, content: q.pdf, contentType: 'application/pdf', encoding: 'base64' });
+  }
   const result = await sendMail({
     to: config.smtp.orderInbox,
     subject: `Quote request: ${q.projectName} — ${q.contact.name}`,
     html,
     replyTo: q.contact.email,
-    attachments: [
-      { filename: `${safeName}.cabdesign.json`, content: JSON.stringify(q.design, null, 2), contentType: 'application/json' },
-    ],
+    attachments,
   });
 
   if (!result.sent) {
