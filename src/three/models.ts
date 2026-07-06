@@ -21,6 +21,7 @@ let started = false;
 /** Public model URLs (served from /public). One entry per real model. */
 const MODEL_URLS: Record<string, string> = {
   griddle: '/models/griddle.glb',
+  grill: '/models/grill.glb', // Broilmaster B-Series head for grill cabinets
 };
 
 /** True once at least the requested model is available. */

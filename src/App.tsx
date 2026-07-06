@@ -32,7 +32,7 @@ export default function App() {
   // Preload real 3D appliance models; flip the store flag so the 3D scene and
   // 2D sprites re-render with them once they arrive.
   useEffect(() => {
-    const off = onModelsLoaded(() => useStore.setState({ modelsReady: true }));
+    const off = onModelsLoaded(() => useStore.setState((s) => ({ modelsReady: s.modelsReady + 1 })));
     loadModels();
     return off;
   }, []);

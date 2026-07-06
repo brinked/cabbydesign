@@ -13,6 +13,14 @@ const GRIDDLE_MODEL_PROUD = 2.5;
 const GRIDDLE_MODEL_BACK = -3; // protrude the griddle face a few inches past the cabinet
 const GRIDDLE_MODEL_YAW = 0;
 
+// Real grill model placement (Broilmaster B-Series head). The firebox drops
+// into the cabinet by SINK inches (hood + control face stay above/in front);
+// BACK works like the griddle's (negative = face protrudes past the cabinet).
+const GRILL_MODEL_W_FRAC = 1.0;
+const GRILL_MODEL_SINK = 7.5;
+const GRILL_MODEL_BACK = -3;
+const GRILL_MODEL_YAW = 0;
+
 export const STEEL_3D = 0xc9ced2;
 
 export function box(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh {
@@ -1335,40 +1343,57 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   };
   if (cat.front === 'grill' && !isAppliance) {
-    // Built-in grill set into the cabinet: recessed stainless control face
-    // framed by the cabinet, roll-top hood resting on the body above. Fixed
-    // width (the cabinet frame widens around it), so it doesn't stretch.
+    // Built-in grill set into the cabinet, fixed width (the cabinet frame
+    // widens around it). Real Broilmaster model when loaded; procedural
+    // stainless face + roll-top hood as the fallback.
     const gw = applianceOpeningW(cat.front, w);
-    const applH = 9;
-    const faceY = kick + carcassH - REVEAL - applH / 2;
-    const face = box(gw, applH, 1.5, mats.steel);
-    face.position.set(0, faceY, d - 0.2);
-    g.add(face);
-    addKnobs(0, faceY - 1, d + 0.55, Math.max(3, Math.min(5, Math.round(gw / 8))));
-    // grill body lip just above the cabinet top
-    const lip = box(gw, 1.8, d - 3, mats.steel);
-    lip.position.set(0, h + 0.9, d / 2);
-    g.add(lip);
-    // roll-top hood
-    const hoodH = 8.5;
-    const hoodD = d - 6;
-    const hoodFrontZ = d - 2;
-    const hood = grillHood(gw - 0.5, hoodD, hoodH, mats.steel);
-    hood.position.set(0, h + 1.8, hoodFrontZ);
-    g.add(hood);
-    // thermometer on the hood face
-    const thermoBezel = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.7, 18), mats.steel);
-    thermoBezel.rotation.x = Math.PI / 2;
-    thermoBezel.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.2);
-    const thermoFace = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.05, 1.05, 0.75, 18),
-      new THREE.MeshStandardMaterial({ color: 0xf4f5f2, roughness: 0.35 })
-    );
-    thermoFace.rotation.x = Math.PI / 2;
-    thermoFace.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.25);
-    g.add(thermoBezel, thermoFace);
-    // handle across the hood front
-    addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.28, hoodFrontZ + 1.7);
+    const model = fitModel('grill', GRILL_MODEL_W_FRAC * gw);
+    if (model) {
+      // Close the cabinet's appliance-face opening with a stainless panel set
+      // back behind the unit so no carcass shows through around the head.
+      const applH = 9;
+      const faceY = kick + carcassH - REVEAL - applH / 2;
+      const face = box(gw, applH, 0.6, mats.steelMatte);
+      face.position.set(0, faceY, d - 1.6);
+      g.add(face);
+      if (GRILL_MODEL_YAW) model.rotation.y = GRILL_MODEL_YAW;
+      const mb = new THREE.Box3().setFromObject(model);
+      const md = mb.max.z - mb.min.z; // scaled depth
+      // firebox sinks into the cabinet; hood rises above the countertop
+      model.position.set(0, h - GRILL_MODEL_SINK, d - md / 2 - GRILL_MODEL_BACK);
+      g.add(model);
+    } else {
+      const applH = 9;
+      const faceY = kick + carcassH - REVEAL - applH / 2;
+      const face = box(gw, applH, 1.5, mats.steel);
+      face.position.set(0, faceY, d - 0.2);
+      g.add(face);
+      addKnobs(0, faceY - 1, d + 0.55, Math.max(3, Math.min(5, Math.round(gw / 8))));
+      // grill body lip just above the cabinet top
+      const lip = box(gw, 1.8, d - 3, mats.steel);
+      lip.position.set(0, h + 0.9, d / 2);
+      g.add(lip);
+      // roll-top hood
+      const hoodH = 8.5;
+      const hoodD = d - 6;
+      const hoodFrontZ = d - 2;
+      const hood = grillHood(gw - 0.5, hoodD, hoodH, mats.steel);
+      hood.position.set(0, h + 1.8, hoodFrontZ);
+      g.add(hood);
+      // thermometer on the hood face
+      const thermoBezel = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.7, 18), mats.steel);
+      thermoBezel.rotation.x = Math.PI / 2;
+      thermoBezel.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.2);
+      const thermoFace = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.05, 1.05, 0.75, 18),
+        new THREE.MeshStandardMaterial({ color: 0xf4f5f2, roughness: 0.35 })
+      );
+      thermoFace.rotation.x = Math.PI / 2;
+      thermoFace.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.25);
+      g.add(thermoBezel, thermoFace);
+      // handle across the hood front
+      addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.28, hoodFrontZ + 1.7);
+    }
   } else if (cat.front === 'griddle' && !isAppliance) {
     // Fixed griddle width (centered) so the unit doesn't stretch with the cabinet.
     const openW = applianceOpeningW('griddle', w);
