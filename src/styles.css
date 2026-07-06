@@ -1820,6 +1820,20 @@ button:disabled {
   margin-top: 12px;
 }
 
+/* Let grid columns shrink below the inputs' intrinsic width (Firefox gives
+ * text inputs a ~200px min-content size that would otherwise overflow the
+ * modal) — fields fill their column instead. */
+.form-grid .form-field {
+  min-width: 0;
+}
+
+.form-grid .form-field input,
+.form-grid .form-field select,
+.form-grid .form-field textarea {
+  width: 100%;
+  min-width: 0;
+}
+
 .form-field-wide {
   grid-column: 1 / -1;
 }
