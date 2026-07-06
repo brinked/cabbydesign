@@ -137,6 +137,16 @@ export interface OrderInput {
   design: Design;
 }
 
+/** Consumer quote request (lead capture) — no account required. */
+export interface QuoteInput {
+  projectName: string;
+  contact: { name: string; email: string; phone: string; address: string };
+  notes: string;
+  total: string;
+  lines: OrderLine[];
+  design: Design;
+}
+
 export const api = {
   // ---- auth ----
   me: () => request<{ user: ApiUser | null; prefs?: DealerPrefs; cert?: CertInfo }>('GET', '/auth/me'),
@@ -151,6 +161,9 @@ export const api = {
 
   // ---- orders (submit a project to EXT for review) ----
   submitOrder: (input: OrderInput) => request<{ ok: true }>('POST', '/orders/submit', input),
+
+  // ---- quotes (consumer lead capture — public) ----
+  requestQuote: (input: QuoteInput) => request<{ ok: true }>('POST', '/quotes/submit', input),
 
   // ---- admin: dealers ----
   listDealers: () => request<{ dealers: DealerWithPrefs[] }>('GET', '/dealers'),

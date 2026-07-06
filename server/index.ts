@@ -15,6 +15,7 @@ import { settingsRouter } from './routes/settings.ts';
 import { profileRouter } from './routes/profile.ts';
 import { jobsRouter } from './routes/jobs.ts';
 import { ordersRouter } from './routes/orders.ts';
+import { quotesRouter } from './routes/quotes.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -48,6 +49,7 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/jobs', jobsRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/quotes', quotesRouter);
 
 // Production: serve the built SPA and fall back to index.html for client routes.
 const distDir = path.join(here, '..', 'dist');

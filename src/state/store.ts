@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, Opening, OpeningKind, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
-import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, finishesForLine, takesAppliedEnds } from '../model/catalog';
+import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, GRILL_4DOOR_ADDON, TOEKICK_H, catalogById, finishesForLine, grillDoorCount, takesAppliedEnds } from '../model/catalog';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { CORNER_EPS, CORNER_FILLER, cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, CORNER_FILLER, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot. */
 export const PANEL_RATE_PER_SQFT = 36;
@@ -15,6 +15,8 @@ const CATALOG_MIGRATE: Record<string, string> = {
   'base-doordrawer': 'base-1door1drawer',
   'base-blind': 'base-blindr',
   'app-icemaker': 'out-icemaker',
+  // grill cabinets merged: door count now derives from width (see grillDoorCount)
+  'out-grill4': 'out-grill',
   ...NEWAGE_ID_MIGRATE,
 };
 const VALID_IDS = new Set(CATALOG.map((c) => c.id));
@@ -216,6 +218,8 @@ interface AppState {
   editingOpeningId: string | null;
   addToWallId: string | null;
   pricingOpen: boolean;
+  /** Consumer "request a quote" dialog (rendered on the Report tab). */
+  quoteOpen: boolean;
   retailPricingOpen: boolean;
   settingsOpen: boolean;
   appliancesOpen: boolean;
@@ -277,6 +281,7 @@ interface AppState {
   openEditor: (id: string | null) => void;
   openAdd: (wallId: string | null) => void;
   setPricingOpen: (open: boolean) => void;
+  setQuoteOpen: (open: boolean) => void;
   setFormula: (catalogId: string, formula: string | null) => void;
   setRetailPricingOpen: (open: boolean) => void;
   setRetailFormula: (catalogId: string, formula: string | null) => void;
@@ -412,8 +417,10 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
     return { ...ZERO_PRICE, cabinet: c, total: c };
   }
   const formula = pricing[cat.id] ?? cat.formula;
-  const { price, error } = tryFormula(formula, { W: it.w, D: it.d, H: it.h });
+  let { price, error } = tryFormula(formula, { W: it.w, D: it.d, H: it.h });
   if (error) return { ...ZERO_PRICE, error };
+  // Wide grill/griddle cabinets build as 4-door units — large-cabinet add-on.
+  if (grillDoorCount(cat.front, it.w) === 4) price += GRILL_4DOOR_ADDON;
   const hasKick = cat.lane === 'floor';
   const panelH = Math.max(0, it.h - (hasKick ? TOEKICK_H : 0));
   const sqft = (wIn: number) => (wIn * panelH) / 144;
@@ -607,8 +614,9 @@ export function counterAreaSqft(design: Design): number {
 
 /**
  * Auto-place a 3″ base filler on each wall at an inside corner where a plain
- * (non-corner) floor cabinet meets a plain floor cabinet on the adjoining wall
- * — closing the dead-corner gap so the user doesn't have to add fillers by hand.
+ * (non-corner) floor cabinet meets either a plain floor cabinet OR a blind
+ * corner cabinet on the adjoining wall — closing the dead-corner gap (and the
+ * blind unit's door clearance) so the user doesn't have to add fillers by hand.
  * These carry `auto: true`, are re-derived on every pack, and are not editable.
  */
 function autoCornerFillers(design: Design): void {
@@ -620,13 +628,13 @@ function autoCornerFillers(design: Design): void {
 
   // nearest non-filler floor cabinet to a wall end + its edge gap and corner-ness
   const nearest = (wall: Wall, atEnd: 'start' | 'end') => {
-    let best: { it: PlacedItem; edge: number; corner: boolean } | null = null;
+    let best: { it: PlacedItem; edge: number; corner: boolean; blind: boolean } | null = null;
     for (const it of laneItems(design.items, wall.id, 'floor')) {
       const c = catalogById(it.catalogId);
       if (c.front === 'filler') continue;
       const fw = footprintW(it);
       const edge = atEnd === 'start' ? it.x : wall.length - (it.x + fw);
-      if (!best || edge < best.edge) best = { it, edge, corner: isCornerFront(c) };
+      if (!best || edge < best.edge) best = { it, edge, corner: isCornerFront(c), blind: isBlindFront(c) };
     }
     return best;
   };
@@ -654,8 +662,10 @@ function autoCornerFillers(design: Design): void {
         ] as const) {
           const nW = nearest(W, eW);
           const nO = nearest(O, eO);
-          // both walls need a plain cabinet; a corner unit fills the corner itself
-          if (!nW || !nO || nW.corner || nO.corner) continue;
+          // W needs a plain cabinet bordering the corner; the adjoining wall
+          // needs a plain cabinet OR a blind corner unit (whose buried door
+          // needs the 3" filler). Diagonal/susan corners butt flush — no filler.
+          if (!nW || !nO || nW.corner || (nO.corner && !nO.blind)) continue;
           // NewAge modular kitchens don't use HDPE fillers — their corner
           // cabinets close the corner instead.
           if (catalogById(nW.it.catalogId).line || catalogById(nO.it.catalogId).line) continue;
@@ -710,6 +720,7 @@ export const useStore = create<AppState>()(
       editingOpeningId: null,
       addToWallId: null,
       pricingOpen: false,
+      quoteOpen: false,
       retailPricingOpen: false,
       settingsOpen: false,
       appliancesOpen: false,
@@ -982,6 +993,7 @@ export const useStore = create<AppState>()(
       openEditor: (id) => set({ editingId: id, selectedId: id }),
       openAdd: (wallId) => set({ addToWallId: wallId }),
       setPricingOpen: (open) => set({ pricingOpen: open }),
+      setQuoteOpen: (open) => set({ quoteOpen: open }),
       setFormula: (catalogId, formula) =>
         set((s) => {
           const pricing = { ...s.pricing };
@@ -1022,7 +1034,8 @@ export const useStore = create<AppState>()(
       name: 'cabdesign-v1',
       // v3: NewAge lines merged into one ('newage') with per-item finish;
       // legacy na-ss-*/na-alu-* catalog ids remap in normalizeDesign.
-      version: 3,
+      // v4: grill cabinets merged (out-grill4 → out-grill, doors from width).
+      version: 4,
       migrate: (state) => {
         const s = state as { design?: Design } | undefined;
         if (s?.design) return { ...s, design: normalizeDesign(s.design) };

@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react';
 import type { OrderLine } from '../api/client';
 import type { CatalogItem } from '../model/types';
 import SubmitOrderModal from './SubmitOrderModal';
+import RequestQuoteModal from './RequestQuoteModal';
 import { ALL_FINISHES, TOEKICK_H, catalogById, handleCount } from '../model/catalog';
 import { LINE_LABELS, NA_COUNTER_RATE_PER_SQFT, itemFinishId, naVariantFor } from '../model/newage';
 import { money } from '../model/pricing';
@@ -20,6 +21,8 @@ export default function Report() {
   const retailPricing = useStore((s) => s.retailPricing);
   const snapshot = useStore((s) => s.snapshot3d);
   const setTab = useStore((s) => s.setTab);
+  const quoteOpen = useStore((s) => s.quoteOpen);
+  const setQuoteOpen = useStore((s) => s.setQuoteOpen);
   const appliances = useStore((s) => s.appliances);
   const applianceBrands = useStore((s) => s.applianceBrands);
   const handles = useStore((s) => s.handles);
@@ -212,7 +215,12 @@ export default function Report() {
               Submit order for review
             </button>
           )}
-          <button className="btn-primary" onClick={() => window.print()}>
+          {isGuest && (
+            <button className="btn-primary" onClick={() => setQuoteOpen(true)}>
+              Request a free quote
+            </button>
+          )}
+          <button className={isGuest ? 'btn-ghost' : 'btn-primary'} onClick={() => window.print()}>
             Print / Save as PDF
           </button>
         </div>
@@ -225,6 +233,15 @@ export default function Report() {
           total={showPricing ? money(grandTotal) : ''}
           showPricing={showPricing}
           onClose={() => setOrderOpen(false)}
+        />
+      )}
+
+      {quoteOpen && isGuest && (
+        <RequestQuoteModal
+          design={design}
+          lines={orderLines}
+          total={showPricing ? money(grandTotal) : ''}
+          onClose={() => setQuoteOpen(false)}
         />
       )}
 

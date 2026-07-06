@@ -43,7 +43,16 @@ const BOX = 'W*D + 500';
 const DRAWER1 = 'W*D + 650'; // +1 top drawer
 const DRAWER3 = 'W*D + 1050'; // top + 2 larger
 const DRAWER4 = 'W*D + 1250'; // top + 3 larger
-const GRILL4 = 'W*D + 600'; // box + $100 large-grill add-on
+
+/** Grill/griddle cabinets build with 2 doors up to this width; anything wider
+ *  automatically becomes a 4-door build (wide grill liners need the width). */
+export const GRILL_4DOOR_MIN_W = 41;
+/** Large-cabinet add-on baked into wide grill/griddle pricing (see itemPrice). */
+export const GRILL_4DOOR_ADDON = 100;
+/** Door count for a grill/griddle front at a given width. */
+export function grillDoorCount(front: string, w: number): 2 | 4 {
+  return (front === 'grill' || front === 'griddle') && w > GRILL_4DOOR_MIN_W ? 4 : 2;
+}
 // Wall cabinets & the pedestal come in varying heights, so their box price
 // scales with height off a 34" reference (price = (W*D + 900) * H/34).
 const WALLBOX = '((W*D*1) + 900) * (H/34)';
@@ -89,9 +98,8 @@ export const CATALOG: CatalogItem[] = [
   // ---------- Outdoor kitchen cabinets ----------
   // Grill/griddle cabinets: the appliance sets INTO the cabinet (recessed face
   // + apron + doors); the countertop does not run over them.
-  { id: 'out-grill', name: 'Grill Cabinet', category: 'outdoor', front: 'grill', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 12, formula: BOX, applianceCat: 'grill' },
-  { id: 'out-grill4', name: 'Large Grill Cabinet (4-Door)', category: 'outdoor', front: 'grill4', lane: 'floor', w: 48, d: 30, h: BASE_H, minW: 40, maxW: 60, stepW: 2, counter: true, topGearH: 12, formula: GRILL4, applianceCat: 'grill' },
-  { id: 'out-griddle', name: 'Griddle Cabinet', category: 'outdoor', front: 'griddle', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 6, formula: BOX, applianceCat: 'griddle' },
+  { id: 'out-grill', name: 'Grill Cabinet', category: 'outdoor', front: 'grill', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 60, stepW: 2, counter: true, topGearH: 12, formula: BOX, applianceCat: 'grill', note: `2 doors up to ${GRILL_4DOOR_MIN_W}″ wide — wider builds as a 4-door cabinet automatically.` },
+  { id: 'out-griddle', name: 'Griddle Cabinet', category: 'outdoor', front: 'griddle', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 60, stepW: 2, counter: true, topGearH: 6, formula: BOX, applianceCat: 'griddle', note: `2 doors up to ${GRILL_4DOOR_MIN_W}″ wide — wider builds as a 4-door cabinet automatically.` },
   { id: 'out-burner', name: 'Side Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 18, d: 27, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: false, topGearH: 6, formula: BOX, applianceCat: 'sideburner' },
   { id: 'out-power', name: 'Power Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 18, maxW: 30, stepW: 3, counter: false, topGearH: 6, formula: BOX, applianceCat: 'powerburner' },
   { id: 'out-propane', name: 'Propane Pull-Out', category: 'outdoor', front: 'propane', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: BOX },
@@ -199,12 +207,11 @@ export function handleCount(cat: CatalogItem, w: number): number {
     case 'door2':
     case 'kamado':
     case 'kamadoinsert':
-    case 'grill':
-    case 'griddle':
     case 'burner':
       return doublable;
-    case 'grill4':
-      return 4;
+    case 'grill':
+    case 'griddle':
+      return grillDoorCount(cat.front, w) === 4 ? 4 : doublable;
     case 'drawers3':
       return 3;
     case 'drawers4':

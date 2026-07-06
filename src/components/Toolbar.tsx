@@ -19,6 +19,7 @@ export default function Toolbar() {
   const design = useStore((s) => s.design);
   const setDesignMeta = useStore((s) => s.setDesignMeta);
   const newDesign = useStore((s) => s.newDesign);
+  const setQuoteOpen = useStore((s) => s.setQuoteOpen);
 
   const user = useSession((s) => s.user);
   const status = useSession((s) => s.status);
@@ -80,6 +81,18 @@ export default function Toolbar() {
 
           <div className="toolbar-right">
             <SettingsMenu design={design} setDesignMeta={setDesignMeta} isAdmin={isAdmin} />
+            {isGuest && (
+              <button
+                className="btn-quote"
+                title="Send your design to EXT Cabinets for a free quote"
+                onClick={() => {
+                  setTab('report');
+                  setQuoteOpen(true);
+                }}
+              >
+                Get a free quote
+              </button>
+            )}
             <button className="btn-primary" onClick={() => openSaveJob(true)} title="Save this design">
               Save job
             </button>

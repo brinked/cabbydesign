@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
+import { BASE_H, COUNTER_T, GRILL_4DOOR_MIN_W, TOEKICK_H, grillDoorCount } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
 import { fitModel } from './models';
@@ -269,10 +269,12 @@ function applianceFaceW(w: number): number {
  *  when the housing cabinet is widened — the cabinet's framing stiles widen
  *  instead. Capped to these per-type maxima; still shrinks to fit a narrow
  *  cabinet. (Undefined types fill the whole face, e.g. side/power burners.) */
-const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, grill4: 44, griddle: 30 };
+const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, griddle: 30 };
+/** Wide (4-door) grill cabinets fit larger grill heads. */
+const GRILL_WIDE_MAX_W = 44;
 function applianceOpeningW(front: string, w: number): number {
   const faceW = applianceFaceW(w);
-  const max = APPLIANCE_MAX_W[front];
+  const max = front === 'grill' && w > GRILL_4DOOR_MIN_W ? GRILL_WIDE_MAX_W : APPLIANCE_MAX_W[front];
   return max ? Math.min(faceW, max) : faceW;
 }
 
@@ -559,7 +561,7 @@ export function sinkBasin(w: number, d: number): { bw: number; bd: number; zc: n
  *  depth, center-from-wall — so the appliance drops through the countertop and
  *  the counter frames it. Returns null for non-grill fronts. */
 export function grillCutout(cat: CatalogItem, w: number, d: number): { bw: number; bd: number; zc: number } | null {
-  if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle') return null;
+  if (cat.front !== 'grill' && cat.front !== 'griddle') return null;
   const bw = applianceOpeningW(cat.front, w) + 1; // small gap around the unit
   const bd = Math.max(8, d - 5); // cooking area, leaving a front lip of counter
   return { bw, bd, zc: d * 0.5 };
@@ -818,17 +820,16 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         break;
       }
       case 'grill':
-      case 'grill4':
       case 'griddle':
       case 'burner': {
         // The appliance face is recessed into the top of the cabinet. The
         // cabinet front picture-frames it: apron below, panel stiles wrapping
         // both sides, doors at the bottom.
-        const isGrill = cat.front === 'grill' || cat.front === 'grill4';
+        const isGrill = cat.front === 'grill';
         const applH = isGrill ? 9 : 7;
         const apronH = 4.5;
         const doorH = fh - applH - apronH - GAP * 2;
-        if (cat.front === 'grill4') {
+        if (grillDoorCount(cat.front, w) === 4) {
           // two double-door pairs: handles meet in the middle of each pair
           const n = 4;
           const dw = (fw - GAP * (n - 1)) / n;
@@ -1333,7 +1334,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       g.add(post);
     }
   };
-  if ((cat.front === 'grill' || cat.front === 'grill4') && !isAppliance) {
+  if (cat.front === 'grill' && !isAppliance) {
     // Built-in grill set into the cabinet: recessed stainless control face
     // framed by the cabinet, roll-top hood resting on the body above. Fixed
     // width (the cabinet frame widens around it), so it doesn't stretch.

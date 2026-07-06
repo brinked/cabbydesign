@@ -1,5 +1,5 @@
 import type { CatalogItem, FinishOption, HingeSide, OpeningKind, RoughInKind } from '../model/types';
-import { COUNTER_T, TOEKICK_H } from '../model/catalog';
+import { COUNTER_T, TOEKICK_H, grillDoorCount } from '../model/catalog';
 
 // All SVG drawing is done in inch coordinates; the parent <svg> sets a
 // viewBox in inches so everything scales losslessly.
@@ -575,11 +575,11 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
       );
       break;
     case 'grill':
-      front = doors(2);
+      front = doors(grillDoorCount(cat.front, w));
       gear = <GrillHead w={w} counter={cat.counter} />;
       break;
     case 'griddle':
-      front = doors(2);
+      front = doors(grillDoorCount(cat.front, w));
       gear = <GriddleHead w={w} counter={cat.counter} />;
       break;
     case 'burner':
