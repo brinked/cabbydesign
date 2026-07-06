@@ -182,6 +182,8 @@ export default function Report() {
 
   // Order-submission line items (cabinets + appliances) for the review email.
   const [orderOpen, setOrderOpen] = useState(false);
+  // Consumer PDF-download gate ("email me my design").
+  const [pdfGateOpen, setPdfGateOpen] = useState(false);
   const orderLines: OrderLine[] = [
     ...lines.map((l) => ({
       n: l.n,
@@ -221,9 +223,16 @@ export default function Report() {
               Request a free quote
             </button>
           )}
-          <button className={isGuest ? 'btn-ghost' : 'btn-primary'} onClick={() => window.print()}>
-            Print / Save as PDF
-          </button>
+          {isGuest ? (
+            // End users get their PDF by email (lead capture) instead of printing.
+            <button className="btn-ghost" onClick={() => setPdfGateOpen(true)}>
+              Save / Download PDF
+            </button>
+          ) : (
+            <button className="btn-primary" onClick={() => window.print()}>
+              Print / Save as PDF
+            </button>
+          )}
         </div>
       </div>
 
@@ -243,6 +252,16 @@ export default function Report() {
           lines={orderLines}
           total={showPricing ? money(grandTotal) : ''}
           onClose={() => setQuoteOpen(false)}
+        />
+      )}
+
+      {pdfGateOpen && isGuest && (
+        <RequestQuoteModal
+          design={design}
+          lines={orderLines}
+          total={showPricing ? money(grandTotal) : ''}
+          variant="design"
+          onClose={() => setPdfGateOpen(false)}
         />
       )}
 
@@ -272,7 +291,7 @@ export default function Report() {
           <div>Handles: {totalHandles}</div>
         </div>
         {snapshot && <img className="cover-render" src={snapshot} alt="3D rendering" />}
-        <p className="cover-foot">Design Report — plan, elevations &amp; estimate</p>
+        <p className="cover-foot">{showPricing ? <>Design Report — plan, elevations &amp; estimate</> : 'Design Report — plan & elevations'}</p>
       </section>
 
       {/* Plan */}

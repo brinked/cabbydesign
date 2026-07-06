@@ -52,6 +52,10 @@ const quoteSchema = z.object({
   design: z.object({}).passthrough(),
   // report PDF rendered client-side (base64, ~15MB cap post-encoding)
   pdf: z.string().max(20_000_000).optional(),
+  // "download" flow: also email the design PDF to the contact
+  sendCopy: z.boolean().default(false),
+  // contact opted in to receive a proposal & estimate
+  wantsProposal: z.boolean().default(false),
 });
 
 quotesRouter.post('/submit', async (req, res) => {
@@ -84,12 +88,13 @@ quotesRouter.post('/submit', async (req, res) => {
 
   const html = `
     <div style="font-family:system-ui,Arial,sans-serif;color:#1f2430">
-      <h2>🔥 New quote request — ${esc(q.projectName)}</h2>
+      <h2>🔥 New ${q.sendCopy ? 'design download lead' : 'quote request'} — ${esc(q.projectName)}</h2>
       <table style="font-size:14px;margin:8px 0">
         <tr><td style="padding:2px 12px 2px 0"><b>Name</b></td><td>${esc(q.contact.name)}</td></tr>
         <tr><td style="padding:2px 12px 2px 0"><b>Email</b></td><td><a href="mailto:${esc(q.contact.email)}">${esc(q.contact.email)}</a></td></tr>
         <tr><td style="padding:2px 12px 2px 0"><b>Phone</b></td><td>${esc(q.contact.phone)}</td></tr>
         <tr><td style="padding:2px 12px 2px 0"><b>Address</b></td><td>${esc(q.contact.address)}</td></tr>
+        ${q.sendCopy ? `<tr><td style="padding:2px 12px 2px 0"><b>Wants proposal &amp; estimate</b></td><td>${q.wantsProposal ? '✅ YES' : 'No'}</td></tr>` : ''}
       </table>
       ${q.notes ? `<p><b>Notes:</b><br/>${esc(q.notes).replace(/\n/g, '<br/>')}</p>` : ''}
       <table style="border-collapse:collapse;font-size:13px;margin-top:8px">
@@ -113,7 +118,7 @@ quotesRouter.post('/submit', async (req, res) => {
   }
   const result = await sendMail({
     to: config.smtp.orderInbox,
-    subject: `Quote request: ${q.projectName} — ${q.contact.name}`,
+    subject: `${q.sendCopy ? 'Design download lead' : 'Quote request'}: ${q.projectName} — ${q.contact.name}`,
     html,
     replyTo: q.contact.email,
     attachments,
@@ -127,5 +132,29 @@ quotesRouter.post('/submit', async (req, res) => {
     });
     return;
   }
-  res.json({ ok: true });
+
+  // "Download" flow: email the design PDF to the customer. The lead above is
+  // already captured, so a failure here just softens the confirmation copy.
+  let copySent = false;
+  if (q.sendCopy && q.pdf) {
+    const customerHtml = `
+      <div style="font-family:system-ui,Arial,sans-serif;color:#1f2430">
+        <h2>Your kitchen design — ${esc(q.projectName)}</h2>
+        <p>Hi ${esc(q.contact.name)},</p>
+        <p>Thanks for designing with EXT Cabinets! Your design report is attached as a PDF — it includes your floor plan, wall elevations, and item list.</p>
+        ${q.wantsProposal ? '<p>Someone from EXT Cabinets will reach out to you shortly regarding your project with a proposal and estimate.</p>' : ''}
+        <p>Questions in the meantime? Just reply to this email.</p>
+        <p style="margin-top:16px">— The EXT Cabinets team</p>
+      </div>`;
+    const copy = await sendMail({
+      to: q.contact.email,
+      subject: `Your kitchen design — ${q.projectName}`,
+      html: customerHtml,
+      replyTo: config.smtp.orderInbox,
+      attachments: [{ filename: `${safeName}.pdf`, content: q.pdf, contentType: 'application/pdf', encoding: 'base64' }],
+    });
+    copySent = copy.sent;
+  }
+
+  res.json({ ok: true, copySent });
 });

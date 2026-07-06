@@ -147,6 +147,10 @@ export interface QuoteInput {
   design: Design;
   /** Report PDF (base64, no data: prefix) — attached to the lead email. */
   pdf?: string;
+  /** Also email the design PDF to the contact (the "download" flow). */
+  sendCopy?: boolean;
+  /** Contact opted in to receive a proposal & estimate. */
+  wantsProposal?: boolean;
 }
 
 export const api = {
@@ -165,7 +169,7 @@ export const api = {
   submitOrder: (input: OrderInput) => request<{ ok: true }>('POST', '/orders/submit', input),
 
   // ---- quotes (consumer lead capture — public) ----
-  requestQuote: (input: QuoteInput) => request<{ ok: true }>('POST', '/quotes/submit', input),
+  requestQuote: (input: QuoteInput) => request<{ ok: true; copySent?: boolean }>('POST', '/quotes/submit', input),
 
   // ---- admin: dealers ----
   listDealers: () => request<{ dealers: DealerWithPrefs[] }>('GET', '/dealers'),
