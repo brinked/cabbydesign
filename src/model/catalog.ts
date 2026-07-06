@@ -77,10 +77,13 @@ export const CATALOG: CatalogItem[] = [
 
   // ---------- Outdoor kitchen cabinets ----------
   // Grill/griddle cabinets: the appliance sets INTO the cabinet (recessed face
-  // + apron + doors); the countertop does not run over them.
-  { id: 'out-grill', name: 'Grill Cabinet', category: 'outdoor', front: 'grill', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 12, formula: BOX, applianceCat: 'grill' },
-  { id: 'out-grill4', name: 'Large Grill Cabinet (4-Door)', category: 'outdoor', front: 'grill4', lane: 'floor', w: 48, d: 30, h: BASE_H, minW: 40, maxW: 60, stepW: 2, counter: true, topGearH: 12, formula: GRILL4, applianceCat: 'grill' },
-  { id: 'out-griddle', name: 'Griddle Cabinet', category: 'outdoor', front: 'griddle', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 6, formula: BOX, applianceCat: 'griddle' },
+  // + apron + doors); the countertop does not run over them. Only the 2-door
+  // versions appear in the Add picker — widening one past 41" auto-converts it
+  // to the 4-door version (and back). See store.autoFourDoor / FOUR_DOOR_AT.
+  { id: 'out-grill', name: 'Grill Cabinet', category: 'outdoor', front: 'grill', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 12, formula: BOX, applianceCat: 'grill', note: 'Over 41″ wide it becomes the 4-door version automatically.' },
+  { id: 'out-grill4', name: 'Large Grill Cabinet (4-Door)', category: 'outdoor', front: 'grill4', lane: 'floor', w: 48, d: 30, h: BASE_H, minW: 40, maxW: 60, stepW: 2, counter: true, topGearH: 12, formula: GRILL4, applianceCat: 'grill', hideFromAdd: true, note: 'At 41″ or under it becomes the 2-door version automatically.' },
+  { id: 'out-griddle', name: 'Griddle Cabinet', category: 'outdoor', front: 'griddle', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 6, formula: BOX, applianceCat: 'griddle', note: 'Over 41″ wide it becomes the 4-door version automatically.' },
+  { id: 'out-griddle4', name: 'Large Griddle Cabinet (4-Door)', category: 'outdoor', front: 'griddle4', lane: 'floor', w: 48, d: 27, h: BASE_H, minW: 40, maxW: 60, stepW: 2, counter: true, topGearH: 6, formula: GRILL4, applianceCat: 'griddle', hideFromAdd: true, note: 'At 41″ or under it becomes the 2-door version automatically.' },
   { id: 'out-burner', name: 'Side Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 18, d: 27, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: false, topGearH: 6, formula: BOX, applianceCat: 'sideburner' },
   { id: 'out-power', name: 'Power Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 18, maxW: 30, stepW: 3, counter: false, topGearH: 6, formula: BOX, applianceCat: 'powerburner' },
   { id: 'out-propane', name: 'Propane Pull-Out', category: 'outdoor', front: 'propane', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: BOX },
@@ -159,6 +162,7 @@ export function handleCount(cat: CatalogItem, w: number): number {
     case 'burner':
       return doublable;
     case 'grill4':
+    case 'griddle4':
       return 4;
     case 'drawers3':
       return 3;

@@ -12,11 +12,14 @@ const CABINET_DIMS_KEY = 'cabinetDims';
 const PRICING_KEY = 'pricing';
 const RETAIL_PRICING_KEY = 'retailPricing';
 const TAX_RATE_KEY = 'taxRate';
+const LINER_CLEARANCE_KEY = 'linerClearance';
 const APPLIANCES_KEY = 'appliances';
 const APPLIANCE_BRANDS_KEY = 'applianceBrands';
 const RESTRICTED_BRANDS_KEY = 'restrictedBrands';
 const HANDLES_KEY = 'handles';
 const DEFAULT_TAX_RATE = 6.5; // Florida
+/** Grill/griddle/burner cabinet must be this much wider than its liner cutout (inches). */
+const DEFAULT_LINER_CLEARANCE = 4;
 
 const getSetting = db.prepare('SELECT value FROM app_settings WHERE key = ?');
 const upsertSetting = db.prepare(
@@ -127,6 +130,29 @@ settingsRouter.put('/tax', requireAdmin, (req, res) => {
   }
   upsertSetting.run(TAX_RATE_KEY, String(parsed.data.rate));
   res.json({ rate: parsed.data.rate });
+});
+
+// ---- Liner clearance: minimum extra cabinet width over the insulated-liner
+// cutout (inches). Readable by all logged-in users; admin-writable. ----
+function readLinerClearance(): number {
+  const row = getSetting.get(LINER_CLEARANCE_KEY) as { value: string } | undefined;
+  if (!row) return DEFAULT_LINER_CLEARANCE;
+  const n = Number(row.value);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_LINER_CLEARANCE;
+}
+
+settingsRouter.get('/liner-clearance', (_req, res) => {
+  res.json({ clearance: readLinerClearance() });
+});
+
+settingsRouter.put('/liner-clearance', requireAdmin, (req, res) => {
+  const parsed = z.object({ clearance: z.number().min(0).max(24) }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Liner clearance must be between 0 and 24 inches' });
+    return;
+  }
+  upsertSetting.run(LINER_CLEARANCE_KEY, String(parsed.data.clearance));
+  res.json({ clearance: parsed.data.clearance });
 });
 
 // ---- Appliance inventory (admin-managed; readable by all logged-in users) ----

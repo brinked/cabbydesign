@@ -170,9 +170,12 @@ export const CORNER_FILLER = 3;
  * enough to clear the OTHER wall's cabinet at that corner — its depth plus a 3"
  * clearance. If the other wall has NO cabinet at the corner, nothing is reserved
  * (so a returning L-wall with no run lets cabinets sit right into the corner).
- * A blind/lazy-susan corner cabinet fills the corner, so the adjacent run butts
- * flush against it (no extra filler). Corner cabinets are exempt and may occupy
- * their own reserve.
+ * A diagonal/lazy-susan corner cabinet fills the corner, so the adjacent run
+ * butts flush against it (no extra filler). A BLIND corner cabinet keeps the
+ * 3" clearance — a cabinet can't sit right against its blind face, so the
+ * adjoining run is held off and an auto filler closes the gap (see
+ * store.autoCornerFillers). Corner cabinets are exempt and may occupy their
+ * own reserve.
  */
 export function cornerReserves(
   walls: Wall[],
@@ -185,11 +188,12 @@ export function cornerReserves(
   // the floor cabinet nearest a wall end — the one that borders the corner and
   // must be cleared. Fillers are shallow trim that sit IN the reserve, so they
   // don't size it. Also reports whether it's a corner cabinet (susan/diagonal/
-  // blind), which fills the corner so the adjacent run butts flush (no filler).
-  const nearest = (wall: Wall, atEnd: 'start' | 'end'): { depth: number; corner: boolean } => {
+  // blind), which fills the corner itself.
+  const nearest = (wall: Wall, atEnd: 'start' | 'end'): { depth: number; corner: boolean; blind: boolean } => {
     let bestDist = Infinity;
     let depth = 0;
     let corner = false;
+    let blind = false;
     for (const it of items) {
       const c = catFor(it.catalogId);
       if (it.wallId !== wall.id || c.lane !== 'floor' || c.front === 'filler') continue;
@@ -199,15 +203,16 @@ export function cornerReserves(
         bestDist = distToCorner;
         depth = it.d + it.outset;
         corner = isCornerFront(c);
+        blind = isBlindFront(c);
       }
     }
-    return { depth, corner };
+    return { depth, corner, blind };
   };
-  // No cabinet on the other wall → no reserve. A corner cabinet fills the
-  // corner → the other run butts flush (no filler). Otherwise reserve that
-  // cabinet's depth + 3" clearance.
-  const reserveFor = (n: { depth: number; corner: boolean }): number =>
-    n.depth <= 0 ? 0 : n.corner ? n.depth : n.depth + CORNER_FILLER;
+  // No cabinet on the other wall → no reserve. A diagonal/lazy-susan corner
+  // cabinet fills the corner → the other run butts flush (no filler). A blind
+  // corner cabinet (or a plain run) keeps the cabinet's depth + 3" clearance.
+  const reserveFor = (n: { depth: number; corner: boolean; blind: boolean }): number =>
+    n.depth <= 0 ? 0 : n.corner && !n.blind ? n.depth : n.depth + CORNER_FILLER;
 
   for (let i = 0; i < walls.length; i++) {
     for (let j = i + 1; j < walls.length; j++) {
@@ -244,7 +249,14 @@ export function cornerReserves(
 /** Cabinet fronts allowed to occupy a reserved corner zone. */
 export function isCornerFront(cat: CatalogItem): boolean {
   const f = cat.front;
-  return f === 'corner' || f === 'susan' || f === 'blind' || f === 'blindl' || f === 'blindr';
+  return f === 'corner' || f === 'susan' || isBlindFront(cat);
+}
+
+/** Blind corner cabinets — fill the corner but still need a 3" filler between
+ *  their blind face and the cabinet run on the adjoining wall. */
+export function isBlindFront(cat: CatalogItem): boolean {
+  const f = cat.front;
+  return f === 'blind' || f === 'blindl' || f === 'blindr';
 }
 
 /** Items allowed to impede into a reserved corner zone (corner cabinets + fillers). */

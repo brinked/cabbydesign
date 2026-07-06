@@ -2,9 +2,10 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, LayoutKind, Measurement, Opening, OpeningKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
 import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
+import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { CORNER_EPS, CORNER_FILLER, cornerNeedsFlip, cornerReserves, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, CORNER_FILLER, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot. */
 export const PANEL_RATE_PER_SQFT = 36;
@@ -12,6 +13,21 @@ export const PANEL_RATE_PER_SQFT = 36;
 /** Catalog ids that were renamed/removed — remap (or drop) on load. */
 const CATALOG_MIGRATE: Record<string, string> = { 'base-doordrawer': 'base-1door1drawer', 'base-blind': 'base-blindr', 'app-icemaker': 'out-icemaker' };
 const VALID_IDS = new Set(CATALOG.map((c) => c.id));
+
+/** Width above which a grill/griddle cabinet auto-converts to its 4-door version. */
+export const FOUR_DOOR_AT = 41;
+const FOUR_DOOR_UP: Record<string, string> = { 'out-grill': 'out-grill4', 'out-griddle': 'out-griddle4' };
+const FOUR_DOOR_DOWN: Record<string, string> = { 'out-grill4': 'out-grill', 'out-griddle4': 'out-griddle' };
+
+/** Grill/griddle cabinets over FOUR_DOOR_AT wide become the 4-door version;
+ *  at or under it they revert to the 2-door version. Everything else passes. */
+function autoFourDoor(it: PlacedItem): PlacedItem {
+  const up = FOUR_DOOR_UP[it.catalogId];
+  if (up && it.w > FOUR_DOOR_AT) return { ...it, catalogId: up };
+  const down = FOUR_DOOR_DOWN[it.catalogId];
+  if (down && it.w <= FOUR_DOOR_AT) return { ...it, catalogId: down };
+  return it;
+}
 
 /** Effective allowed size range for a cabinet, with user Settings overrides. */
 export function effectiveDims(
@@ -152,7 +168,7 @@ export function normalizeDesign(raw: Design): Design {
       // Appliances and appliance openings (fridges, ice makers) can't take
       // applied ends — strip any stale flags so they don't render or bill.
       const noEnds = !takesAppliedEnds(catalogById(it.catalogId));
-      return {
+      return autoFourDoor({
         ...it,
         hinge: it.hinge ?? 'left',
         endL: noEnds ? false : it.endL ?? false,
@@ -160,7 +176,7 @@ export function normalizeDesign(raw: Design): Design {
         trays: it.trays ?? 0,
         waterfallL: it.waterfallL ?? false,
         waterfallR: it.waterfallR ?? false,
-      };
+      });
     });
   const finishId = FINISH_MIGRATE[raw.finishId] ?? raw.finishId;
   const wallIds = new Set(walls.map((w) => w.id));
@@ -203,6 +219,9 @@ interface AppState {
   appliances: ApplianceItem[];
   /** Per-brand manufacturer discount (dealer gets half). */
   applianceBrands: ApplianceBrands;
+  /** Admin-managed clearance (inches) a grill/griddle/burner cabinet must be
+   *  wider than its insulated liner's cutout. Synced from the server. */
+  linerClearance: number;
   /** True once real 3D appliance models (glb) have loaded — re-renders views. */
   modelsReady: boolean;
   snapshot3d: string | null;
@@ -213,6 +232,7 @@ interface AppState {
   setMyAppliancesOpen: (open: boolean) => void;
   setAppliances: (appliances: ApplianceItem[]) => void;
   setApplianceBrands: (brands: ApplianceBrands) => void;
+  setLinerClearance: (linerClearance: number) => void;
   setHandlesOpen: (open: boolean) => void;
   setHandles: (handles: HandleItem[]) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
@@ -452,7 +472,7 @@ export function largestOpening(design: Design, wallId: string, lane: 'floor' | '
 /** Where (and how wide) a given catalog item can be added on a wall lane. */
 export function openingFor(design: Design, wallId: string, cat: { front: string; lane: 'floor' | 'upper' }): { x: number; w: number } {
   // corner/blind cabinets drop into a reserved dead-corner zone (start or end)
-  if (cat.front === 'corner' || cat.front === 'susan' || cat.front === 'blind') {
+  if (cat.front === 'corner' || cat.front === 'susan' || cat.front === 'blind' || cat.front === 'blindl' || cat.front === 'blindr') {
     const wall = design.walls.find((w) => w.id === wallId);
     if (!wall) return { x: 0, w: 0 };
     const r = reservesFor(design).get(wallId) ?? { start: 0, end: 0 };
@@ -565,9 +585,11 @@ export function counterAreaSqft(design: Design): number {
 
 /**
  * Auto-place a 3″ base filler on each wall at an inside corner where a plain
- * (non-corner) floor cabinet meets a plain floor cabinet on the adjoining wall
- * — closing the dead-corner gap so the user doesn't have to add fillers by hand.
- * These carry `auto: true`, are re-derived on every pack, and are not editable.
+ * (non-corner) floor cabinet meets either a plain floor cabinet OR a blind
+ * corner cabinet on the adjoining wall — closing the dead-corner gap (you
+ * can't butt a cabinet right against a blind cabinet's blind face) so the
+ * user doesn't have to add fillers by hand. These carry `auto: true`, are
+ * re-derived on every pack, and are not editable.
  */
 function autoCornerFillers(design: Design): void {
   // re-derive from scratch — drop any previously auto-placed fillers
@@ -578,13 +600,13 @@ function autoCornerFillers(design: Design): void {
 
   // nearest non-filler floor cabinet to a wall end + its edge gap and corner-ness
   const nearest = (wall: Wall, atEnd: 'start' | 'end') => {
-    let best: { it: PlacedItem; edge: number; corner: boolean } | null = null;
+    let best: { it: PlacedItem; edge: number; corner: boolean; blind: boolean } | null = null;
     for (const it of laneItems(design.items, wall.id, 'floor')) {
       const c = catalogById(it.catalogId);
       if (c.front === 'filler') continue;
       const fw = footprintW(it);
       const edge = atEnd === 'start' ? it.x : wall.length - (it.x + fw);
-      if (!best || edge < best.edge) best = { it, edge, corner: isCornerFront(c) };
+      if (!best || edge < best.edge) best = { it, edge, corner: isCornerFront(c), blind: isBlindFront(c) };
     }
     return best;
   };
@@ -612,8 +634,10 @@ function autoCornerFillers(design: Design): void {
         ] as const) {
           const nW = nearest(W, eW);
           const nO = nearest(O, eO);
-          // both walls need a plain cabinet; a corner unit fills the corner itself
-          if (!nW || !nO || nW.corner || nO.corner) continue;
+          // W's own cabinet must be plain (a corner unit fills the corner itself).
+          // The other wall's cabinet may be plain OR a blind corner cabinet —
+          // both need the 3" filler; diagonal/susan corners butt flush instead.
+          if (!nW || !nO || nW.corner || (nO.corner && !nO.blind)) continue;
           // only fill when W's cabinet actually borders the dead-corner zone
           // (the other wall's depth + the 3″ clearance)
           if (nW.edge > nO.it.d + nO.it.outset + CORNER_FILLER + 1) continue;
@@ -676,6 +700,7 @@ export const useStore = create<AppState>()(
       dims: {},
       appliances: [],
       applianceBrands: {},
+      linerClearance: LINER_CABINET_CLEARANCE,
       modelsReady: false,
       snapshot3d: null,
 
@@ -685,6 +710,7 @@ export const useStore = create<AppState>()(
       setMyAppliancesOpen: (open) => set({ myAppliancesOpen: open }),
       setAppliances: (appliances) => set({ appliances }),
       setApplianceBrands: (applianceBrands) => set({ applianceBrands }),
+      setLinerClearance: (linerClearance) => set({ linerClearance }),
       setHandlesOpen: (open) => set({ handlesOpen: open }),
       setHandles: (handles) => set({ handles }),
       setDim: (catalogId, patch) =>
@@ -824,7 +850,7 @@ export const useStore = create<AppState>()(
         // use the default width, or shrink to the largest that fits (≥ min)
         const w = Math.max(minW, Math.min(cat.w, Math.floor(slot.w * 4) / 4));
         // corner cabinets at the wall's far end chamfer toward the other side
-        const isCornerCab = cat.front === 'corner' || cat.front === 'susan' || cat.front === 'blind';
+        const isCornerCab = isCornerFront(cat);
         const hinge: 'left' | 'right' = isCornerCab && slot.x > 1 ? 'right' : 'left';
         const item: PlacedItem = {
           id: uid('item'),
@@ -847,7 +873,7 @@ export const useStore = create<AppState>()(
 
       updateItem: (id, patch) =>
         set((s) => {
-          const items = s.design.items.map((it) => (it.id === id ? { ...it, ...patch } : it));
+          const items = s.design.items.map((it) => (it.id === id ? autoFourDoor({ ...it, ...patch }) : it));
           return { design: withPack({ ...s.design, items }) };
         }),
 

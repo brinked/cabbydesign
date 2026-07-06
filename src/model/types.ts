@@ -27,6 +27,7 @@ export type FrontKind =
   | 'grill'
   | 'grill4'
   | 'griddle'
+  | 'griddle4'
   | 'burner'
   | 'fridge'
   | 'fridge2'
@@ -150,6 +151,9 @@ export interface CatalogItem {
   note?: string;
   /** Appliance category this cabinet houses — enables the appliance dropdown. */
   applianceCat?: ApplianceCat;
+  /** Not offered in the Add-cabinet picker (e.g. the 4-door grill/griddle,
+   *  which the 2-door version auto-converts into when widened past 41″). */
+  hideFromAdd?: boolean;
 }
 
 /** User override of a cabinet's allowed size range (Settings). */

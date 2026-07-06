@@ -63,7 +63,7 @@ export function AddItemModal() {
   const wall = design.walls.find((w) => w.id === wallId);
   if (!wall) return null;
 
-  const cats = CATALOG.filter((c) => c.category === tab);
+  const cats = CATALOG.filter((c) => c.category === tab && !c.hideFromAdd);
   const openFloor = largestOpening(design, wallId, 'floor').w;
   const openUpper = largestOpening(design, wallId, 'upper').w;
 
@@ -213,6 +213,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   const updateItem = useStore((s) => s.updateItem);
   const design = useStore((s) => s.design);
   const dimOverrides = useStore((s) => s.dims);
+  const linerClearance = useStore((s) => s.linerClearance);
   const want = cat.applianceCat;
 
   const options = useMemo(
@@ -231,7 +232,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   const selected = sel?.mode === 'inventory' ? options.find((a) => a.id === sel.applianceId) : undefined;
   const liner = selected?.linerId ? appliances.find((a) => a.id === selected.linerId) : undefined;
   const reqW = usesLinerRule(want)
-    ? requiredCabinetWidth(sel, appliances)
+    ? requiredCabinetWidth(sel, appliances, linerClearance)
     : want === 'fridge' || want === 'icemaker'
       ? selectedApplianceWidth(sel, appliances) ?? 0
       : 0;
@@ -347,7 +348,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
             (usesLinerRule(want) ? (
               <div className="warn" style={{ marginTop: 8 }}>
                 ⚠ This {APPLIANCE_CAT_LABELS[want!].toLowerCase()} needs a cabinet at least {fmtIn(reqW)} wide
-                {liner?.cutoutW ? ` (liner cutout ${fmtIn(liner.cutoutW)} + ${LINER_CABINET_CLEARANCE}″ clearance)` : ''}. Widen the cabinet above to fit it.
+                {liner?.cutoutW ? ` (liner cutout ${fmtIn(liner.cutoutW)} + ${fmtIn(linerClearance)} clearance)` : ''}. Widen the cabinet above to fit it.
               </div>
             ) : (
               <div className="warn" style={{ marginTop: 8 }}>
@@ -380,6 +381,7 @@ export function EditItemModal() {
   const pricing = useStore((s) => s.pricing);
   const dims = useStore((s) => s.dims);
   const appliances = useStore((s) => s.appliances);
+  const linerClearance = useStore((s) => s.linerClearance);
 
   if (!editingId) return null;
   const it = design.items.find((i) => i.id === editingId);
@@ -394,7 +396,7 @@ export function EditItemModal() {
   // A grill/griddle/burner's insulated liner needs cabinet width ≥ liner cutout
   // + clearance; a fridge/ice maker needs a cabinet at least as wide as the unit.
   const appMinW = usesLinerRule(cat.applianceCat)
-    ? requiredCabinetWidth(it.appliance, appliances)
+    ? requiredCabinetWidth(it.appliance, appliances, linerClearance)
     : cat.applianceCat === 'fridge' || cat.applianceCat === 'icemaker'
       ? selectedApplianceWidth(it.appliance, appliances) ?? 0
       : 0;
@@ -1002,7 +1004,7 @@ function ApplianceRow({
         }}
       />
       {sized ? (
-        <div className="cutout-cell" title={a.category === 'liner' ? 'Insulated-liner cutout opening (inches). Width drives the 3″ grill-cabinet rule.' : 'Appliance size (inches). Height drives the gap shown under the counter.'}>
+        <div className="cutout-cell" title={a.category === 'liner' ? 'Insulated-liner cutout opening (inches). Width + the liner clearance sets the minimum cabinet width.' : 'Appliance size (inches). Height drives the gap shown under the counter.'}>
           <input className="dim-input cutout-in" value={cw} inputMode="decimal" placeholder="W" onChange={(e) => setCw(e.target.value)} onBlur={() => commitNum('cutoutW', cw)} />
           <span className="cutout-x">×</span>
           <input className="dim-input cutout-in" value={cd} inputMode="decimal" placeholder="D" onChange={(e) => setCd(e.target.value)} onBlur={() => commitNum('cutoutD', cd)} />
@@ -1091,6 +1093,8 @@ export function AppliancesModal() {
   const brands = useStore((s) => s.applianceBrands);
   const setAppliances = useStore((s) => s.setAppliances);
   const setApplianceBrands = useStore((s) => s.setApplianceBrands);
+  const linerClearance = useStore((s) => s.linerClearance);
+  const setLinerClearance = useStore((s) => s.setLinerClearance);
   const [csvMsg, setCsvMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [accounts, setAccounts] = useState<DealerWithPrefs[]>([]);
   const [restricted, setRestricted] = useState<RestrictedBrands>({});
@@ -1217,6 +1221,25 @@ export function AppliancesModal() {
       </div>
 
       <h3 className="modal-h3" style={{ marginTop: 18 }}>
+        Liner clearance
+      </h3>
+      <p className="card-sub">
+        A grill/griddle/burner cabinet must be at least this much <b>wider than its insulated liner's cutout</b> (frame
+        clearance around the jacket). It sets the minimum cabinet width when a dealer picks an appliance.
+      </p>
+      <div className="stepper-row" style={{ maxWidth: 320 }}>
+        <span className="stepper-label">Minimum extra width</span>
+        <span className="suffix-input">
+          <DimCell
+            value={linerClearance === LINER_CABINET_CLEARANCE ? undefined : linerClearance}
+            placeholder={LINER_CABINET_CLEARANCE}
+            onCommit={(v) => setLinerClearance(v === undefined || v < 0 ? LINER_CABINET_CLEARANCE : Math.min(24, v))}
+          />
+          <span className="suffix">″</span>
+        </span>
+      </div>
+
+      <h3 className="modal-h3" style={{ marginTop: 18 }}>
         Inventory
       </h3>
       <div className="appliance-list">
@@ -1280,6 +1303,7 @@ export function AppliancesModal() {
           await api.setAppliances(useStore.getState().appliances);
           await api.setApplianceBrands(useStore.getState().applianceBrands);
           await api.setRestrictedBrands(restricted);
+          await api.setLinerClearance(useStore.getState().linerClearance);
         }}
       />
     </Modal>

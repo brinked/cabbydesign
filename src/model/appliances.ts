@@ -124,17 +124,23 @@ export function appliancePrice(
 /**
  * A grill/griddle/side-burner/power-burner cabinet must be at least this many
  * inches wider than its insulated liner's cutout width (clearance for the
- * cabinet frame around the jacket).
+ * cabinet frame around the jacket). This is the DEFAULT — the admin can adjust
+ * the live value globally (store.linerClearance, synced from app_settings).
  */
 export const LINER_CABINET_CLEARANCE = 4;
 
 /**
  * Minimum housing-cabinet width for a placed cabinet's appliance selection: the
- * associated insulated liner's cutout width + LINER_CABINET_CLEARANCE. Applies
- * whether or not the customer keeps the liner (the grill's own cutout matches
- * its jacket). Returns 0 when there's no selection or no known liner cutout.
+ * associated insulated liner's cutout width + the clearance (admin-adjustable;
+ * defaults to LINER_CABINET_CLEARANCE). Applies whether or not the customer
+ * keeps the liner (the grill's own cutout matches its jacket). Returns 0 when
+ * there's no selection or no known liner cutout.
  */
-export function requiredCabinetWidth(sel: ApplianceSelection | undefined, appliances: ApplianceItem[]): number {
+export function requiredCabinetWidth(
+  sel: ApplianceSelection | undefined,
+  appliances: ApplianceItem[],
+  clearance: number = LINER_CABINET_CLEARANCE
+): number {
   if (!sel || sel.mode !== 'inventory' || !sel.applianceId) return 0;
   const item = appliances.find((a) => a.id === sel.applianceId);
   if (!item) return 0;
@@ -142,7 +148,7 @@ export function requiredCabinetWidth(sel: ApplianceSelection | undefined, applia
   const liner = item.linerId ? appliances.find((a) => a.id === item.linerId) : undefined;
   const cutoutW = liner?.cutoutW ?? item.cutoutW;
   if (!cutoutW || cutoutW <= 0) return 0;
-  return Math.round((cutoutW + LINER_CABINET_CLEARANCE) * 100) / 100;
+  return Math.round((cutoutW + clearance) * 100) / 100;
 }
 
 /** The selected inventory appliance's overall height (cutoutH), or undefined. */

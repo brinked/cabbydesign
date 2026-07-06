@@ -493,11 +493,13 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
       );
       break;
     case 'grill':
-      front = doors(2);
+    case 'grill4':
+      front = doors(cat.front === 'grill4' ? 4 : 2);
       gear = <GrillHead w={w} counter={cat.counter} />;
       break;
     case 'griddle':
-      front = doors(2);
+    case 'griddle4':
+      front = doors(cat.front === 'griddle4' ? 4 : 2);
       gear = <GriddleHead w={w} counter={cat.counter} />;
       break;
     case 'burner':
@@ -701,6 +703,7 @@ export function CabinetTop({ cat, w, d, fin, hinge = 'left' }: { cat: CatalogIte
           </g>
         );
       case 'grill':
+      case 'grill4':
       case 'cartgrill': {
         const gx = 4;
         return (
@@ -713,6 +716,7 @@ export function CabinetTop({ cat, w, d, fin, hinge = 'left' }: { cat: CatalogIte
         );
       }
       case 'griddle':
+      case 'griddle4':
         return <rect x={4} y={d * 0.15} width={w - 8} height={d * 0.6} rx={1} fill="#dfe2e5" stroke={STEEL_LN} strokeWidth={0.4} />;
       case 'burner':
         return (

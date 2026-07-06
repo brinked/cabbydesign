@@ -220,7 +220,7 @@ function applianceFaceW(w: number): number {
  *  when the housing cabinet is widened — the cabinet's framing stiles widen
  *  instead. Capped to these per-type maxima; still shrinks to fit a narrow
  *  cabinet. (Undefined types fill the whole face, e.g. side/power burners.) */
-const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, grill4: 44, griddle: 30 };
+const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, grill4: 44, griddle: 30, griddle4: 36 };
 function applianceOpeningW(front: string, w: number): number {
   const faceW = applianceFaceW(w);
   const max = APPLIANCE_MAX_W[front];
@@ -465,7 +465,7 @@ export function sinkBasin(w: number, d: number): { bw: number; bd: number; zc: n
  *  depth, center-from-wall — so the appliance drops through the countertop and
  *  the counter frames it. Returns null for non-grill fronts. */
 export function grillCutout(cat: CatalogItem, w: number, d: number): { bw: number; bd: number; zc: number } | null {
-  if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle') return null;
+  if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle' && cat.front !== 'griddle4') return null;
   const bw = applianceOpeningW(cat.front, w) + 1; // small gap around the unit
   const bd = Math.max(8, d - 5); // cooking area, leaving a front lip of counter
   return { bw, bd, zc: d * 0.5 };
@@ -665,6 +665,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       case 'grill':
       case 'grill4':
       case 'griddle':
+      case 'griddle4':
       case 'burner': {
         // The appliance face is recessed into the top of the cabinet. The
         // cabinet front picture-frames it: apron below, panel stiles wrapping
@@ -673,7 +674,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         const applH = isGrill ? 9 : 7;
         const apronH = 4.5;
         const doorH = fh - applH - apronH - GAP * 2;
-        if (cat.front === 'grill4') {
+        if (cat.front === 'grill4' || cat.front === 'griddle4') {
           // two double-door pairs: handles meet in the middle of each pair
           const n = 4;
           const dw = (fw - GAP * (n - 1)) / n;
@@ -1160,9 +1161,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     g.add(thermoBezel, thermoFace);
     // handle across the hood front
     addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.28, hoodFrontZ + 1.7);
-  } else if (cat.front === 'griddle' && !isAppliance) {
+  } else if ((cat.front === 'griddle' || cat.front === 'griddle4') && !isAppliance) {
     // Fixed griddle width (centered) so the unit doesn't stretch with the cabinet.
-    const openW = applianceOpeningW('griddle', w);
+    const openW = applianceOpeningW(cat.front, w);
     const model = fitModel('griddle', GRIDDLE_MODEL_W_FRAC * openW);
     if (model) {
       // Close the cabinet's appliance-face opening with a stainless panel set

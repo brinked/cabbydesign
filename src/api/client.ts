@@ -174,6 +174,9 @@ export const api = {
     request<{ retailPricing: Record<string, string> }>('PUT', '/settings/retail-pricing', { retailPricing }),
   getTaxRate: () => request<{ rate: number }>('GET', '/settings/tax'),
   setTaxRate: (rate: number) => request<{ rate: number }>('PUT', '/settings/tax', { rate }),
+  // clearance (inches) a grill/griddle/burner cabinet must be wider than its liner cutout
+  getLinerClearance: () => request<{ clearance: number }>('GET', '/settings/liner-clearance'),
+  setLinerClearance: (clearance: number) => request<{ clearance: number }>('PUT', '/settings/liner-clearance', { clearance }),
 
   // ---- admin: appliance inventory + per-brand discounts ----
   getAppliances: () => request<{ appliances: ApplianceItem[] }>('GET', '/settings/appliances'),
