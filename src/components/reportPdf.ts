@@ -70,16 +70,46 @@ async function svgToJpeg(svg: SVGSVGElement, maxPx = 1600): Promise<{ url: strin
   }
 }
 
-/** The report's figures: the floor plan + one elevation per wall, with the
- *  section headings they appear under. */
+/** The report's figures: the floor plan, one elevation per wall, and one
+ *  rough-in diagram per wall, with the section headings they appear under. A
+ *  section may hold several figures (the rough-in page has one per wall), each
+ *  titled by its own sub-heading when present. */
 function collectFigures(): Figure[] {
   const out: Figure[] = [];
   for (const section of document.querySelectorAll('.report .report-page')) {
-    const svg = section.querySelector<SVGSVGElement>('.report-figure svg');
-    if (!svg) continue;
-    out.push({ title: clean(section.querySelector('h2')?.textContent ?? 'Drawing'), svg });
+    const h2 = clean(section.querySelector('h2')?.textContent ?? 'Drawing');
+    for (const fig of section.querySelectorAll('.report-figure')) {
+      const svg = fig.querySelector<SVGSVGElement>('svg');
+      if (!svg) continue;
+      const sub = fig.querySelector('h3')?.textContent?.trim();
+      out.push({ title: sub ? clean(sub) : h2, svg });
+    }
   }
   return out;
+}
+
+/** Rows of a scraped `.schedule` table: the header labels + each body row's
+ *  cells, so simple report tables can be re-drawn into the PDF. */
+interface ScrapedTable {
+  headers: { label: string; right: boolean }[];
+  rows: string[][];
+}
+
+/** Read a `.schedule` table from the section whose <h2> matches `heading`. */
+function scrapeTable(heading: string): ScrapedTable | null {
+  const section = [...document.querySelectorAll('.report .report-page')].find(
+    (s) => clean(s.querySelector('h2')?.textContent ?? '') === heading,
+  );
+  const table = section?.querySelector('table.schedule');
+  if (!table) return null;
+  const headers = [...table.querySelectorAll('thead th')].map((th) => ({
+    label: clean(th.textContent ?? ''),
+    right: th.classList.contains('num'),
+  }));
+  const rows = [...table.querySelectorAll('tbody tr')]
+    .map((tr) => [...tr.querySelectorAll('td')].map((td) => clean(td.textContent ?? '')))
+    .filter((cells) => cells.length === headers.length);
+  return headers.length ? { headers, rows } : null;
 }
 
 /** Cover details as shown on the report cover page. */
@@ -149,6 +179,55 @@ export async function buildReportPdf(lines: OrderLine[]): Promise<string | null>
       const maxH = PAGE_H - MARGIN * 2 - 30;
       const scale = Math.min(INNER_W / img.w, maxH / img.h);
       doc.addImage(img.url, 'JPEG', MARGIN, MARGIN + 26, img.w * scale, img.h * scale);
+    }
+
+    // ---------- rough-in schedule ----------
+    const rough = scrapeTable('Rough-In Schedule');
+    if (rough && rough.rows.length) {
+      doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(15);
+      doc.setTextColor('#1f2430');
+      doc.text('Rough-In Schedule', MARGIN, MARGIN + 8);
+      const baseW = [1.6, 1.5, 1.4, 1, 1, 1.15, 0.95, 1.35];
+      const weights = rough.headers.map((_, i) => baseW[i] ?? 1);
+      const totW = weights.reduce((a, b) => a + b, 0);
+      let rx = MARGIN;
+      const rcols = weights.map((wt, i) => {
+        const w = (INNER_W * wt) / totW;
+        const c = { x: rx, w, right: rough.headers[i].right, label: rough.headers[i].label };
+        rx += w;
+        return c;
+      });
+      let ry = MARGIN + 36;
+      const rHeader = () => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor('#5b6472');
+        for (const c of rcols) doc.text(c.label, c.right ? c.x + c.w - 2 : c.x, ry, c.right ? { align: 'right' } : undefined);
+        ry += 8;
+        doc.setDrawColor('#e3e6ea');
+        doc.line(MARGIN, ry, PAGE_W - MARGIN, ry);
+        ry += 14;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9.5);
+        doc.setTextColor('#1f2430');
+      };
+      rHeader();
+      for (const cells of rough.rows) {
+        const wrapped = rcols.map((c, i) => (c.right ? [cells[i]] : (doc.splitTextToSize(cells[i], c.w - 3) as string[])));
+        const rowH = Math.max(...wrapped.map((w) => w.length)) * 12 + 6;
+        if (ry + rowH > PAGE_H - MARGIN) {
+          doc.addPage();
+          ry = MARGIN + 12;
+          rHeader();
+        }
+        rcols.forEach((c, i) => {
+          if (c.right) doc.text(cells[i] || '—', c.x + c.w - 2, ry, { align: 'right' });
+          else doc.text(wrapped[i], c.x, ry);
+        });
+        ry += rowH;
+      }
     }
 
     // ---------- item schedule ----------
