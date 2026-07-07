@@ -16,7 +16,6 @@ const GRIDDLE_MODEL_YAW = 0;
 // Real grill model placement (Broilmaster B-Series head). The firebox drops
 // into the cabinet by SINK inches (hood + control face stay above/in front);
 // BACK works like the griddle's (negative = face protrudes past the cabinet).
-const GRILL_MODEL_W_FRAC = 1.0;
 const GRILL_MODEL_SINK = 7.5;
 const GRILL_MODEL_BACK = -3;
 const GRILL_MODEL_YAW = 0;
@@ -278,11 +277,21 @@ function applianceFaceW(w: number): number {
  *  instead. Capped to these per-type maxima; still shrinks to fit a narrow
  *  cabinet. (Undefined types fill the whole face, e.g. side/power burners.) */
 const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, griddle: 30 };
-/** Wide (4-door) grill cabinets fit larger grill heads. */
+/** Wide (4-door) grill cabinets fit larger grill heads (procedural fallback). */
 const GRILL_WIDE_MAX_W = 44;
+/** The real grill model's true width (a 32″ Broilmaster head). Like a real
+ *  grill it NEVER stretches — widening the cabinet only widens the framing. */
+export const GRILL_MODEL_REAL_W = 32;
 function applianceOpeningW(front: string, w: number): number {
   const faceW = applianceFaceW(w);
-  const max = front === 'grill' && w > GRILL_4DOOR_MIN_W ? GRILL_WIDE_MAX_W : APPLIANCE_MAX_W[front];
+  const max =
+    front === 'grill'
+      ? hasModel('grill')
+        ? GRILL_MODEL_REAL_W + 1 // fixed-size head + clearance
+        : w > GRILL_4DOOR_MIN_W
+          ? GRILL_WIDE_MAX_W
+          : APPLIANCE_MAX_W.grill
+      : APPLIANCE_MAX_W[front];
   return max ? Math.min(faceW, max) : faceW;
 }
 
@@ -1356,7 +1365,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     // widens around it). Real Broilmaster model when loaded; procedural
     // stainless face + roll-top hood as the fallback.
     const gw = applianceOpeningW(cat.front, w);
-    const model = fitModel('grill', GRILL_MODEL_W_FRAC * gw);
+    // Real-life size: the head is always 32″ (shrunk only if the cabinet is
+    // narrower) — a wider cabinet grows the framing, not the grill.
+    const model = fitModel('grill', Math.min(applianceFaceW(w), GRILL_MODEL_REAL_W));
     if (model) {
       // Close the cabinet's appliance-face opening with a stainless panel set
       // back behind the unit so no carcass shows through around the head.
