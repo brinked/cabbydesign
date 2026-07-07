@@ -1369,11 +1369,13 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     // narrower) — a wider cabinet grows the framing, not the grill.
     const model = fitModel('grill', Math.min(applianceFaceW(w), GRILL_MODEL_REAL_W));
     if (model) {
-      // Close the cabinet's appliance-face opening with a stainless panel set
-      // back behind the unit so no carcass shows through around the head.
+      // Close the cabinet's appliance-face opening with a DARK recessed panel
+      // behind the unit — the sliver visible either side of the head's control
+      // panel then reads as the shadowed cavity of a real built-in, not bare
+      // white carcass.
       const applH = 6; // matches the shorter opening used in the fronts layout
       const faceY = kick + carcassH - REVEAL - applH / 2;
-      const face = box(gw, applH, 0.6, mats.steelMatte);
+      const face = box(gw + 1, applH + 1, 0.6, mats.dark);
       face.position.set(0, faceY, d - 1.6);
       g.add(face);
       if (GRILL_MODEL_YAW) model.rotation.y = GRILL_MODEL_YAW;
