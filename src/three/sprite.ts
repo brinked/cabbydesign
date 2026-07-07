@@ -62,7 +62,8 @@ export function spriteEndExtents(cat: CatalogItem, dims: CabDims): { exL: number
 }
 
 export function cabinetSprite(cat: CatalogItem, dims: CabDims, fin: FinishOption, view: SpriteView): string | null {
-  const modelTag = cat.applianceCat === 'griddle' && hasModel('griddle') ? 'M' : '';
+  const modelTag =
+    (cat.applianceCat === 'griddle' && hasModel('griddle')) || ((cat.front === 'grill' || cat.front === 'grill4') && hasModel('grill')) ? 'M' : '';
   const key = `${cat.id}|${dims.w}x${dims.d}x${dims.h}|${dims.hinge}|${dims.cornerSide ?? ''}|${dims.style}|${dims.endL ? 'L' : ''}${dims.endR ? 'R' : ''}|${dims.applianceH ?? ''}|${dims.counterT ?? ''}|${modelTag}|${fin.id}|${view}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;

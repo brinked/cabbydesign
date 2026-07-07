@@ -222,8 +222,8 @@ interface AppState {
   /** Admin-managed clearance (inches) a grill/griddle/burner cabinet must be
    *  wider than its insulated liner's cutout. Synced from the server. */
   linerClearance: number;
-  /** True once real 3D appliance models (glb) have loaded — re-renders views. */
-  modelsReady: boolean;
+  /** Bumped as each real 3D appliance model (glb) loads — re-renders views. */
+  modelsReady: number;
   snapshot3d: string | null;
 
   setTab: (tab: Tab) => void;
@@ -701,7 +701,7 @@ export const useStore = create<AppState>()(
       appliances: [],
       applianceBrands: {},
       linerClearance: LINER_CABINET_CLEARANCE,
-      modelsReady: false,
+      modelsReady: 0,
       snapshot3d: null,
 
       setTab: (tab) => set({ tab }),

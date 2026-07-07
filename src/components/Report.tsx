@@ -5,12 +5,13 @@ import { TOEKICK_H, catalogById, handleCount } from '../model/catalog';
 import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
 import { countertopById } from '../model/countertops';
-import { PANEL_RATE_PER_SQFT, appliedEnds, counterAreaSqft, itemNumbers, itemOnIsland, itemPrice, reservesFor, useStore } from '../state/store';
+import { PANEL_RATE_PER_SQFT, appliedEnds, counterAreaSqft, footprintW, itemNumbers, itemOnIsland, itemPrice, reservesFor, roughInConflict, roughInHost, useStore } from '../state/store';
 import { useSession } from '../state/session';
 import { MAX_PANEL_W } from '../three/cabinet3d';
 import { TopViewSvg } from './TopView';
 import { WallElevationSvg, useFinish } from './WallsView';
-import { fmtIn } from './svg';
+import { DimH, DimV, RoughInGlyph, fmtIn } from './svg';
+import type { Design, RoughIn, RoughInKind, Wall } from '../model/types';
 
 export default function Report() {
   const design = useStore((s) => s.design);
@@ -255,6 +256,9 @@ export default function Report() {
         </section>
       ))}
 
+      {/* Rough-in schedule — utility stub-out locations & measurements */}
+      {design.roughIns.length > 0 && <RoughInSchedule design={design} numbers={numbers} />}
+
       {/* Schedule & pricing */}
       <section className="report-page">
         <h2>Item Schedule &amp; Estimate</h2>
@@ -479,5 +483,155 @@ export default function Report() {
         })()}
       </section>
     </div>
+  );
+}
+
+const ROUGHIN_LABEL: Record<RoughInKind, string> = {
+  plumbing: 'Plumbing stub-out',
+  electrical: 'Electrical outlet',
+  gas: 'Gas stub-out',
+};
+
+/**
+ * A dedicated report page listing every plumbing / electrical / gas rough-in with
+ * the measurements a trade needs to set them: horizontal distance from each wall
+ * end and the height off the finished floor, both to the CENTER of the stub, plus
+ * the opening size. Each wall that carries rough-ins gets a dimensioned elevation.
+ */
+function RoughInSchedule({ design, numbers }: { design: Design; numbers: Map<string, number> }) {
+  const wallsWithRough = design.walls
+    .map((wall, i) => ({
+      wall,
+      letter: String.fromCharCode(65 + i),
+      rough: design.roughIns.filter((r) => r.wallId === wall.id).sort((a, b) => a.x - b.x),
+    }))
+    .filter((w) => w.rough.length > 0);
+
+  // Flat, wall-ordered list for the measurement table.
+  const rows = wallsWithRough.flatMap(({ wall, letter, rough }) =>
+    rough.map((r) => {
+      const host = roughInHost(design, r);
+      return {
+        r,
+        wall,
+        letter,
+        hostNum: host ? numbers.get(host.id) ?? null : null,
+        conflict: roughInConflict(design, r),
+      };
+    }),
+  );
+
+  return (
+    <section className="report-page">
+      <h2>Rough-In Schedule</h2>
+      <p className="report-note">
+        All measurements are to the <b>center</b> of each stub-out. Horizontal distances are along the wall from the noted
+        end; heights are from the finished floor.
+      </p>
+
+      {wallsWithRough.map(({ wall, letter, rough }) => (
+        <div className="report-figure" key={wall.id} style={{ marginBottom: 18 }}>
+          <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>
+            Rough-In Elevation {letter} — {wall.name}
+          </h3>
+          <RoughInWallDiagram wall={wall} rough={rough} design={design} numbers={numbers} />
+        </div>
+      ))}
+
+      <table className="schedule" style={{ marginTop: 8 }}>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Wall</th>
+            <th>Behind</th>
+            <th className="num">From left</th>
+            <th className="num">From right</th>
+            <th className="num">Ctr. height</th>
+            <th className="num">Bottom</th>
+            <th className="num">Opening (W × H)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ r, wall, letter, hostNum, conflict }) => (
+            <tr key={r.id}>
+              <td>{ROUGHIN_LABEL[r.kind]}</td>
+              <td>
+                {letter} — {wall.name}
+              </td>
+              <td>{hostNum != null ? `Cabinet ${hostNum}` : conflict ? 'Not behind a cabinet' : 'Open wall'}</td>
+              <td className="num">{fmtIn(r.x)}</td>
+              <td className="num">{fmtIn(Math.max(0, wall.length - r.x))}</td>
+              <td className="num">{fmtIn(r.y)}</td>
+              <td className="num">{fmtIn(Math.max(0, r.y - r.h / 2))}</td>
+              <td className="num">
+                {fmtIn(r.w)} × {fmtIn(r.h)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+/** Dimensioned elevation for a single wall's rough-ins: each stub carries a
+ *  height dimension (floor → center, stacked on the left) and a from-left
+ *  distance (stacked below the floor), with faint base-cabinet context. */
+function RoughInWallDiagram({ wall, rough, design, numbers }: { wall: Wall; rough: RoughIn[]; design: Design; numbers: Map<string, number> }) {
+  const floorY = wall.height;
+  const leftPad = 12 + rough.length * 5; // stacked vertical (height) dims
+  const rightPad = 8;
+  const topPad = 6;
+  const bottomPad = 14 + rough.length * 5; // stacked horizontal (from-left) dims + overall
+  const viewW = wall.length + leftPad + rightPad;
+  const viewH = wall.height + topPad + bottomPad;
+
+  const floorItems = design.items.filter((it) => it.wallId === wall.id && catalogById(it.catalogId).lane === 'floor');
+  const overallY = floorY + 9 + rough.length * 5;
+
+  return (
+    <svg viewBox={`${-leftPad} ${-topPad} ${viewW} ${viewH}`} style={{ width: '100%', display: 'block', fontFamily: 'inherit' }} className="elevation-svg">
+      {!wall.ghost && <rect x={0} y={0} width={wall.length} height={wall.height} fill="#fbfbfc" stroke="#e3e6ea" strokeWidth={0.3} />}
+      <line x1={-leftPad} y1={floorY} x2={wall.length + rightPad} y2={floorY} stroke="#c9cdd3" strokeWidth={0.5} />
+
+      {/* faint base-cabinet silhouettes for context */}
+      {floorItems.map((it) => {
+        const w = footprintW(it);
+        const n = numbers.get(it.id);
+        return (
+          <g key={it.id}>
+            <rect x={it.x} y={floorY - it.h} width={w} height={it.h} fill="#f1f2f4" stroke="#dfe2e6" strokeWidth={0.3} />
+            {n != null && (
+              <text x={it.x + w / 2} y={floorY - it.h / 2} textAnchor="middle" dominantBaseline="central" fontSize={4} fill="#b6bcc4">
+                {n}
+              </text>
+            )}
+          </g>
+        );
+      })}
+
+      {rough.map((r, i) => {
+        const cyc = floorY - r.y; // stub center, svg y
+        const colX = -3 - i * 5; // vertical-dim column in the left margin
+        const rowY = floorY + 7 + i * 5; // horizontal-dim row below the floor
+        const conflict = roughInConflict(design, r);
+        return (
+          <g key={r.id}>
+            {/* guide lines linking the stub to its dimensions */}
+            <line x1={colX} y1={cyc} x2={r.x} y2={cyc} stroke="#b9bec7" strokeWidth={0.2} strokeDasharray="1.2 1" />
+            <line x1={r.x} y1={cyc} x2={r.x} y2={rowY} stroke="#b9bec7" strokeWidth={0.2} strokeDasharray="1.2 1" />
+            <g transform={`translate(${r.x - r.w / 2} ${cyc - r.h / 2})`}>
+              <RoughInGlyph kind={r.kind} w={r.w} h={r.h} conflict={conflict} />
+            </g>
+            <circle cx={r.x} cy={cyc} r={0.5} fill="#5b6472" />
+            <DimV y1={cyc} y2={floorY} x={colX} label={fmtIn(r.y)} />
+            <DimH x1={0} x2={r.x} y={rowY} label={fmtIn(r.x)} />
+          </g>
+        );
+      })}
+
+      {/* overall wall length */}
+      <DimH x1={0} x2={wall.length} y={overallY} />
+    </svg>
   );
 }

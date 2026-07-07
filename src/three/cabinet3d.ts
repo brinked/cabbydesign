@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
-import { fitModel } from './models';
+import { fitModel, hasModel } from './models';
 
 // Real griddle model placement (tunable). Width as a fraction of the cabinet,
 // how far the cooking surface sits PROUD of the cabinet top (the firebox drops
@@ -12,6 +12,13 @@ const GRIDDLE_MODEL_W_FRAC = 0.9;
 const GRIDDLE_MODEL_PROUD = 2.5;
 const GRIDDLE_MODEL_BACK = -3; // protrude the griddle face a few inches past the cabinet
 const GRIDDLE_MODEL_YAW = 0;
+
+// Real grill model placement (Broilmaster B-Series head). The firebox drops
+// into the cabinet by SINK inches (hood + control face stay above/in front);
+// BACK works like the griddle's (negative = face protrudes past the cabinet).
+const GRILL_MODEL_SINK = 7.5;
+const GRILL_MODEL_BACK = -3;
+const GRILL_MODEL_YAW = 0;
 
 export const STEEL_3D = 0xc9ced2;
 
@@ -221,9 +228,15 @@ function applianceFaceW(w: number): number {
  *  instead. Capped to these per-type maxima; still shrinks to fit a narrow
  *  cabinet. (Undefined types fill the whole face, e.g. side/power burners.) */
 const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, grill4: 44, griddle: 30, griddle4: 36 };
+/** The real grill model's true width (a 32″ Broilmaster head). Like a real
+ *  grill it NEVER stretches — widening the cabinet only widens the framing. */
+export const GRILL_MODEL_REAL_W = 32;
 function applianceOpeningW(front: string, w: number): number {
   const faceW = applianceFaceW(w);
-  const max = APPLIANCE_MAX_W[front];
+  const max =
+    (front === 'grill' || front === 'grill4') && hasModel('grill')
+      ? GRILL_MODEL_REAL_W + 1 // fixed-size head + clearance
+      : APPLIANCE_MAX_W[front];
   return max ? Math.min(faceW, max) : faceW;
 }
 
@@ -467,6 +480,13 @@ export function sinkBasin(w: number, d: number): { bw: number; bd: number; zc: n
 export function grillCutout(cat: CatalogItem, w: number, d: number): { bw: number; bd: number; zc: number } | null {
   if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle' && cat.front !== 'griddle4') return null;
   const bw = applianceOpeningW(cat.front, w) + 1; // small gap around the unit
+  if ((cat.front === 'grill' || cat.front === 'grill4') && hasModel('grill')) {
+    // Real head: its control panel hangs in front of the counter nose, so the
+    // cut-out runs through the counter's front edge (a notch, not a hole).
+    const z1 = 2.5; // stone strip left behind the unit
+    const z2 = d + 6; // safely past any run's front overhang
+    return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
+  }
   const bd = Math.max(8, d - 5); // cooking area, leaving a front lip of counter
   return { bw, bd, zc: d * 0.5 };
 }
@@ -671,7 +691,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         // cabinet front picture-frames it: apron below, panel stiles wrapping
         // both sides, doors at the bottom.
         const isGrill = cat.front === 'grill' || cat.front === 'grill4';
-        const applH = isGrill ? 9 : 7;
+        // With the real grill model its own control panel fills the opening —
+        // a shorter opening avoids a bare band under the panel.
+        const applH = isGrill ? (hasModel('grill') ? 6 : 9) : 7;
         const apronH = 4.5;
         const doorH = fh - applH - apronH - GAP * 2;
         if (cat.front === 'grill4' || cat.front === 'griddle4') {
@@ -1127,40 +1149,61 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   };
   if ((cat.front === 'grill' || cat.front === 'grill4') && !isAppliance) {
-    // Built-in grill set into the cabinet: recessed stainless control face
-    // framed by the cabinet, roll-top hood resting on the body above. Fixed
-    // width (the cabinet frame widens around it), so it doesn't stretch.
+    // Built-in grill set into the cabinet, fixed width (the cabinet frame
+    // widens around it). Real Broilmaster model when loaded; procedural
+    // stainless face + roll-top hood as the fallback.
     const gw = applianceOpeningW(cat.front, w);
-    const applH = 9;
-    const faceY = kick + carcassH - REVEAL - applH / 2;
-    const face = box(gw, applH, 1.5, mats.steel);
-    face.position.set(0, faceY, d - 0.2);
-    g.add(face);
-    addKnobs(0, faceY - 1, d + 0.55, Math.max(3, Math.min(5, Math.round(gw / 8))));
-    // grill body lip just above the cabinet top
-    const lip = box(gw, 1.8, d - 3, mats.steel);
-    lip.position.set(0, h + 0.9, d / 2);
-    g.add(lip);
-    // roll-top hood
-    const hoodH = 8.5;
-    const hoodD = d - 6;
-    const hoodFrontZ = d - 2;
-    const hood = grillHood(gw - 0.5, hoodD, hoodH, mats.steel);
-    hood.position.set(0, h + 1.8, hoodFrontZ);
-    g.add(hood);
-    // thermometer on the hood face
-    const thermoBezel = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.7, 18), mats.steel);
-    thermoBezel.rotation.x = Math.PI / 2;
-    thermoBezel.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.2);
-    const thermoFace = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.05, 1.05, 0.75, 18),
-      new THREE.MeshStandardMaterial({ color: 0xf4f5f2, roughness: 0.35 })
-    );
-    thermoFace.rotation.x = Math.PI / 2;
-    thermoFace.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.25);
-    g.add(thermoBezel, thermoFace);
-    // handle across the hood front
-    addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.28, hoodFrontZ + 1.7);
+    // Real-life size: the head is always 32″ (shrunk only if the cabinet is
+    // narrower) — a wider cabinet grows the framing, not the grill.
+    const model = fitModel('grill', Math.min(applianceFaceW(w), GRILL_MODEL_REAL_W));
+    if (model) {
+      // Close the cabinet's appliance-face opening with a DARK recessed panel
+      // behind the unit — the sliver visible either side of the head's control
+      // panel then reads as the shadowed cavity of a real built-in, not bare
+      // white carcass.
+      const applH = 6; // matches the shorter opening used in the fronts layout
+      const faceY = kick + carcassH - REVEAL - applH / 2;
+      const face = box(gw + 1, applH + 1, 0.6, mats.dark);
+      face.position.set(0, faceY, d - 1.6);
+      g.add(face);
+      if (GRILL_MODEL_YAW) model.rotation.y = GRILL_MODEL_YAW;
+      const mb = new THREE.Box3().setFromObject(model);
+      const md = mb.max.z - mb.min.z; // scaled depth
+      // firebox sinks into the cabinet; hood rises above the countertop
+      model.position.set(0, h - GRILL_MODEL_SINK, d - md / 2 - GRILL_MODEL_BACK);
+      g.add(model);
+    } else {
+      const applH = 9;
+      const faceY = kick + carcassH - REVEAL - applH / 2;
+      const face = box(gw, applH, 1.5, mats.steel);
+      face.position.set(0, faceY, d - 0.2);
+      g.add(face);
+      addKnobs(0, faceY - 1, d + 0.55, Math.max(3, Math.min(5, Math.round(gw / 8))));
+      // grill body lip just above the cabinet top
+      const lip = box(gw, 1.8, d - 3, mats.steel);
+      lip.position.set(0, h + 0.9, d / 2);
+      g.add(lip);
+      // roll-top hood
+      const hoodH = 8.5;
+      const hoodD = d - 6;
+      const hoodFrontZ = d - 2;
+      const hood = grillHood(gw - 0.5, hoodD, hoodH, mats.steel);
+      hood.position.set(0, h + 1.8, hoodFrontZ);
+      g.add(hood);
+      // thermometer on the hood face
+      const thermoBezel = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.7, 18), mats.steel);
+      thermoBezel.rotation.x = Math.PI / 2;
+      thermoBezel.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.2);
+      const thermoFace = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.05, 1.05, 0.75, 18),
+        new THREE.MeshStandardMaterial({ color: 0xf4f5f2, roughness: 0.35 })
+      );
+      thermoFace.rotation.x = Math.PI / 2;
+      thermoFace.position.set(0, h + 1.8 + hoodH * 0.55, hoodFrontZ + 0.25);
+      g.add(thermoBezel, thermoFace);
+      // handle across the hood front
+      addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.28, hoodFrontZ + 1.7);
+    }
   } else if ((cat.front === 'griddle' || cat.front === 'griddle4') && !isAppliance) {
     // Fixed griddle width (centered) so the unit doesn't stretch with the cabinet.
     const openW = applianceOpeningW(cat.front, w);
