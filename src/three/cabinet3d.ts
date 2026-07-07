@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BASE_H, COUNTER_T, GRILL_4DOOR_MIN_W, TOEKICK_H, grillDoorCount } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
-import { fitModel } from './models';
+import { fitModel, hasModel } from './models';
 
 // Real griddle model placement (tunable). Width as a fraction of the cabinet,
 // how far the cooking surface sits PROUD of the cabinet top (the firebox drops
@@ -571,6 +571,13 @@ export function sinkBasin(w: number, d: number): { bw: number; bd: number; zc: n
 export function grillCutout(cat: CatalogItem, w: number, d: number): { bw: number; bd: number; zc: number } | null {
   if (cat.front !== 'grill' && cat.front !== 'griddle') return null;
   const bw = applianceOpeningW(cat.front, w) + 1; // small gap around the unit
+  if (cat.front === 'grill' && hasModel('grill')) {
+    // Real head: its control panel hangs in front of the counter nose, so the
+    // cut-out runs through the counter's front edge (a notch, not a hole).
+    const z1 = 2.5; // stone strip left behind the unit
+    const z2 = d + 6; // safely past any run's front overhang
+    return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
+  }
   const bd = Math.max(8, d - 5); // cooking area, leaving a front lip of counter
   return { bw, bd, zc: d * 0.5 };
 }
@@ -834,7 +841,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         // cabinet front picture-frames it: apron below, panel stiles wrapping
         // both sides, doors at the bottom.
         const isGrill = cat.front === 'grill';
-        const applH = isGrill ? 9 : 7;
+        // With the real grill model its own control panel fills the opening —
+        // a shorter opening avoids a bare band under the panel.
+        const applH = isGrill ? (hasModel('grill') ? 6 : 9) : 7;
         const apronH = 4.5;
         const doorH = fh - applH - apronH - GAP * 2;
         if (grillDoorCount(cat.front, w) === 4) {
@@ -1351,7 +1360,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     if (model) {
       // Close the cabinet's appliance-face opening with a stainless panel set
       // back behind the unit so no carcass shows through around the head.
-      const applH = 9;
+      const applH = 6; // matches the shorter opening used in the fronts layout
       const faceY = kick + carcassH - REVEAL - applH / 2;
       const face = box(gw, applH, 0.6, mats.steelMatte);
       face.position.set(0, faceY, d - 1.6);

@@ -5,6 +5,8 @@ import { resolveItemFinish } from '../model/newage';
 import { countertopById } from '../model/countertops';
 import { isReserveExempt, type CornerReserve } from '../model/geometry';
 import { backsplashSpans, footprintW, laneItems, openingClash, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
+import { grillCutout } from '../three/cabinet3d';
+import { hasModel } from '../three/models';
 import { ElevationCabinet } from './CabinetImage';
 import { NumberField } from './NumberField';
 import { DimH, DimV, OpeningGlyph, RoughInGlyph, fmtIn } from './svg';
@@ -62,6 +64,8 @@ export function WallElevationSvg({
   const openOpening = useStore((s) => s.openOpening);
   const editingOpeningId = useStore((s) => s.editingOpeningId);
   const wallOpenings = design.openings.filter((o) => o.wallId === wall.id);
+  // re-render when real 3D models arrive (counter gaps depend on the grill model)
+  useStore((s) => s.modelsReady);
 
   const wallItems = items.filter((it) => it.wallId === wall.id);
   const floorY = wall.height;
@@ -315,6 +319,20 @@ export function WallElevationSvg({
         </g>
       )}
 
+      {/* stone backsplash — a band of counter stone up the wall above the
+          counter. On the wall, so it sits BEHIND the cabinets (grill hoods
+          and other top gear must not be covered). */}
+      {bsH > 0 &&
+        backsplashSpans(floorItems, wall.length, reserve).map((s, i) => {
+          const cy = floorY - BASE_H - cT; // counter top surface
+          return (
+            <g key={`bs-${i}`}>
+              <rect x={s.x1} y={cy - bsH} width={s.x2 - s.x1} height={bsH} fill={counterColor} stroke="rgba(0,0,0,0.18)" strokeWidth={0.2} />
+              <rect x={s.x1} y={cy - bsH} width={s.x2 - s.x1} height={bsH} fill="url(#g-counter)" opacity={0.5} />
+            </g>
+          );
+        })}
+
       {/* floor contact shadows */}
       {floorItems.map((it) => (
         <ellipse
@@ -373,19 +391,6 @@ export function WallElevationSvg({
         );
       })}
 
-      {/* stone backsplash — a band of counter stone up the wall above the
-          counter, continuous around inside corners */}
-      {bsH > 0 &&
-        backsplashSpans(floorItems, wall.length, reserve).map((s, i) => {
-          const cy = floorY - BASE_H - cT; // counter top surface
-          return (
-            <g key={`bs-${i}`}>
-              <rect x={s.x1} y={cy - bsH} width={s.x2 - s.x1} height={bsH} fill={counterColor} stroke="rgba(0,0,0,0.18)" strokeWidth={0.2} />
-              <rect x={s.x1} y={cy - bsH} width={s.x2 - s.x1} height={bsH} fill="url(#g-counter)" opacity={0.5} />
-            </g>
-          );
-        })}
-
       {/* counters drawn over the carcasses, with a shadow band under the nose */}
       {runs.map((r, i) => {
         // Overhang only exposed ends — keep flush where a neighbour abuts so the
@@ -395,12 +400,36 @@ export function WallElevationSvg({
         const x1 = Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
         const x2 = Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), wall.length);
         const cy = floorY - r.h - cT; // counter sits on top of this run's cabinets
+        // The real grill head's control panel hangs in front of the counter, so
+        // the counter visually breaks at its opening (matches the 3D notch).
+        const gaps = floorItems
+          .filter((it) => {
+            const c = catalogById(it.catalogId);
+            return c.front === 'grill' && hasModel('grill') && it.x >= r.x1 - 0.1 && it.x <= r.x2 + 0.1 && Math.abs(it.h - r.h) < 0.01;
+          })
+          .map((it) => {
+            const cut = grillCutout(catalogById(it.catalogId), it.w, it.d)!;
+            const cx = it.x + footprintW(it) / 2;
+            return { x1: cx - cut.bw / 2, x2: cx + cut.bw / 2 };
+          })
+          .sort((a, b) => a.x1 - b.x1);
+        const segs: Array<{ x1: number; x2: number }> = [];
+        let cur = x1;
+        for (const gp of gaps) {
+          if (gp.x1 > cur) segs.push({ x1: cur, x2: Math.min(gp.x1, x2) });
+          cur = Math.max(cur, gp.x2);
+        }
+        if (cur < x2) segs.push({ x1: cur, x2 });
         return (
           <g key={`c-${i}`}>
-            <rect x={x1} y={cy + cT} width={x2 - x1} height={1.6} fill="url(#g-undercounter)" />
-            <rect x={x1} y={cy} width={x2 - x1} height={cT} rx={0.35} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
-            <rect x={x1} y={cy} width={x2 - x1} height={cT} rx={0.35} fill="url(#g-counter)" />
-            <line x1={x1 + 0.3} y1={cy + 0.25} x2={x2 - 0.3} y2={cy + 0.25} stroke="#ffffff" strokeWidth={0.25} opacity={0.55} />
+            {segs.map((sg, j) => (
+              <g key={j}>
+                <rect x={sg.x1} y={cy + cT} width={sg.x2 - sg.x1} height={1.6} fill="url(#g-undercounter)" />
+                <rect x={sg.x1} y={cy} width={sg.x2 - sg.x1} height={cT} rx={0.35} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+                <rect x={sg.x1} y={cy} width={sg.x2 - sg.x1} height={cT} rx={0.35} fill="url(#g-counter)" />
+                <line x1={sg.x1 + 0.3} y1={cy + 0.25} x2={sg.x2 - 0.3} y2={cy + 0.25} stroke="#ffffff" strokeWidth={0.25} opacity={0.55} />
+              </g>
+            ))}
           </g>
         );
       })}
