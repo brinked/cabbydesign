@@ -20,6 +20,11 @@ const GRILL_MODEL_SINK = 7.5;
 const GRILL_MODEL_BACK = -3;
 const GRILL_MODEL_YAW = 0;
 
+/** Door/drawer front build-out. Like the real construction, a cabinet's
+ *  nominal depth INCLUDES the front: a 24″-deep cabinet has a 23″ box and the
+ *  door face makes up the last inch, ending flush at the nominal depth. */
+export const FRONT_T = 1;
+
 export const STEEL_3D = 0xc9ced2;
 
 export function box(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh {
@@ -590,7 +595,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       m.castShadow = m.receiveShadow = true;
       g.add(m);
     };
-    add(w, lowerH, d, 0, yB + lowerH / 2, d / 2); // solid lower body (behind doors)
+    add(w, lowerH, d - FRONT_T, 0, yB + lowerH / 2, (d - FRONT_T) / 2); // solid lower body (behind doors)
     const cy = yB + lowerH;
     add(w, T, d, 0, cy + T / 2, d / 2); // compartment floor / divider shelf
     add(w, openH, T, 0, cy + openH / 2, T / 2); // back of the opening
@@ -606,16 +611,21 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   } else {
     // carcass — white box like the real product; colored fronts go on top.
+    // The box stops FRONT_T short of the nominal depth: the door/drawer face
+    // (added below) makes up the difference, like the real construction.
+    // Steel appliances are the unit itself, so they keep the full depth.
     // Appliance housings only build up to the unit height (gap above).
     const ch2 = isApplianceHousing ? bodyH : carcassH;
-    const carcass = box(w, ch2, d, steel ? mats.steel : mats.carcass);
-    carcass.position.set(0, kick + ch2 / 2, d / 2);
+    const boxD = steel ? d : Math.max(2, d - FRONT_T);
+    const carcass = box(w, ch2, boxD, steel ? mats.steel : mats.carcass);
+    carcass.position.set(0, kick + ch2 / 2, boxD / 2);
     g.add(carcass);
     if (kick > 0) {
       // Full cabinet width and finish-matched: kicks are applied as long strips,
       // so adjacent cabinets read as one seamless band.
-      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, d - 1, steel ? mats.steel : mats.kick);
-      kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, d / 2 - 0.5);
+      const kickD = Math.max(1, boxD - 1);
+      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, kickD, steel ? mats.steel : mats.kick);
+      kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, kickD / 2);
       g.add(kickMesh);
     }
   }
@@ -844,7 +854,8 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         bar.position.z = 1.1;
         fg.add(bar);
       }
-      fg.position.set(fr.dx, kick + carcassH / 2 + fr.dy, d + 0.4);
+      // Door slab centered so its outer face ends flush at the nominal depth.
+      fg.position.set(fr.dx, kick + carcassH / 2 + fr.dy, d - 0.35);
       g.add(fg);
     }
 

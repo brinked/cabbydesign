@@ -378,6 +378,7 @@ export function EditItemModal() {
   const updateItem = useStore((s) => s.updateItem);
   const removeItem = useStore((s) => s.removeItem);
   const duplicateItem = useStore((s) => s.duplicateItem);
+  const setCornerOverride = useStore((s) => s.setCornerOverride);
   const pricing = useStore((s) => s.pricing);
   const dims = useStore((s) => s.dims);
   const appliances = useStore((s) => s.appliances);
@@ -389,6 +390,44 @@ export function EditItemModal() {
   const cat = catalogById(it.catalogId);
   const wall = design.walls.find((w) => w.id === it.wallId);
   if (!wall) return null;
+
+  // Auto corner filler: a compact editor to adjust or remove the clearance.
+  // Its id is `cf-${wallId}-${end}` (see store.autoCornerFillers).
+  if (it.auto) {
+    const end: 'start' | 'end' = it.id.endsWith('-start') ? 'start' : 'end';
+    const key = `${it.wallId}:${end}`;
+    const overridden = design.cornerOverrides?.[key] != null;
+    return (
+      <Modal title="Corner Filler" sub={`Added automatically on ${wall.name}`} onClose={() => openEditor(null)}>
+        <div className="edit-note">
+          This filler holds the run off the corner so doors and drawers clear the cabinets on the adjoining wall. Narrow it
+          or remove it to free up space — just make sure your hardware still clears.
+        </div>
+        <div className="stepper-list">
+          <Stepper label="Width" value={it.w} step={0.5} min={0.5} max={8} onChange={(w) => setCornerOverride(key, { w })} />
+        </div>
+        <div className="modal-actions">
+          <button
+            className="btn-danger"
+            onClick={() => {
+              setCornerOverride(key, { off: true });
+              openEditor(null);
+            }}
+          >
+            Remove filler
+          </button>
+          {overridden && (
+            <button className="btn-ghost" onClick={() => setCornerOverride(key, null)}>
+              Reset to standard 3″
+            </button>
+          )}
+          <button className="btn-primary" onClick={() => openEditor(null)}>
+            Done
+          </button>
+        </div>
+      </Modal>
+    );
+  }
 
   const left = spaceLeft(design, it.wallId, cat.lane);
   const dimRange = effectiveDims(it.catalogId, dims);

@@ -309,6 +309,9 @@ export interface Design {
   openings: Opening[];
   /** Persistent tape-measure annotations in the plan view. */
   measurements?: Measurement[];
+  /** Per-corner overrides for the auto-added corner fillers, keyed
+   *  `${wallId}:start|end` — a custom width, or removed entirely. */
+  cornerOverrides?: Record<string, { w?: number; off?: boolean }>;
 }
 
 export interface PricedLine {

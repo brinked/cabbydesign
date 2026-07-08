@@ -491,10 +491,11 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
                 <g
                   key={it.id}
                   transform={`translate(${it.x} ${it.outset})`}
-                  style={{ cursor: interactive && tool === 'select' && !it.auto ? 'grab' : 'default' }}
-                  onPointerDown={it.auto ? undefined : (e) => itemDown(e, it)}
+                  style={{ cursor: interactive && tool === 'select' ? (it.auto ? 'pointer' : 'grab') : 'default' }}
+                  onPointerDown={it.auto ? (e) => e.stopPropagation() : (e) => itemDown(e, it)}
                   onPointerMove={it.auto ? undefined : (e) => itemMove(e, it)}
                   onPointerUp={it.auto ? undefined : (e) => itemUp(e, it)}
+                  onClick={it.auto && interactive && tool === 'select' ? () => openEditor(it.id) : undefined}
                 >
                   <CabinetTop cat={cat} w={fpw} d={it.d} fin={fin} hinge={cat.front === 'susan' || cat.front === 'corner' ? susanHinge(it) : it.hinge} />
                   <circle cx={fpw / 2} cy={it.d / 2} r={3.4} fill="#fff" stroke="#5b6472" strokeWidth={0.35} />
@@ -676,7 +677,13 @@ export default function TopView() {
   const updateWall = useStore((s) => s.updateWall);
   const removeWall = useStore((s) => s.removeWall);
   const openAdd = useStore((s) => s.openAdd);
+  const cornerOverrides = useStore((s) => s.design.cornerOverrides);
+  const setCornerOverride = useStore((s) => s.setCornerOverride);
   const selectedWall = walls.find((w) => w.id === selectedId);
+  // Corner-filler overrides on the selected wall (adjusted or removed) — offer a reset.
+  const wallOverrides = selectedWall
+    ? (['start', 'end'] as const).filter((end) => cornerOverrides?.[`${selectedWall.id}:${end}`] != null)
+    : [];
 
   return (
     <div className="plan-view">
@@ -750,6 +757,19 @@ export default function TopView() {
               />
               Island
             </label>
+            {wallOverrides.map((end) => {
+              const o = cornerOverrides![`${selectedWall.id}:${end}`];
+              return (
+                <button
+                  key={end}
+                  className="tool-btn"
+                  title={`The corner filler at this wall's ${end} was ${o.off ? 'removed' : `set to ${o.w}″`} — restore the standard 3″ filler`}
+                  onClick={() => setCornerOverride(`${selectedWall.id}:${end}`, null)}
+                >
+                  ↺ Corner filler ({end === 'start' ? 'near end' : 'far end'})
+                </button>
+              );
+            })}
             <button className="tool-btn" title="Rotate this wall 45° about its center" onClick={() => rotateWall(selectedWall.id, 45)}>
               ↻ 45°
             </button>

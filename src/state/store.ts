@@ -5,7 +5,7 @@ import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalog
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { CORNER_EPS, CORNER_FILLER, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, cornerGapFor, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot. */
 export const PANEL_RATE_PER_SQFT = 36;
@@ -250,6 +250,8 @@ interface AppState {
   duplicateItem: (id: string) => void;
   moveItem: (id: string, x: number) => void;
   reflowAll: () => void;
+  /** Adjust or remove an auto corner filler (key `${wallId}:start|end`); null resets to the standard 3″. */
+  setCornerOverride: (key: string, o: { w?: number; off?: boolean } | null) => void;
   addRoughIn: (wallId: string, kind: RoughInKind) => void;
   updateRoughIn: (id: string, patch: Partial<Omit<RoughIn, 'id' | 'wallId'>>) => void;
   removeRoughIn: (id: string) => void;
@@ -425,7 +427,7 @@ export function itemNumbers(design: Design): Map<string, number> {
 }
 
 export function reservesFor(design: Design): Map<string, { start: number; end: number }> {
-  return cornerReserves(design.walls, design.items, catalogById);
+  return cornerReserves(design.walls, design.items, catalogById, design.cornerOverrides);
 }
 
 export function spaceLeft(design: Design, wallId: string, lane: 'floor' | 'upper'): number {
@@ -519,7 +521,7 @@ function packLane(items: PlacedItem[], wallLength: number, lo: number, hi: numbe
 
 /** Re-pack every wall (corner reserves depend on neighbouring walls, so pack globally). */
 function packAll(design: Design): void {
-  const reserves = cornerReserves(design.walls, design.items, catalogById);
+  const reserves = cornerReserves(design.walls, design.items, catalogById, design.cornerOverrides);
   for (const wall of design.walls) {
     const r = reserves.get(wall.id) ?? { start: 0, end: 0 };
     packLane(laneItems(design.items, wall.id, 'floor'), wall.length, r.start, wall.length - r.end);
@@ -638,19 +640,22 @@ function autoCornerFillers(design: Design): void {
           // The other wall's cabinet may be plain OR a blind corner cabinet —
           // both need the 3" filler; diagonal/susan corners butt flush instead.
           if (!nW || !nO || nW.corner || (nO.corner && !nO.blind)) continue;
+          // per-corner override: custom filler width, or removed entirely
+          const gap = cornerGapFor(design.cornerOverrides, W.id, eW);
+          if (gap <= 0) continue;
           // only fill when W's cabinet actually borders the dead-corner zone
-          // (the other wall's depth + the 3″ clearance)
-          if (nW.edge > nO.it.d + nO.it.outset + CORNER_FILLER + 1) continue;
+          // (the other wall's depth + the corner clearance)
+          if (nW.edge > nO.it.d + nO.it.outset + gap + 1) continue;
           const id = `cf-${W.id}-${eW}`;
           if (seen.has(id)) continue;
           seen.add(id);
-          const x = eW === 'start' ? nW.it.x - CORNER_FILLER : nW.it.x + footprintW(nW.it);
+          const x = eW === 'start' ? nW.it.x - gap : nW.it.x + footprintW(nW.it);
           add.push({
             id,
             wallId: W.id,
             catalogId: 'trim-basefiller',
-            x: Math.max(0, Math.min(x, W.length - CORNER_FILLER)),
-            w: CORNER_FILLER,
+            x: Math.max(0, Math.min(x, W.length - gap)),
+            w: gap,
             d: fillerCat.d,
             // match the cabinet it abuts so it isn't a different height
             h: nW.it.h,
@@ -907,6 +912,14 @@ export const useStore = create<AppState>()(
         })),
 
       reflowAll: () => set((s) => ({ design: withPack(s.design) })),
+
+      setCornerOverride: (key, o) =>
+        set((s) => {
+          const cur = { ...(s.design.cornerOverrides ?? {}) };
+          if (o == null) delete cur[key];
+          else cur[key] = o;
+          return { design: withPack({ ...s.design, cornerOverrides: cur }) };
+        }),
 
       addRoughIn: (wallId, kind) =>
         set((s) => {

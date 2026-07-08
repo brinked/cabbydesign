@@ -165,6 +165,29 @@ export interface CornerReserve {
 /** Extra clearance reserved on each wall at a corner for door/drawer clearance. */
 export const CORNER_FILLER = 3;
 
+/** User override for one auto corner filler: a custom width, or removed. */
+export interface CornerOverride {
+  w?: number;
+  off?: boolean;
+}
+
+/** Overrides are keyed per wall end: `${wallId}:start` / `${wallId}:end`. */
+export function cornerKey(wallId: string, end: 'start' | 'end'): string {
+  return `${wallId}:${end}`;
+}
+
+/** Effective corner clearance (= auto filler width) at a wall end: the user's
+ *  override when set (0 when removed), else the standard 3″. */
+export function cornerGapFor(
+  overrides: Record<string, CornerOverride> | undefined,
+  wallId: string,
+  end: 'start' | 'end'
+): number {
+  const o = overrides?.[cornerKey(wallId, end)];
+  if (o?.off) return 0;
+  return Math.max(0, o?.w ?? CORNER_FILLER);
+}
+
 /**
  * Where two non-island walls meet, each wall reserves a "dead corner" only big
  * enough to clear the OTHER wall's cabinet at that corner — its depth plus a 3"
@@ -180,7 +203,8 @@ export const CORNER_FILLER = 3;
 export function cornerReserves(
   walls: Wall[],
   items: PlacedItem[],
-  catFor: (id: string) => CatalogItem
+  catFor: (id: string) => CatalogItem,
+  overrides?: Record<string, CornerOverride>
 ): Map<string, CornerReserve> {
   const map = new Map<string, CornerReserve>();
   for (const w of walls) map.set(w.id, { start: 0, end: 0 });
@@ -210,9 +234,10 @@ export function cornerReserves(
   };
   // No cabinet on the other wall → no reserve. A diagonal/lazy-susan corner
   // cabinet fills the corner → the other run butts flush (no filler). A blind
-  // corner cabinet (or a plain run) keeps the cabinet's depth + 3" clearance.
-  const reserveFor = (n: { depth: number; corner: boolean; blind: boolean }): number =>
-    n.depth <= 0 ? 0 : n.corner && !n.blind ? n.depth : n.depth + CORNER_FILLER;
+  // corner cabinet (or a plain run) keeps the cabinet's depth + the corner
+  // clearance (3" standard; per-corner user overrides can shrink/remove it).
+  const reserveFor = (n: { depth: number; corner: boolean; blind: boolean }, gap: number): number =>
+    n.depth <= 0 ? 0 : n.corner && !n.blind ? n.depth : n.depth + gap;
 
   for (let i = 0; i < walls.length; i++) {
     for (let j = i + 1; j < walls.length; j++) {
@@ -234,8 +259,8 @@ export function cornerReserves(
         // but when a corner cabinet (susan/diagonal/blind) fills the corner the
         // adjacent run butts flush against it, so no filler is added. Corner
         // cabinets are exempt and may occupy their own reserve.
-        const reserveA = reserveFor(nearest(walls[j], endB));
-        const reserveB = reserveFor(nearest(walls[i], endA));
+        const reserveA = reserveFor(nearest(walls[j], endB), cornerGapFor(overrides, walls[i].id, endA));
+        const reserveB = reserveFor(nearest(walls[i], endA), cornerGapFor(overrides, walls[j].id, endB));
         if (endA === 'start') ra.start = Math.max(ra.start, reserveA);
         else ra.end = Math.max(ra.end, reserveA);
         if (endB === 'start') rb.start = Math.max(rb.start, reserveB);
