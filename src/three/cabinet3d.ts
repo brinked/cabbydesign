@@ -483,6 +483,14 @@ export function sinkBasin(w: number, d: number): { bw: number; bd: number; zc: n
  *  depth, center-from-wall — so the appliance drops through the countertop and
  *  the counter frames it. Returns null for non-grill fronts. */
 export function grillCutout(cat: CatalogItem, w: number, d: number): { bw: number; bd: number; zc: number } | null {
+  if (cat.front === 'kamadoinsert') {
+    // Open top compartment: the counter runs across the cabinet covering the
+    // front stretcher and side rails; the kamado pokes through this cut-out.
+    const bw = w - 2.5; // side rails
+    const z1 = 1; // strip over the back panel
+    const z2 = d - 3; // front stretcher stays covered
+    return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
+  }
   if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle' && cat.front !== 'griddle4') return null;
   const bw = applianceOpeningW(cat.front, w) + 1; // small gap around the unit
   if ((cat.front === 'grill' || cat.front === 'grill4') && hasModel('grill')) {

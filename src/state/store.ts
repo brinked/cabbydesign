@@ -5,7 +5,7 @@ import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalog
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { CORNER_EPS, cornerGapFor, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot. */
 export const PANEL_RATE_PER_SQFT = 36;
@@ -558,8 +558,11 @@ function alignFillers(design: Design): void {
  *  estimate for the report. */
 export function counterAreaSqft(design: Design): number {
   let sqin = 0;
+  const reserves = reservesFor(design);
   for (const wall of design.walls) {
     const floor = laneItems(design.items, wall.id, 'floor');
+    const ext = cornerCounterExtend(wall, design.walls, design.items, design.cornerOverrides);
+    const wr = reserves.get(wall.id) ?? { start: 0, end: 0 };
     // corner & susan units carry their own L-shaped top (≈ their footprint)
     for (const it of floor) {
       const c = catalogById(it.catalogId);
@@ -580,7 +583,12 @@ export function counterAreaSqft(design: Design): number {
         last.d = Math.max(last.d, it.d + it.outset);
       } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset });
     }
-    for (const r of runs) sqin += (r.x2 - r.x1) * (r.d + COUNTER_OVERHANG);
+    for (const r of runs) {
+      // owned dead corners: the run extends to the wall corner (matches 3D)
+      const x1 = ext.start && r.x1 <= wr.start + 1 ? 0 : r.x1;
+      const x2 = ext.end && r.x2 >= wall.length - wr.end - 1 ? wall.length : r.x2;
+      sqin += (x2 - x1) * (r.d + COUNTER_OVERHANG);
+    }
   }
   return Math.round((sqin / 144) * 10) / 10;
 }

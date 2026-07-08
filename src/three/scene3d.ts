@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
-import { CORNER_EPS, frameForWall, planBounds, wallEndpoints } from '../model/geometry';
+import { cornerCounterExtend, frameForWall, planBounds } from '../model/geometry';
 import { selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import type { ApplianceItem, Design, FinishOption, PlacedItem, Wall } from '../model/types';
@@ -26,30 +26,6 @@ function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: 
     } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset, h: it.h });
   }
   return runs;
-}
-
-/**
- * Which ends of a wall's counter should extend to the wall corner to cover a
- * dead-corner area. A dead corner is flagged by an auto corner filler on BOTH
- * meeting walls; the lower-id wall "owns" the corner counter so the two runs
- * don't overlap (z-fight) — its counter is extended over the dead square.
- */
-function cornerCounterExtend(wall: Wall, walls: Wall[], items: PlacedItem[]): { start: boolean; end: boolean } {
-  const me = wallEndpoints(wall);
-  const hasFiller = (wid: string, end: 'start' | 'end') => items.some((it) => it.id === `cf-${wid}-${end}`);
-  const out = { start: false, end: false };
-  if (wall.ghost) return out;
-  for (const other of walls) {
-    if (other.id === wall.id || other.ghost) continue;
-    const oe = wallEndpoints(other);
-    for (const [myEnd, myPt] of [['start', me.p0] as const, ['end', me.p1] as const]) {
-      for (const [oEnd, oPt] of [['start', oe.p0] as const, ['end', oe.p1] as const]) {
-        if (Math.hypot(myPt.x - oPt.x, myPt.y - oPt.y) > CORNER_EPS) continue;
-        if (hasFiller(wall.id, myEnd) && hasFiller(other.id, oEnd) && wall.id < other.id) out[myEnd] = true;
-      }
-    }
-  }
-  return out;
 }
 
 export function groundTexture(): THREE.CanvasTexture {
@@ -415,7 +391,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     }
 
     const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
-    const ext = cornerCounterExtend(f.wall, design.walls, design.items);
+    const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
     for (const r of counterRuns3d(floorItems)) {
       // Overhang only exposed run ends. Where another cabinet abuts (e.g. a
       // shorter neighbour in its own run), keep the counter flush so it doesn't

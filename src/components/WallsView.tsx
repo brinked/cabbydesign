@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import type { FinishOption, OpeningKind, PlacedItem, RoughInKind, Wall } from '../model/types';
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, FINISHES, catalogById } from '../model/catalog';
 import { countertopById } from '../model/countertops';
-import { isReserveExempt, type CornerReserve } from '../model/geometry';
+import { cornerCounterExtend, isReserveExempt, type CornerReserve } from '../model/geometry';
 import { backsplashSpans, footprintW, laneItems, openingClash, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
 import { ElevationCabinet } from './CabinetImage';
 import { NumberField } from './NumberField';
@@ -393,8 +393,12 @@ export function WallElevationSvg({
         // counter doesn't cut over an adjoining cabinet of a different height.
         const leftAbut = floorItems.some((o) => Math.abs(o.x + footprintW(o) - r.x1) < 0.75);
         const rightAbut = floorItems.some((o) => Math.abs(o.x - r.x2) < 0.75);
-        const x1 = Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
-        const x2 = Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), wall.length);
+        // At an owned dead corner the counter runs to the wall end (matches 3D).
+        const ext = cornerCounterExtend(wall, design.walls, design.items, design.cornerOverrides);
+        const fillStart = ext.start && r.x1 <= reserve.start + 1;
+        const fillEnd = ext.end && r.x2 >= wall.length - reserve.end - 1;
+        const x1 = fillStart ? 0 : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
+        const x2 = fillEnd ? wall.length : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), wall.length);
         const cy = floorY - r.h - cT; // counter sits on top of this run's cabinets
         // The real grill head's control panel hangs in front of the counter, so
         // the counter visually breaks at its opening (matches the 3D notch).

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { COUNTER_OVERHANG, catalogById } from '../model/catalog';
-import { WALL_T, cornerNeedsFlip, frameForWall, isCornerFront, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints } from '../model/geometry';
+import { WALL_T, cornerCounterExtend, cornerNeedsFlip, frameForWall, isCornerFront, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints } from '../model/geometry';
 import type { MeasureEnd, Measurement, PlacedItem, Wall } from '../model/types';
 import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, uid, useStore } from '../state/store';
 import { NumberField } from './NumberField';
@@ -461,10 +461,14 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
             ) : (
               <polygon points={slabPts} fill={isSel ? '#5b5bd6' : '#3f4754'} {...wallHandlers} />
             )}
-            {/* countertop runs */}
+            {/* countertop runs — extended over an owned dead corner (matches 3D) */}
             {runs.map((r, i) => {
-              const x1 = Math.max(r.x1 - COUNTER_OVERHANG, 0);
-              const x2 = Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
+              const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
+              const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
+              const fillStart = ext.start && r.x1 <= wr.start + 1;
+              const fillEnd = ext.end && r.x2 >= f.wall.length - wr.end - 1;
+              const x1 = fillStart ? 0 : Math.max(r.x1 - COUNTER_OVERHANG, 0);
+              const x2 = fillEnd ? f.wall.length : Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
               return (
                 <rect key={i} x={x1} y={0} width={x2 - x1} height={r.d + COUNTER_OVERHANG} fill={fin.counter} stroke="rgba(0,0,0,0.3)" strokeWidth={0.4} />
               );

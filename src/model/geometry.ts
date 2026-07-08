@@ -271,6 +271,37 @@ export function cornerReserves(
   return map;
 }
 
+/**
+ * Which ends of a wall own a "dead corner" whose counter should extend to the
+ * wall corner, covering the reserved square. A corner qualifies when both
+ * walls hold their runs off it — an auto corner filler sits at each side (or
+ * did, before the user removed it via a corner override). Only ONE of the two
+ * walls (the lexicographically smaller id) extends, so the slabs don't overlap.
+ */
+export function cornerCounterExtend(
+  wall: Wall,
+  walls: Wall[],
+  items: PlacedItem[],
+  overrides?: Record<string, CornerOverride>
+): { start: boolean; end: boolean } {
+  const me = wallEndpoints(wall);
+  const qualifies = (wid: string, end: 'start' | 'end') =>
+    items.some((it) => it.id === `cf-${wid}-${end}`) || overrides?.[cornerKey(wid, end)]?.off === true;
+  const out = { start: false, end: false };
+  if (wall.ghost) return out;
+  for (const other of walls) {
+    if (other.id === wall.id || other.ghost) continue;
+    const oe = wallEndpoints(other);
+    for (const [myEnd, myPt] of [['start', me.p0] as const, ['end', me.p1] as const]) {
+      for (const [oEnd, oPt] of [['start', oe.p0] as const, ['end', oe.p1] as const]) {
+        if (Math.hypot(myPt.x - oPt.x, myPt.y - oPt.y) > CORNER_EPS) continue;
+        if (qualifies(wall.id, myEnd) && qualifies(other.id, oEnd) && wall.id < other.id) out[myEnd] = true;
+      }
+    }
+  }
+  return out;
+}
+
 /** Cabinet fronts allowed to occupy a reserved corner zone. */
 export function isCornerFront(cat: CatalogItem): boolean {
   const f = cat.front;
