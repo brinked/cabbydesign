@@ -118,6 +118,8 @@ export interface JobInput {
   customerEmail: string;
   customerAddress: string;
   design: Design;
+  /** Admin only: save the job under this account instead of your own. */
+  userId?: number;
 }
 
 export interface OrderLine {

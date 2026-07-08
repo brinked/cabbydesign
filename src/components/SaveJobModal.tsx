@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '../api/client';
+import { api, ApiError, type ApiUser } from '../api/client';
 import { useStore } from '../state/store';
 import { useSession } from '../state/session';
 
@@ -9,6 +9,7 @@ export default function SaveJobModal() {
   const currentJobId = useSession((s) => s.currentJobId);
   const setCurrentJob = useSession((s) => s.setCurrentJob);
   const setScreen = useSession((s) => s.setScreen);
+  const isAdmin = useSession((s) => s.user?.role === 'admin');
   const design = useStore((s) => s.design);
   const setDesignMeta = useStore((s) => s.setDesignMeta);
 
@@ -19,6 +20,10 @@ export default function SaveJobModal() {
   const [updateExisting, setUpdateExisting] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Admin: dealer/contractor accounts the design can be filed under.
+  const [accounts, setAccounts] = useState<ApiUser[]>([]);
+  const [saveToId, setSaveToId] = useState(0); // 0 = my own account
+  const [savedTo, setSavedTo] = useState<string | null>(null);
 
   // Prefill from the current design + loaded job each time the dialog opens.
   useEffect(() => {
@@ -29,6 +34,15 @@ export default function SaveJobModal() {
     setCustomerEmail('');
     setCustomerAddress('');
     setUpdateExisting(currentJobId != null);
+    setSaveToId(0);
+    setSavedTo(null);
+    // Admins can save the design straight into a dealer/contractor account.
+    if (isAdmin) {
+      api
+        .listDealers()
+        .then(({ dealers }) => setAccounts(dealers.filter((d) => d.role !== 'admin' && d.active)))
+        .catch(() => setAccounts([]));
+    }
     // We don't have the customer fields in `design`; they live on the job row.
     // When updating an existing job, fetch them so edits don't wipe them.
     if (currentJobId != null) {
@@ -46,8 +60,11 @@ export default function SaveJobModal() {
 
   if (!open) return null;
 
+  const saveToAccount = saveToId ? accounts.find((a) => a.id === saveToId) ?? null : null;
+
   async function save() {
     setError(null);
+    setSavedTo(null);
     setBusy(true);
     // Keep design.client in sync with the customer name for the report cover.
     if (customerName.trim() && customerName !== design.client) setDesignMeta({ client: customerName.trim() });
@@ -60,15 +77,22 @@ export default function SaveJobModal() {
       design: useStore.getState().design,
     };
     try {
-      if (currentJobId != null && updateExisting) {
+      if (saveToAccount) {
+        // Filing under a dealer/contractor: always a new copy in THEIR account.
+        // It isn't the admin's job, so don't track it as the current one.
+        await api.createJob({ ...payload, userId: saveToAccount.id });
+        setSavedTo(saveToAccount.companyName || saveToAccount.name);
+      } else if (currentJobId != null && updateExisting) {
         const { job } = await api.updateJob(currentJobId, payload);
         setCurrentJob(job.id, job.name);
+        openSaveJob(false);
+        setScreen('jobs');
       } else {
         const { job } = await api.createJob(payload);
         setCurrentJob(job.id, job.name);
+        openSaveJob(false);
+        setScreen('jobs');
       }
-      openSaveJob(false);
-      setScreen('jobs');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save the job.');
     } finally {
@@ -82,7 +106,9 @@ export default function SaveJobModal() {
         <div className="modal-head">
           <div>
             <h2>Save job</h2>
-            <p className="modal-sub">Store this design and its customer details to your account.</p>
+            <p className="modal-sub">
+              {isAdmin ? 'Store this design to your account, or file it into a dealer or contractor account.' : 'Store this design and its customer details to your account.'}
+            </p>
           </div>
           <button className="btn-ghost" onClick={() => openSaveJob(false)}>
             ✕
@@ -90,6 +116,32 @@ export default function SaveJobModal() {
         </div>
 
         {error && <div className="warn">{error}</div>}
+        {savedTo && (
+          <div className="ok-inline">
+            Saved “{name.trim() || 'Untitled Design'}” to <b>{savedTo}</b>. They'll see it in their saved jobs.
+          </div>
+        )}
+
+        {isAdmin && (
+          <label className="form-field" style={{ marginBottom: 10 }}>
+            <span>Save to account</span>
+            <select
+              value={saveToId}
+              onChange={(e) => {
+                setSaveToId(Number(e.target.value));
+                setSavedTo(null);
+              }}
+            >
+              <option value={0}>My account (admin)</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                  {a.companyName ? ` — ${a.companyName}` : ''} ({a.role})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div className="form-grid">
           <label className="form-field">
@@ -110,7 +162,7 @@ export default function SaveJobModal() {
           </label>
         </div>
 
-        {currentJobId != null && (
+        {currentJobId != null && !saveToAccount && (
           <label className="check-row">
             <input type="checkbox" checked={updateExisting} onChange={(e) => setUpdateExisting(e.target.checked)} />
             <span>Update the currently open job (uncheck to save as a new copy)</span>
@@ -119,10 +171,10 @@ export default function SaveJobModal() {
 
         <div className="modal-actions">
           <button className="btn-ghost" onClick={() => openSaveJob(false)}>
-            Cancel
+            {savedTo ? 'Close' : 'Cancel'}
           </button>
           <button className="btn-primary" onClick={save} disabled={busy}>
-            {busy ? 'Saving…' : currentJobId != null && updateExisting ? 'Update job' : 'Save job'}
+            {busy ? 'Saving…' : saveToAccount ? 'Save to account' : currentJobId != null && updateExisting ? 'Update job' : 'Save job'}
           </button>
         </div>
       </div>

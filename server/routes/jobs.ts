@@ -42,7 +42,12 @@ const jobSchema = z.object({
   customerAddress: z.string().max(400).default(''),
   // The full design blob — validated loosely here; the client owns its shape.
   design: z.object({}).passthrough(),
+  // Admin only: file the new job under this account (dealer/contractor)
+  // instead of the admin's own. Ignored when it matches the caller.
+  userId: z.number().int().positive().optional(),
 });
+
+const getUserById = db.prepare('SELECT id FROM users WHERE id = ?');
 
 jobsRouter.get('/', (req, res) => {
   const rows = listJobs.all(req.user!.id) as JobRow[];
@@ -67,20 +72,33 @@ jobsRouter.post('/', (req, res) => {
     return;
   }
   const d = parsed.data;
+  // Admins may save the design straight into a dealer's/contractor's account.
+  let ownerId = req.user!.id;
+  if (d.userId != null && d.userId !== req.user!.id) {
+    if (req.user!.role !== 'admin') {
+      res.status(403).json({ error: 'Only admins can save to another account' });
+      return;
+    }
+    if (!getUserById.get(d.userId)) {
+      res.status(404).json({ error: 'Target account not found' });
+      return;
+    }
+    ownerId = d.userId;
+  }
   const info = db
     .prepare(`
       INSERT INTO jobs (user_id, name, customer_name, customer_email, customer_address, design_json)
       VALUES (@userId, @name, @customerName, @customerEmail, @customerAddress, @design)
     `)
     .run({
-      userId: req.user!.id,
+      userId: ownerId,
       name: d.name,
       customerName: d.customerName,
       customerEmail: d.customerEmail,
       customerAddress: d.customerAddress,
       design: JSON.stringify(d.design),
     });
-  const row = getJob.get(info.lastInsertRowid, req.user!.id) as JobRow;
+  const row = getAnyJob.get(info.lastInsertRowid) as JobRow;
   res.status(201).json({ job: shapeJobFull(row) });
 });
 
