@@ -204,13 +204,28 @@ function counterSlabHoles(
   cT: number,
   restH: number = BASE_H
 ): THREE.Mesh {
+  // Cut-outs that reach the counter's front edge become NOTCHES in the outer
+  // contour (a Shape hole may not touch the outline) — e.g. a drop-in grill
+  // whose control panel hangs in front of the counter nose.
+  const inner = holes.filter((h) => h.z2 < depth - 0.05);
+  const notches = holes
+    .filter((h) => h.z2 >= depth - 0.05)
+    .map((h) => ({ x1: Math.max(h.x1, -runW / 2), x2: Math.min(h.x2, runW / 2), z1: Math.max(h.z1, 0.05) }))
+    .filter((h) => h.x2 > h.x1)
+    .sort((a, b) => b.x1 - a.x1); // front edge is walked right → left
   const s = new THREE.Shape();
   s.moveTo(-runW / 2, 0);
   s.lineTo(runW / 2, 0);
   s.lineTo(runW / 2, depth);
+  for (const n of notches) {
+    s.lineTo(n.x2, depth);
+    s.lineTo(n.x2, n.z1);
+    s.lineTo(n.x1, n.z1);
+    s.lineTo(n.x1, depth);
+  }
   s.lineTo(-runW / 2, depth);
   s.closePath();
-  for (const h of holes) {
+  for (const h of inner) {
     const p = new THREE.Path();
     p.moveTo(h.x1, h.z1);
     p.lineTo(h.x2, h.z1);
