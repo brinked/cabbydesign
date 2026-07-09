@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
-import { fitModel, hasModel } from './models';
+import { fitModel, hasModel, requestModel } from './models';
 
 // Real griddle model placement (tunable). Width as a fraction of the cabinet,
 // how far the cooking surface sits PROUD of the cabinet top (the firebox drops
@@ -208,6 +208,11 @@ export interface CabDims {
   applianceH?: number;
   /** Countertop slab thickness (inches). Defaults to COUNTER_T. */
   counterT?: number;
+  /** Brand-accurate 3D model for the selected grill/griddle appliance (key
+   *  into three/models APPLIANCE_MODEL_URLS) + its real overall width. Lazy-
+   *  loaded on first use; the generic head renders until it arrives. */
+  modelKey?: string;
+  modelW?: number;
 }
 
 /** Max width of one applied panel; wider runs are split into multiple panels. */
@@ -236,12 +241,14 @@ const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, grill4: 44, griddle
 /** The real grill model's true width (a 32″ Broilmaster head). Like a real
  *  grill it NEVER stretches — widening the cabinet only widens the framing. */
 export const GRILL_MODEL_REAL_W = 32;
-function applianceOpeningW(front: string, w: number): number {
+function applianceOpeningW(front: string, w: number, modelW?: number): number {
   const faceW = applianceFaceW(w);
   const max =
-    (front === 'grill' || front === 'grill4') && hasModel('grill')
-      ? GRILL_MODEL_REAL_W + 1 // fixed-size head + clearance
-      : APPLIANCE_MAX_W[front];
+    modelW != null
+      ? modelW + 1 // brand-accurate head + clearance
+      : (front === 'grill' || front === 'grill4') && hasModel('grill')
+        ? GRILL_MODEL_REAL_W + 1 // fixed-size head + clearance
+        : APPLIANCE_MAX_W[front];
   return max ? Math.min(faceW, max) : faceW;
 }
 
@@ -482,7 +489,7 @@ export function sinkBasin(w: number, d: number): { bw: number; bd: number; zc: n
 /** Counter cut-out (cabinet-local inches) for a drop-in grill/griddle: width,
  *  depth, center-from-wall — so the appliance drops through the countertop and
  *  the counter frames it. Returns null for non-grill fronts. */
-export function grillCutout(cat: CatalogItem, w: number, d: number): { bw: number; bd: number; zc: number } | null {
+export function grillCutout(cat: CatalogItem, w: number, d: number, modelW?: number): { bw: number; bd: number; zc: number } | null {
   if (cat.front === 'kamadoinsert') {
     // Open top compartment: the counter runs across the cabinet covering the
     // front stretcher and side rails; the kamado pokes through this cut-out.
@@ -492,8 +499,8 @@ export function grillCutout(cat: CatalogItem, w: number, d: number): { bw: numbe
     return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
   }
   if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle' && cat.front !== 'griddle4') return null;
-  const bw = applianceOpeningW(cat.front, w) + 1; // small gap around the unit
-  if ((cat.front === 'grill' || cat.front === 'grill4') && hasModel('grill')) {
+  const bw = applianceOpeningW(cat.front, w, modelW) + 1; // small gap around the unit
+  if ((cat.front === 'grill' || cat.front === 'grill4') && (modelW != null || hasModel('grill'))) {
     // Real head: its control panel hangs in front of the counter nose, so the
     // cut-out runs through the counter's front edge (a notch, not a hole).
     const z1 = 2.5; // stone strip left behind the unit
@@ -711,7 +718,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         const isGrill = cat.front === 'grill' || cat.front === 'grill4';
         // With the real grill model its own control panel fills the opening —
         // a shorter opening avoids a bare band under the panel.
-        const applH = isGrill ? (hasModel('grill') ? 6 : 9) : 7;
+        const applH = isGrill ? (hasModel('grill') || (dims.modelKey && hasModel(dims.modelKey)) ? 6 : 9) : 7;
         const apronH = 4.5;
         const doorH = fh - applH - apronH - GAP * 2;
         if (cat.front === 'grill4' || cat.front === 'griddle4') {
@@ -738,7 +745,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         // side stiles wrap the appliance face. They widen as the cabinet grows so
         // the appliance opening stays a fixed (realistic) width, not stretched.
         const stileY = fh / 2 - applH / 2;
-        const openW = applianceOpeningW(cat.front, w);
+        const openW = applianceOpeningW(cat.front, w, dims.modelW);
         const stileW = Math.max(GRILL_STILE, (fw - openW - GAP * 2) / 2);
         fronts.push({ dx: -fw / 2 + stileW / 2, dy: stileY, w: stileW, h: applH, handle: 'none', slab: true });
         fronts.push({ dx: fw / 2 - stileW / 2, dy: stileY, w: stileW, h: applH, handle: 'none', slab: true });
@@ -1169,12 +1176,16 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   };
   if ((cat.front === 'grill' || cat.front === 'grill4') && !isAppliance) {
     // Built-in grill set into the cabinet, fixed width (the cabinet frame
-    // widens around it). Real Broilmaster model when loaded; procedural
-    // stainless face + roll-top hood as the fallback.
-    const gw = applianceOpeningW(cat.front, w);
-    // Real-life size: the head is always 32″ (shrunk only if the cabinet is
-    // narrower) — a wider cabinet grows the framing, not the grill.
-    const model = fitModel('grill', Math.min(applianceFaceW(w), GRILL_MODEL_REAL_W));
+    // widens around it). Brand-accurate head for the selected appliance when
+    // we carry its model (lazy-loaded), else the generic Broilmaster, else
+    // the procedural stainless face + roll-top hood.
+    if (dims.modelKey) requestModel(dims.modelKey);
+    const gw = applianceOpeningW(cat.front, w, dims.modelW);
+    const useKey = dims.modelKey && hasModel(dims.modelKey) ? dims.modelKey : 'grill';
+    // Real-life size: the head renders at its true width (shrunk only if the
+    // cabinet is narrower) — a wider cabinet grows the framing, not the grill.
+    const headW = useKey === 'grill' ? GRILL_MODEL_REAL_W : dims.modelW ?? GRILL_MODEL_REAL_W;
+    const model = fitModel(useKey, Math.min(applianceFaceW(w), headW));
     if (model) {
       // Close the cabinet's appliance-face opening with a DARK recessed panel
       // behind the unit — the sliver visible either side of the head's control
@@ -1225,8 +1236,14 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   } else if ((cat.front === 'griddle' || cat.front === 'griddle4') && !isAppliance) {
     // Fixed griddle width (centered) so the unit doesn't stretch with the cabinet.
-    const openW = applianceOpeningW(cat.front, w);
-    const model = fitModel('griddle', GRIDDLE_MODEL_W_FRAC * openW);
+    // Brand-accurate unit for the selected appliance when we carry its model.
+    if (dims.modelKey) requestModel(dims.modelKey);
+    const openW = applianceOpeningW(cat.front, w, dims.modelW);
+    const useKey = dims.modelKey && hasModel(dims.modelKey) ? dims.modelKey : 'griddle';
+    const model =
+      useKey === 'griddle'
+        ? fitModel('griddle', GRIDDLE_MODEL_W_FRAC * openW)
+        : fitModel(useKey, Math.min(applianceFaceW(w), dims.modelW ?? openW));
     if (model) {
       // Close the cabinet's appliance-face opening with a stainless panel set
       // back behind the unit, so no carcass shows but the model's own control

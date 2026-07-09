@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
 import { cornerCounterExtend, frameForWall, planBounds } from '../model/geometry';
-import { selectedApplianceHeight } from '../model/appliances';
+import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import type { ApplianceItem, Design, FinishOption, PlacedItem, Wall } from '../model/types';
 import { backsplashSpans, footprintW, laneItems, reservesFor } from '../state/store';
@@ -298,9 +298,11 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // sits at — not by the hinge field, which only chooses the handle door.
       const geomSide: 1 | -1 = it.x + footprintW(it) / 2 > f.wall.length / 2 ? -1 : 1;
       const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
+      // brand-accurate 3D head for the selected grill/griddle appliance
+      const mref = cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' ? appliance3dModel(it.appliance, appliances) : null;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT },
+        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w },
         mats
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;
@@ -410,17 +412,18 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const runCenter = (x1 + x2) / 2;
       // Sink basins and drop-in grills in this run → cut holes so the appliance
       // shows through and the counter frames it.
+      const modelWFor = (it: PlacedItem) => appliance3dModel(it.appliance, appliances)?.w;
       const holes = floorItems
         .filter((it) => {
           const cx = it.x + footprintW(it) / 2;
           if (cx < r.x1 - 0.1 || cx > r.x2 + 0.1) return false;
           const f = catalogById(it.catalogId).front;
-          return isSinkFront(f) || grillCutout(catalogById(it.catalogId), it.w, it.d) !== null;
+          return isSinkFront(f) || grillCutout(catalogById(it.catalogId), it.w, it.d, modelWFor(it)) !== null;
         })
         .map((it) => {
           const cat = catalogById(it.catalogId);
           const cx = it.x + footprintW(it) / 2 - runCenter;
-          const cut = isSinkFront(cat.front) ? sinkBasin(it.w, it.d) : grillCutout(cat, it.w, it.d)!;
+          const cut = isSinkFront(cat.front) ? sinkBasin(it.w, it.d) : grillCutout(cat, it.w, it.d, modelWFor(it))!;
           return { x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: cut.zc - cut.bd / 2, z2: cut.zc + cut.bd / 2 };
         });
       if (holes.length) {

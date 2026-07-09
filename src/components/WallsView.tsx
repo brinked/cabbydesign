@@ -9,6 +9,7 @@ import { NumberField } from './NumberField';
 import { DimH, DimV, OpeningGlyph, RoughInGlyph, fmtIn } from './svg';
 import { grillCutout } from '../three/cabinet3d';
 import { hasModel } from '../three/models';
+import { appliance3dModel } from '../model/appliances';
 
 const SNAP = 1.25; // inches
 
@@ -63,6 +64,7 @@ export function WallElevationSvg({
   const openOpening = useStore((s) => s.openOpening);
   const editingOpeningId = useStore((s) => s.editingOpeningId);
   const wallOpenings = design.openings.filter((o) => o.wallId === wall.id);
+  const appliances = useStore((s) => s.appliances);
   // re-render when real 3D models arrive (counter gaps depend on the grill model)
   useStore((s) => s.modelsReady);
 
@@ -405,10 +407,11 @@ export function WallElevationSvg({
         const gaps = floorItems
           .filter((it) => {
             const c = catalogById(it.catalogId);
-            return (c.front === 'grill' || c.front === 'grill4') && hasModel('grill') && it.x >= r.x1 - 0.1 && it.x <= r.x2 + 0.1 && Math.abs(it.h - r.h) < 0.01;
+            const mw = appliance3dModel(it.appliance, appliances)?.w;
+            return (c.front === 'grill' || c.front === 'grill4') && (hasModel('grill') || mw != null) && it.x >= r.x1 - 0.1 && it.x <= r.x2 + 0.1 && Math.abs(it.h - r.h) < 0.01;
           })
           .map((it) => {
-            const cut = grillCutout(catalogById(it.catalogId), it.w, it.d)!;
+            const cut = grillCutout(catalogById(it.catalogId), it.w, it.d, appliance3dModel(it.appliance, appliances)?.w)!;
             const cx = it.x + footprintW(it) / 2;
             return { x1: cx - cut.bw / 2, x2: cx + cut.bw / 2 };
           })

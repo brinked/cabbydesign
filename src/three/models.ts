@@ -18,11 +18,54 @@ const templates = new Map<string, ModelTemplate>();
 const listeners = new Set<() => void>();
 let started = false;
 
-/** Public model URLs (served from /public). One entry per real model. */
+/** Public model URLs (served from /public). One entry per real model.
+ *  These are small and preloaded at startup as the generic fallbacks. */
 const MODEL_URLS: Record<string, string> = {
   griddle: '/models/griddle.glb',
   grill: '/models/grill.glb', // Broilmaster B-Series head for grill cabinets
 };
+
+/**
+ * Per-appliance models (brand-accurate heads incl. insulated liners). These
+ * are large (~5-8 MB each), so they are NOT preloaded — `requestModel` lazy-
+ * loads one the first time a design actually shows that appliance. Keys are
+ * resolved from the selected appliance by `appliance3dModel` (model layer).
+ */
+const APPLIANCE_MODEL_URLS: Record<string, string> = {
+  'blaze-lte-32': '/models/grills/blaze-lte-32.glb',
+  'blaze-lte-40': '/models/grills/blaze-lte-40.glb',
+  'blaze-lte-pro-40': '/models/grills/blaze-lte-pro-40.glb',
+  'broilmaster-b-32': '/models/grills/broilmaster-b-32.glb',
+  'napoleon-700-32': '/models/grills/napoleon-700-32.glb',
+  'napoleon-700-38': '/models/grills/napoleon-700-38.glb',
+  'napoleon-700-44': '/models/grills/napoleon-700-44.glb',
+  'xo-xlt-32': '/models/grills/xo-xlt-32.glb',
+  'xo-xlt-40': '/models/grills/xo-xlt-40.glb',
+  'legriddle-commercial-75': '/models/grills/legriddle-commercial-75.glb',
+  'legriddle-commercial-105': '/models/grills/legriddle-commercial-105.glb',
+};
+
+const requested = new Set<string>();
+
+/**
+ * Kick off loading a per-appliance model once (idempotent, safe to call from
+ * render paths). Until it arrives, callers fall back to the generic model;
+ * `onModelsLoaded` fires on arrival so views re-render with the real head.
+ */
+export function requestModel(key: string): void {
+  const url = APPLIANCE_MODEL_URLS[key];
+  if (!url || requested.has(key) || templates.has(key)) return;
+  requested.add(key);
+  new GLTFLoader().load(
+    url,
+    (gltf) => {
+      templates.set(key, normalize(gltf.scene));
+      listeners.forEach((l) => l());
+    },
+    undefined,
+    () => undefined // on error: generic fallback stays
+  );
+}
 
 /** True once at least the requested model is available. */
 export function hasModel(key: string): boolean {
