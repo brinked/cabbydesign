@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
-import { fitModel, hasModel, requestModel } from './models';
+import { applianceModelInfo, fitModel, hasModel, requestModel } from './models';
 
 // Real griddle model placement (tunable). Width as a fraction of the cabinet,
 // how far the cooking surface sits PROUD of the cabinet top (the firebox drops
@@ -1184,8 +1184,11 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     const useKey = dims.modelKey && hasModel(dims.modelKey) ? dims.modelKey : 'grill';
     // Real-life size: the head renders at its true width (shrunk only if the
     // cabinet is narrower) — a wider cabinet grows the framing, not the grill.
-    const headW = useKey === 'grill' ? GRILL_MODEL_REAL_W : dims.modelW ?? GRILL_MODEL_REAL_W;
-    const model = fitModel(useKey, Math.min(applianceFaceW(w), headW));
+    // Jacketed units clamp to the cabinet width (their flange spans the
+    // counter, wider than the face opening between the stiles).
+    const info = useKey !== 'grill' ? applianceModelInfo(useKey) : null;
+    const fitW = info ? Math.min(w - 1.5, info.realWIn) : Math.min(applianceFaceW(w), GRILL_MODEL_REAL_W);
+    const model = fitModel(useKey, fitW);
     if (model) {
       // Close the cabinet's appliance-face opening with a DARK recessed panel
       // behind the unit — the sliver visible either side of the head's control
@@ -1199,8 +1202,16 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       if (GRILL_MODEL_YAW) model.rotation.y = GRILL_MODEL_YAW;
       const mb = new THREE.Box3().setFromObject(model);
       const md = mb.max.z - mb.min.z; // scaled depth
-      // firebox sinks into the cabinet; hood rises above the countertop
-      model.position.set(0, h - GRILL_MODEL_SINK, d - md / 2 - GRILL_MODEL_BACK);
+      if (info?.jacketTopIn) {
+        // jacketed unit: the insulated liner's flange rests ON the countertop,
+        // the jacket box hangs through the cut-out into the cabinet
+        const counterTop = h + (dims.counterT ?? COUNTER_T);
+        const scale = fitW / info.realWIn;
+        model.position.set(0, counterTop - info.jacketTopIn * scale, d - md / 2 - GRILL_MODEL_BACK);
+      } else {
+        // firebox sinks into the cabinet; hood rises above the countertop
+        model.position.set(0, h - GRILL_MODEL_SINK, d - md / 2 - GRILL_MODEL_BACK);
+      }
       g.add(model);
     } else {
       const applH = 9;
@@ -1240,10 +1251,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     if (dims.modelKey) requestModel(dims.modelKey);
     const openW = applianceOpeningW(cat.front, w, dims.modelW);
     const useKey = dims.modelKey && hasModel(dims.modelKey) ? dims.modelKey : 'griddle';
-    const model =
-      useKey === 'griddle'
-        ? fitModel('griddle', GRIDDLE_MODEL_W_FRAC * openW)
-        : fitModel(useKey, Math.min(applianceFaceW(w), dims.modelW ?? openW));
+    const info = useKey !== 'griddle' ? applianceModelInfo(useKey) : null;
+    const fitW = info ? Math.min(w - 1.5, info.realWIn) : GRIDDLE_MODEL_W_FRAC * openW;
+    const model = fitModel(useKey, fitW);
     if (model) {
       // Close the cabinet's appliance-face opening with a stainless panel set
       // back behind the unit, so no carcass shows but the model's own control
@@ -1260,7 +1270,13 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const mb = new THREE.Box3().setFromObject(model);
       const mh = mb.max.y - mb.min.y; // scaled height
       const md = mb.max.z - mb.min.z; // scaled depth
-      model.position.set(0, h + GRIDDLE_MODEL_PROUD - mh, d - md / 2 - GRIDDLE_MODEL_BACK);
+      if (info?.jacketTopIn) {
+        // jacketed unit: the liner flange rests on the countertop
+        const counterTop = h + (dims.counterT ?? COUNTER_T);
+        model.position.set(0, counterTop - info.jacketTopIn * (fitW / info.realWIn), d - md / 2 - GRIDDLE_MODEL_BACK);
+      } else {
+        model.position.set(0, h + GRIDDLE_MODEL_PROUD - mh, d - md / 2 - GRIDDLE_MODEL_BACK);
+      }
       g.add(model);
     } else {
       const gw = openW;

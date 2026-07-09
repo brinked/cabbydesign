@@ -12,6 +12,9 @@ interface ModelTemplate {
   obj: THREE.Object3D;
   /** Real-world bounding-box size (model units, after node transforms). */
   size: THREE.Vector3;
+  /** Insulated-jacket flange top above the model base (model units). The
+   *  flange is what rests on the countertop when the unit drops in. */
+  jacketTop?: number;
 }
 
 const templates = new Map<string, ModelTemplate>();
@@ -96,16 +99,26 @@ function stripGriddleBranding(root: THREE.Object3D): void {
   remove.forEach((o) => o.parent?.remove(o));
 }
 
-/** Center an object on X/Z with its base at y=0; record its size. */
+/** Node/mesh names that identify the insulated jacket/liner in a grill GLB. */
+const JACKET_RE = /(^|[^a-z0-9])ij\d*($|[^a-z0-9])|liner|jacket|zcl|bsasl/i;
+
+/** Center an object on X/Z with its base at y=0; record its size (and the
+ *  insulated jacket's flange height, when the model carries one). */
 function normalize(root: THREE.Object3D): ModelTemplate {
   root.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
+  let jacketTop: number | undefined;
+  root.traverse((o) => {
+    if (!(o as THREE.Mesh).isMesh || !JACKET_RE.test(o.name)) return;
+    const jb = new THREE.Box3().setFromObject(o);
+    jacketTop = Math.max(jacketTop ?? -Infinity, jb.max.y - box.min.y);
+  });
   const wrap = new THREE.Group();
   root.position.set(-center.x, -box.min.y, -center.z);
   wrap.add(root);
-  return { obj: wrap, size };
+  return { obj: wrap, size, jacketTop };
 }
 
 /** Kick off loading every known model once (idempotent). */
@@ -125,6 +138,17 @@ export function loadModels(): void {
       () => undefined // on error: leave it unset, procedural fallback stays
     );
   }
+}
+
+/** Physical facts about a loaded appliance model, in inches at real size:
+ *  overall width, and (when it carries an insulated jacket) the height of
+ *  the jacket's flange above the model base. Null until loaded. */
+export function applianceModelInfo(key: string): { realWIn: number; jacketTopIn?: number } | null {
+  const t = templates.get(key);
+  if (!t || t.size.x <= 0) return null;
+  // model files are authored in real-world meters; report inches
+  const IN = 0.0254;
+  return { realWIn: t.size.x / IN, jacketTopIn: t.jacketTop != null ? t.jacketTop / IN : undefined };
 }
 
 /**
