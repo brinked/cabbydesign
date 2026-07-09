@@ -1130,7 +1130,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const len = mats.naBar ? Math.min(15, fh * 0.55) : Math.min(7, fh * 0.45);
       const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
       bar.castShadow = true;
-      bar.position.set(cornerSide * (-span / 2 + 1.7), fh / 2 - len / 2 - 1.4, 1.1);
+      // wall corner cabinets: handle at the BOTTOM of the door (like all uppers)
+      const barY = cat.lane === 'upper' ? -fh / 2 + len / 2 + 1.4 : fh / 2 - len / 2 - 1.4;
+      bar.position.set(cornerSide * (-span / 2 + 1.7), barY, 1.1);
       door.add(bar);
       g.add(door);
     }
@@ -1140,10 +1142,12 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const legD = legRet;
       const midH = kick + carcassH / 2;
       const len = Math.min(7, fh * 0.45);
+      // wall susans: handle at the BOTTOM of the door (like all uppers)
+      const barY = cat.lane === 'upper' ? -fh / 2 + len / 2 + 1.4 : fh / 2 - len / 2 - 1.4;
       const addBar = (door: THREE.Object3D, localX: number) => {
         const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
         bar.castShadow = true;
-        bar.position.set(localX, fh / 2 - len / 2 - 1.4, 1.1);
+        bar.position.set(localX, barY, 1.1);
         door.add(bar);
       };
       // A bi-fold susan has ONE pull on its lead door; the other door follows.

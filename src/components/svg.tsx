@@ -484,14 +484,16 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
         );
         break;
       }
-      // angled corner-cabinet face: a centered door with body-colored returns
+      // angled corner-cabinet face: a centered door with body-colored returns.
+      // Wall corners take their handle at the BOTTOM like every upper cabinet.
       const dw = (w - gap * 2) * 0.62;
       const lx = (w - dw) / 2;
+      const chLen = Math.min(7, fh * 0.4);
       front = (
         <g>
           <rect x={lx} y={gap} width={dw} height={fh - gap * 2} fill={fin.body} />
           <Shaker x={lx} y={gap} w={dw} h={fh - gap * 2} fin={fin} />
-          <BarHandle x={lx + 1.8} y={fh * 0.16} len={Math.min(7, fh * 0.4)} vertical />
+          <BarHandle x={lx + 1.8} y={cat.lane === 'upper' ? fh - gap - chLen - 1.5 : fh * 0.16} len={chLen} vertical />
         </g>
       );
       break;
