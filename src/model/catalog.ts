@@ -1,4 +1,4 @@
-import type { ApplianceCat, CatalogItem, FinishOption, KitchenType, ProductLine } from './types';
+import type { ApplianceCat, CatalogItem, DoorStyle, FinishOption, KitchenType, ProductLine } from './types';
 import { NEWAGE_CATALOG, NEWAGE_FINISHES } from './newage';
 
 export const BASE_H = 34.5;
@@ -25,14 +25,53 @@ export const FINISHES: FinishOption[] = [
   { id: 'white', name: 'White/White', body: '#f7f6f3', panel: '#f7f6f3', inner: '#e5e3de', counter: '#3b3f44' },
 ];
 
-/** Every finish across all product lines (EXT HDPE + NewAge lines). */
-export const ALL_FINISHES: FinishOption[] = [...FINISHES, ...NEWAGE_FINISHES];
+// Indoor cabinet colors & finishes: painted + wood-stained (satin lacquer).
+// inner = the recessed door-panel shade (slightly darker than the face).
+export const INDOOR_FINISHES: FinishOption[] = [
+  { id: 'in-white', name: 'White', group: 'Painted', body: '#f6f5f1', panel: '#f6f5f1', inner: '#e6e4de', counter: '#3b3f44' },
+  { id: 'in-cream', name: 'Cream', group: 'Painted', body: '#efe7d6', panel: '#efe7d6', inner: '#ded4bf', counter: '#3b3f44' },
+  { id: 'in-lightgray', name: 'Light Gray', group: 'Painted', body: '#d3d6da', panel: '#d3d6da', inner: '#c1c5ca', counter: '#3b3f44' },
+  { id: 'in-gray', name: 'Storm Gray', group: 'Painted', body: '#9aa0a7', panel: '#9aa0a7', inner: '#878d95', counter: '#e3e0da' },
+  { id: 'in-charcoal', name: 'Charcoal', group: 'Painted', body: '#4a4e54', panel: '#4a4e54', inner: '#3c4046', counter: '#e3e0da' },
+  { id: 'in-navy', name: 'Navy Blue', group: 'Painted', body: '#2c3a54', panel: '#2c3a54', inner: '#232f45', counter: '#e3e0da' },
+  { id: 'in-sage', name: 'Sage Green', group: 'Painted', body: '#97a48b', panel: '#97a48b', inner: '#849178', counter: '#e3e0da' },
+  { id: 'in-forest', name: 'Forest Green', group: 'Painted', body: '#3e4f42', panel: '#3e4f42', inner: '#324136', counter: '#e3e0da' },
+  { id: 'in-black', name: 'Matte Black', group: 'Painted', body: '#25272b', panel: '#25272b', inner: '#191b1e', counter: '#e3e0da' },
+  { id: 'in-whiteoak', name: 'White Oak', group: 'Wood Stains', body: '#d8c5a3', panel: '#d8c5a3', inner: '#c6b28d', counter: '#3b3f44', wood: true },
+  { id: 'in-oak', name: 'Natural Oak', group: 'Wood Stains', body: '#c8a577', panel: '#c8a577', inner: '#b49164', counter: '#3b3f44', wood: true },
+  { id: 'in-maple', name: 'Honey Maple', group: 'Wood Stains', body: '#d6af78', panel: '#d6af78', inner: '#c39a62', counter: '#3b3f44', wood: true },
+  { id: 'in-cherry', name: 'Cherry', group: 'Wood Stains', body: '#8e4a30', panel: '#8e4a30', inner: '#7a3c26', counter: '#e3e0da', wood: true },
+  { id: 'in-walnut', name: 'Walnut', group: 'Wood Stains', body: '#5e4632', panel: '#5e4632', inner: '#4d3928', counter: '#e3e0da', wood: true },
+  { id: 'in-espresso', name: 'Espresso', group: 'Wood Stains', body: '#392c23', panel: '#392c23', inner: '#2c211a', counter: '#e3e0da', wood: true },
+];
 
-/** Finishes offered for a product line. */
-export function finishesForLine(line: ProductLine | undefined): FinishOption[] {
+/** Every finish across all product lines (EXT HDPE + indoor + NewAge lines). */
+export const ALL_FINISHES: FinishOption[] = [...FINISHES, ...INDOOR_FINISHES, ...NEWAGE_FINISHES];
+
+/** Finishes offered for a product line (+ kitchen type: indoor EXT kitchens
+ *  use the painted/wood palette; outdoor keeps the Starboard HDPE colors). */
+export function finishesForLine(line: ProductLine | undefined, kitchenType?: KitchenType): FinishOption[] {
   const l = line ?? 'ext';
-  if (l === 'ext') return FINISHES;
+  if (l === 'ext') return kitchenType === 'indoor' ? INDOOR_FINISHES : FINISHES;
   return NEWAGE_FINISHES.filter((f) => f.line === l);
+}
+
+/** Door styles offered per kitchen type, with display labels. The routed
+ *  groove "shaker" is the outdoor HDPE construction; indoor wood cabinets get
+ *  real 5-piece styles. */
+export const DOOR_STYLE_LABELS: Record<DoorStyle, string> = {
+  'shaker': 'Shaker (groove)',
+  'flat': 'Slab / Euro Flat',
+  'shaker-inset': 'Shaker',
+  'shaker-skinny': 'Skinny Shaker',
+  'raised': 'Raised Panel',
+  'beadboard': 'Beadboard',
+};
+
+export function doorStylesFor(kitchenType: KitchenType | undefined): DoorStyle[] {
+  return (kitchenType ?? 'outdoor') === 'indoor'
+    ? ['shaker-inset', 'shaker-skinny', 'raised', 'beadboard', 'flat']
+    : ['shaker', 'flat'];
 }
 
 // Box formulas: width × depth + a fixed amount. The fixed amount is $500 for a
@@ -72,6 +111,7 @@ export const CATALOG: CatalogItem[] = [
   { id: 'base-sink2', name: '2-Door Sink Base', category: 'base', front: 'sink2', lane: 'floor', w: 33, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
   { id: 'base-sink1', name: '1-Door Sink Base', category: 'base', front: 'sink1', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
   { id: 'base-sink1f', name: '1-Door Sink Base (False Front)', category: 'base', front: 'sink1f', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
+  { id: 'base-cooktop', name: 'Cooktop Base', category: 'base', front: 'cooktop', lane: 'floor', w: 33, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, topGearH: 1, formula: BOX, note: 'False front + doors, built to carry a drop-in cooktop. Cooktop should be narrower than the cabinet.' },
   { id: 'base-corner', name: 'Diagonal Corner Base', category: 'base', front: 'corner', lane: 'floor', w: 36, d: 36, h: BASE_H, minW: 33, maxW: 39, stepW: 3, minD: 33, maxD: 39, counter: true, formula: BOX },
   { id: 'base-susan', name: 'Lazy Susan (L-Shape)', category: 'base', front: 'susan', lane: 'floor', w: 36, d: 36, h: BASE_H, minW: 33, maxW: 39, stepW: 3, minD: 33, maxD: 39, counter: true, formula: BOX },
   { id: 'base-blindl', name: 'Left Blind Corner Base', category: 'base', front: 'blindl', lane: 'floor', w: 42, d: 24, h: BASE_H, minW: 39, maxW: 48, stepW: 3, counter: true, formula: BOX },
@@ -125,6 +165,7 @@ export const CATALOG: CatalogItem[] = [
   // ---------- Freestanding appliances (visual) ----------
   { id: 'app-cartgrill', name: 'Freestanding Grill', category: 'appliance', front: 'cartgrill', lane: 'floor', w: 52, d: 26, h: 48, minW: 42, maxW: 64, stepW: 2, counter: false, formula: '0' },
   { id: 'app-dishwasher', name: 'Dishwasher', category: 'appliance', front: 'dishwasher', lane: 'floor', w: 24, d: 24, h: BASE_H, minW: 18, maxW: 24, stepW: 3, counter: false, formula: '0' },
+  { id: 'app-range', name: 'Range / Stove with Oven', category: 'appliance', front: 'range', lane: 'floor', w: 30, d: 27, h: 36, minW: 30, maxW: 36, stepW: 6, counter: false, topGearH: 1, formula: '0', note: 'Freestanding range — cooktop up top, oven below.' },
   { id: 'app-kamado', name: 'Kamado on Cart', category: 'appliance', front: 'kamado', lane: 'floor', w: 32, d: 30, h: 48, minW: 28, maxW: 36, stepW: 2, counter: false, formula: '0' },
   { id: 'app-pizza', name: 'Pizza Oven Cart', category: 'appliance', front: 'pizza', lane: 'floor', w: 36, d: 30, h: 64, minW: 30, maxW: 42, stepW: 2, counter: false, formula: '0' },
 
@@ -150,10 +191,12 @@ export const NEWAGE_CATEGORY_LABELS: Record<string, string> = {
 
 /** Freestanding EXT appliance carts that only make sense outdoors. */
 const OUTDOOR_ONLY_APPLIANCES = new Set(['app-cartgrill', 'app-kamado', 'app-pizza']);
+/** Indoor-kitchen items hidden from outdoor designs. */
+const INDOOR_ONLY = new Set(['base-cooktop', 'app-range']);
 
 /**
  * The catalog offered for a design: its product line's items, and for indoor
- * EXT kitchens the outdoor-only categories/carts are hidden.
+ * EXT kitchens the outdoor-only categories/carts are hidden (and vice versa).
  */
 export function catalogForDesign(line: ProductLine | undefined, kitchenType: KitchenType | undefined): CatalogItem[] {
   const l = line ?? 'ext';
@@ -162,7 +205,7 @@ export function catalogForDesign(line: ProductLine | undefined, kitchenType: Kit
   if ((kitchenType ?? 'outdoor') === 'indoor') {
     return items.filter((c) => c.category !== 'outdoor' && !OUTDOOR_ONLY_APPLIANCES.has(c.id));
   }
-  return items;
+  return items.filter((c) => !INDOOR_ONLY.has(c.id));
 }
 
 /** Category tab labels applicable to a product line. */
@@ -208,6 +251,7 @@ export function handleCount(cat: CatalogItem, w: number): number {
     case 'kamado':
     case 'kamadoinsert':
     case 'burner':
+    case 'cooktop': // false front carries no pull
       return doublable;
     case 'grill':
     case 'griddle':

@@ -39,6 +39,33 @@ export function canvasTexture(size: number, draw: (ctx: CanvasRenderingContext2D
   return t;
 }
 
+/** Subtle vertical wood grain for stained indoor finishes. Cached per finish
+ *  (shared by every material/scene) so it's never disposed out from under a
+ *  cached sprite material set. */
+const woodTexCache = new Map<string, THREE.CanvasTexture>();
+function woodTexture(id: string, base: string): THREE.CanvasTexture {
+  let t = woodTexCache.get(id);
+  if (t) return t;
+  t = canvasTexture(256, (ctx, s) => {
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, s, s);
+    for (let i = 0; i < 90; i++) {
+      const x = Math.random() * s;
+      const dark = Math.random() < 0.55;
+      ctx.strokeStyle = dark ? 'rgba(50,30,12,0.06)' : 'rgba(255,240,215,0.05)';
+      ctx.lineWidth = 0.6 + Math.random() * 2.2;
+      ctx.beginPath();
+      ctx.moveTo(x, -4);
+      for (let y = 0; y <= s + 16; y += 16) ctx.lineTo(x + Math.sin((y / s) * Math.PI * 2 + i) * 3, y);
+      ctx.stroke();
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(1 / 30, 1 / 30); // ~30" per tile so grain reads at cabinet scale
+  woodTexCache.set(id, t);
+  return t;
+}
+
 /** Subtle procedural marble/quartz for countertops. */
 export function marbleTexture(base: string): THREE.CanvasTexture {
   const t = canvasTexture(512, (ctx, s) => {
@@ -188,23 +215,31 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
   // Metallic finishes (NewAge stainless / aluminum) render with metalness so
   // the boxes read as brushed metal rather than painted HDPE.
   const metal = fin.metal ? { metalness: fin.metal === 'stainless' ? 0.85 : 0.65, roughness: fin.metal === 'stainless' ? 0.32 : 0.45 } : null;
+  // Wood-stained indoor finishes: satin lacquer over a subtle grain texture.
+  const grain = fin.wood ? woodTexture(fin.id, fin.body) : null;
   // NewAge door faces: louvered slats are wood-look (Grove) or painted (White)
   // — not bare metal; glass doors get a tinted pane inside the metal frame.
   const louvered = fin.naDoor === 'louvered';
   return {
-    body: metal
-      ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), ...metal })
-      : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), roughness: 0.55, clearcoat: 0.18, clearcoatRoughness: 0.6 }),
-    panel: louvered
-      ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.58, metalness: 0.08, clearcoat: 0.1, clearcoatRoughness: 0.6 })
+    body: grain
+      ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: grain, roughness: 0.52, clearcoat: 0.25, clearcoatRoughness: 0.4 })
       : metal
-        ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), ...metal })
-        : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.5, clearcoat: 0.22, clearcoatRoughness: 0.55 }),
-    inner: louvered
-      ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.7, metalness: 0.05 })
-      : metal
-        ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), ...metal })
-        : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.6, clearcoat: 0.15, clearcoatRoughness: 0.6 }),
+        ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), ...metal })
+        : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), roughness: 0.55, clearcoat: 0.18, clearcoatRoughness: 0.6 }),
+    panel: grain
+      ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: grain, roughness: 0.5, clearcoat: 0.28, clearcoatRoughness: 0.38 })
+      : louvered
+        ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.58, metalness: 0.08, clearcoat: 0.1, clearcoatRoughness: 0.6 })
+        : metal
+          ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), ...metal })
+          : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.5, clearcoat: 0.22, clearcoatRoughness: 0.55 }),
+    inner: grain
+      ? new THREE.MeshPhysicalMaterial({ color: 0xd6d2cc, map: grain, roughness: 0.58, clearcoat: 0.15, clearcoatRoughness: 0.5 })
+      : louvered
+        ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.7, metalness: 0.05 })
+        : metal
+          ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), ...metal })
+          : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.6, clearcoat: 0.15, clearcoatRoughness: 0.6 }),
     groove: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.inner).multiplyScalar(0.72), roughness: 0.85 }),
     kick: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.kick ?? fin.body), roughness: 0.75, metalness: fin.kick ? 0.35 : metal ? metal.metalness : 0 }),
     naDoor: fin.naDoor,
@@ -545,6 +580,37 @@ function doorFace(w: number, h: number, style: DoorStyle, mats: CabMats): THREE.
     const pane = box(w - FR * 2 + 0.2, h - FR * 2 + 0.2, 0.35, mats.glassPane);
     pane.position.z = -0.05;
     g.add(pane);
+    return g;
+  }
+  // Indoor 5-piece doors: rail/stile frame around a center panel. Small fronts
+  // (narrow drawers etc.) fall through to a plain slab, like real cabinetry.
+  const FRAME_W: Partial<Record<DoorStyle, number>> = { 'shaker-inset': 2.25, 'shaker-skinny': 1.1, raised: 2.4, beadboard: 2.25 };
+  const FR = FRAME_W[style];
+  if (FR && w >= FR * 2 + 4 && h >= FR * 2 + 4) {
+    // recessed center panel (raised-panel centers stay in the face color)
+    const backing = box(w - 0.2, h - 0.2, 0.4, style === 'raised' ? mats.panel : mats.inner);
+    backing.position.z = -0.1;
+    g.add(backing);
+    // frame: rails (top/bottom) + stiles (sides)
+    g.add(boxAt(w, FR, 0.7, 0, h / 2 - FR / 2, 0, mats.panel));
+    g.add(boxAt(w, FR, 0.7, 0, -h / 2 + FR / 2, 0, mats.panel));
+    g.add(boxAt(FR, h - FR * 2, 0.7, -w / 2 + FR / 2, 0, 0, mats.panel));
+    g.add(boxAt(FR, h - FR * 2, 0.7, w / 2 - FR / 2, 0, 0, mats.panel));
+    if (style === 'raised') {
+      // stepped center pillow — reads as the raised profile
+      const pw = w - FR * 2 - 1.2;
+      const ph = h - FR * 2 - 1.2;
+      g.add(boxAt(pw, ph, 0.56, 0, 0, -0.02, mats.panel));
+      g.add(boxAt(Math.max(1, pw - 2.2), Math.max(1, ph - 2.2), 0.68, 0, 0, 0, mats.panel));
+    }
+    if (style === 'beadboard') {
+      // vertical bead grooves across the recessed center
+      const innerW = w - FR * 2;
+      const n = Math.max(2, Math.round(innerW / 1.9));
+      for (let i = 1; i < n; i++) {
+        g.add(boxAt(0.14, h - FR * 2, 0.32, -innerW / 2 + (innerW * i) / n, 0, 0, mats.groove));
+      }
+    }
     return g;
   }
   g.add(box(w, h, 0.7, mats.panel));
@@ -909,6 +975,20 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         fronts.push({ dx: 0, dy: fh / 2 - top - rest - rest / 2, w: fw, h: rest - GAP, handle: 'h-center' });
         break;
       }
+      case 'cooktop': {
+        // false front up top (no pull — the cooktop sits above), doors below
+        const top = fh * 0.2;
+        fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'none' });
+        const doorH = fh - top - GAP;
+        const doorDy = -top / 2 - GAP / 2;
+        if (w >= 24) {
+          fronts.push({ dx: -half / 2 - GAP / 2, dy: doorDy, w: half, h: doorH, handle: 'v-right' });
+          fronts.push({ dx: half / 2 + GAP / 2, dy: doorDy, w: half, h: doorH, handle: 'v-left' });
+        } else {
+          fronts.push({ dx: 0, dy: doorDy, w: fw, h: doorH, handle: oneDoorHandle });
+        }
+        break;
+      }
       case 'drawers4':
         for (let i = 0; i < 4; i++) {
           const rh = fh / 4;
@@ -1012,8 +1092,10 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         if (isV) {
           bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + 1.6 : fr.w / 2 - 1.6;
           // handle sits in the upper third of the door (per design reference), or
-          // the lower third for high-mounted doors (handleLow) so it's reachable
-          bar.position.y = fr.handleLow ? -fr.h / 2 + len / 2 + 1.4 : fr.h / 2 - len / 2 - 1.4;
+          // at the BOTTOM for high-mounted doors — wall cabinets and tall-unit
+          // top doors (handleLow) — so it's reachable.
+          const low = fr.handleLow || cat.lane === 'upper';
+          bar.position.y = low ? -fr.h / 2 + len / 2 + 1.4 : fr.h / 2 - len / 2 - 1.4;
         } else {
           bar.rotation.z = Math.PI / 2;
           if (naTopPull) {
@@ -1327,8 +1409,97 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   }
 
+  // Freestanding range: steel body (built above) + glass cooktop with burners,
+  // knob strip, oven door with window + tube handle, storage drawer below.
+  if (cat.front === 'range') {
+    const ffw = w - 0.5;
+    const fz = d + 0.45;
+    // black glass cooktop on top, slightly proud
+    const glass = box(w - 0.6, 0.6, d - 3, mats.dark);
+    glass.position.set(0, h + 0.3, d / 2);
+    g.add(glass);
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1] as const) {
+        const r = sz > 0 ? 2.9 : 2.3; // bigger burners at the front
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.16, 8, 26), mats.steelMatte);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(sx * (w / 4 - 0.5), h + 0.62, d / 2 + sz * (d / 4 - 1.2));
+        g.add(ring);
+      }
+    }
+    // knob strip across the top of the front
+    const knobY = h - 1.7;
+    const strip = box(ffw, 3, 0.5, mats.steel);
+    strip.position.set(0, knobY, fz);
+    g.add(strip);
+    for (let i = 0; i < 5; i++) {
+      const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.8, 14), mats.dark);
+      knob.rotation.x = Math.PI / 2;
+      knob.position.set(-ffw / 2 + ffw * (0.14 + i * 0.18), knobY, fz + 0.6);
+      knob.castShadow = true;
+      g.add(knob);
+    }
+    // oven door with window
+    const drawerH = 5.5;
+    const doorTop = knobY - 1.5 - GAP;
+    const doorBot = drawerH + GAP;
+    const door = box(ffw, doorTop - doorBot, 0.9, mats.steel);
+    door.position.set(0, (doorTop + doorBot) / 2, fz);
+    g.add(door);
+    const win = box(ffw - 7, (doorTop - doorBot) * 0.42, 0.3, mats.dark);
+    win.position.set(0, (doorTop + doorBot) / 2 + 1, fz + 0.5);
+    g.add(win);
+    // full-width tube handle at the top of the oven door
+    const hlen = ffw - 3;
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, hlen, 14), mats.steel);
+    bar.rotation.z = Math.PI / 2;
+    bar.position.set(0, doorTop - 1.2, fz + 1.7);
+    bar.castShadow = true;
+    g.add(bar);
+    for (const t of [-1, 1] as const) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1.5, 8), mats.steel);
+      post.rotation.x = Math.PI / 2;
+      post.position.set(t * (hlen / 2 - 1.2), doorTop - 1.2, fz + 0.9);
+      g.add(post);
+    }
+    // storage drawer at the bottom
+    const drawer = box(ffw, drawerH - 1, 0.7, mats.steel);
+    drawer.position.set(0, drawerH / 2, fz);
+    g.add(drawer);
+    const dh = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, ffw * 0.4, 10), mats.steel);
+    dh.rotation.z = Math.PI / 2;
+    dh.position.set(0, drawerH / 2 + 0.6, fz + 0.8);
+    g.add(dh);
+  }
+
   // above-counter appliance gear
   const counterTop = BASE_H + (dims.counterT ?? COUNTER_T);
+
+  // Drop-in cooktop: black glass slab resting on the countertop with four
+  // burner rings (front pair larger) and a small front control strip.
+  if (cat.front === 'cooktop') {
+    const cw = Math.min(w - 4, 30);
+    const cd = Math.max(12, d - 6);
+    const zc = d / 2 + 0.5;
+    const glass = box(cw, 0.5, cd, mats.dark);
+    glass.position.set(0, counterTop + 0.25, zc);
+    glass.castShadow = true;
+    g.add(glass);
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1] as const) {
+        const r = sz > 0 ? Math.min(3.1, cw / 8) : Math.min(2.4, cw / 10);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.16, 8, 26), mats.steelMatte);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(sx * cw / 4, counterTop + 0.52, zc + sz * (cd / 4 - 0.6));
+        g.add(ring);
+      }
+    }
+    // touch-control strip at the front edge of the glass
+    const ctrl = box(Math.min(10, cw * 0.4), 0.06, 1.6, mats.steelMatte);
+    ctrl.position.set(0, counterTop + 0.53, zc + cd / 2 - 1.6);
+    g.add(ctrl);
+  }
+
   const addKnobs = (cx: number, y: number, z: number, n: number) => {
     const gap = 4.5;
     const start = cx - ((n - 1) * gap) / 2;

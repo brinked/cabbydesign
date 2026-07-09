@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, Opening, OpeningKind, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
-import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, GRILL_4DOOR_ADDON, TOEKICK_H, catalogById, finishesForLine, grillDoorCount, takesAppliedEnds } from '../model/catalog';
+import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, GRILL_4DOOR_ADDON, TOEKICK_H, catalogById, doorStylesFor, finishesForLine, grillDoorCount, takesAppliedEnds } from '../model/catalog';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
@@ -47,13 +47,15 @@ export function uid(prefix: string): string {
 }
 
 /** Per-line defaults when starting a design. */
-export function lineDefaults(line: ProductLine): { finishId: string; counterId: string; doorStyle: Design['doorStyle'] } {
+export function lineDefaults(line: ProductLine, kitchenType?: KitchenType): { finishId: string; counterId: string; doorStyle: Design['doorStyle'] } {
   if (line === 'newage') return { finishId: 'na-ss-steel', counterId: 'na-stainless', doorStyle: 'flat' };
+  // Indoor EXT kitchens: painted/wood palette + real inset-panel shaker.
+  if (kitchenType === 'indoor') return { finishId: 'in-white', counterId: DEFAULT_COUNTERTOP, doorStyle: 'shaker-inset' };
   return { finishId: 'indigo', counterId: DEFAULT_COUNTERTOP, doorStyle: 'shaker' };
 }
 
 function defaultDesign(kitchenType: KitchenType = 'outdoor', line: ProductLine = 'ext'): Design {
-  const d = lineDefaults(line);
+  const d = lineDefaults(line, kitchenType);
   return {
     name: kitchenType === 'indoor' ? 'My Kitchen' : 'My Outdoor Kitchen',
     client: '',
@@ -195,15 +197,18 @@ export function normalizeDesign(raw: Design): Design {
           : 'ext';
   const kitchenType: KitchenType = raw.kitchenType ?? 'outdoor';
   let finishId = FINISH_MIGRATE[raw.finishId] ?? raw.finishId;
-  const lineFins = finishesForLine(line);
+  const lineFins = finishesForLine(line, kitchenType);
   if (!lineFins.some((f) => f.id === finishId)) finishId = lineFins[0].id;
+  // door style must be one this kitchen type offers (pre-indoor saves keep working)
+  const styles = doorStylesFor(kitchenType);
+  const doorStyle = raw.doorStyle && styles.includes(raw.doorStyle) ? raw.doorStyle : styles[0];
   const wallIds = new Set(walls.map((w) => w.id));
   const roughIns = (raw.roughIns ?? []).filter((r) => wallIds.has(r.wallId));
   const openings = (raw.openings ?? []).filter((o) => wallIds.has(o.wallId));
   const counterThickness = raw.counterThickness && raw.counterThickness > 0 ? raw.counterThickness : COUNTER_T;
   const counterId = raw.counterId ?? DEFAULT_COUNTERTOP;
   const backsplashHeight = raw.backsplashHeight && raw.backsplashHeight > 0 ? raw.backsplashHeight : 0;
-  const result = { ...defaultDesign(), ...raw, kitchenType, line, finishId, doorStyle: raw.doorStyle ?? 'shaker', counterThickness, counterId, backsplashHeight, dimFrom: raw.dimFrom ?? 'left', walls, items, roughIns, openings };
+  const result = { ...defaultDesign(), ...raw, kitchenType, line, finishId, doorStyle, counterThickness, counterId, backsplashHeight, dimFrom: raw.dimFrom ?? 'left', walls, items, roughIns, openings };
   autoCornerFillers(result);
   alignFillers(result);
   return result;
@@ -1017,11 +1022,11 @@ export const useStore = create<AppState>()(
       setLine: (line) =>
         set((s) => {
           if ((s.design.line ?? 'ext') === line) return s;
-          const d = lineDefaults(line);
-          // keep walls, openings & rough-ins; drop cabinets from the old line
-          const items = s.design.items.filter((it) => !it.auto && (catalogById(it.catalogId).line ?? 'ext') === line);
           // NewAge modular lines are outdoor products
           const kitchenType = line === 'ext' ? s.design.kitchenType : 'outdoor';
+          const d = lineDefaults(line, kitchenType);
+          // keep walls, openings & rough-ins; drop cabinets from the old line
+          const items = s.design.items.filter((it) => !it.auto && (catalogById(it.catalogId).line ?? 'ext') === line);
           return {
             design: withPack({ ...s.design, line, kitchenType, finishId: d.finishId, counterId: d.counterId, doorStyle: d.doorStyle, items }),
             selectedId: null,

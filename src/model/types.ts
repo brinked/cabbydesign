@@ -26,6 +26,8 @@ export type FrontKind =
   | 'drawers4'
   | 'doordrawer'
   | 'door2drawer'
+  | 'cooktop'
+  | 'range'
   | 'sink'
   | 'sink2'
   | 'sink1'
@@ -187,7 +189,10 @@ export interface DimOverride {
 export type HingeSide = 'left' | 'right';
 
 /** Door face style: routed groove "shaker" (HDPE) or euro flat slab. */
-export type DoorStyle = 'shaker' | 'flat';
+/** Door construction. 'shaker' is the HDPE routed-groove look (outdoor line);
+ *  indoor wood cabinets use real 5-piece styles: inset-panel shaker, skinny
+ *  (narrow-rail) shaker, raised panel and beadboard. 'flat' = slab/euro. */
+export type DoorStyle = 'shaker' | 'flat' | 'shaker-inset' | 'shaker-skinny' | 'raised' | 'beadboard';
 
 export interface Wall {
   id: string;
@@ -252,6 +257,8 @@ export interface FinishOption {
   counter: string;
   /** Product line this finish belongs to. Undefined = 'ext' (HDPE colors). */
   line?: ProductLine;
+  /** Wood-stained finish (indoor) — 3D renders a satin wood material. */
+  wood?: boolean;
   /** Metallic surface — the 3D engine renders these with metalness/roughness. */
   metal?: 'stainless' | 'aluminum';
   /** Door-style group label for NewAge finishes (e.g. "Classic Door"). */

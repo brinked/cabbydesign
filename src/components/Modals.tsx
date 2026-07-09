@@ -12,7 +12,7 @@ import {
   requiredCabinetWidth,
   selectedApplianceWidth,
 } from '../model/appliances';
-import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleItem, PlacedItem, ProductLine } from '../model/types';
+import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleItem, KitchenType, PlacedItem, ProductLine } from '../model/types';
 import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, uid, useStore } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { useSession } from '../state/session';
@@ -56,8 +56,8 @@ function MiniPreview({ cat, finishId }: { cat: CatalogItem; finishId?: string })
  *  DESIGN default finish, so every thumbnail/price below re-renders in it and
  *  new cabinets match — individual cabinets can still override in their own
  *  settings. */
-function FinishBar({ line, finishId, onPick }: { line: ProductLine | undefined; finishId: string; onPick: (id: string) => void }) {
-  const fins = finishesForLine(line);
+function FinishBar({ line, kitchenType, finishId, onPick }: { line: ProductLine | undefined; kitchenType?: KitchenType; finishId: string; onPick: (id: string) => void }) {
+  const fins = finishesForLine(line, kitchenType);
   const groups = [...new Set(fins.map((f) => f.group ?? ''))];
   const cur = fins.find((f) => f.id === finishId) ?? fins[0];
   const swatch = (color: string) => (
@@ -148,7 +148,7 @@ export function AddItemModal() {
           </button>
         ))}
       </div>
-      <FinishBar line={design.line} finishId={design.finishId} onPick={(finishId) => setDesignMeta({ finishId })} />
+      <FinishBar line={design.line} kitchenType={design.kitchenType} finishId={design.finishId} onPick={(finishId) => setDesignMeta({ finishId })} />
       {(design.line ?? 'ext') === 'ext' && (design.kitchenType ?? 'outdoor') === 'outdoor' && (
         <p className="modal-sub" style={{ margin: '6px 0 10px' }}>
           Looking for NewAge Products modular cabinets (stainless steel / aluminum)? Switch the cabinet line under ⚙ Settings →

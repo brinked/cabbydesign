@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { finishesForLine } from '../model/catalog';
+import { DOOR_STYLE_LABELS, doorStylesFor, finishesForLine } from '../model/catalog';
 import { LINE_LABELS } from '../model/newage';
 import { COUNTERTOPS, COUNTER_CATEGORY_LABELS, type CounterCategory } from '../model/countertops';
 import type { Design, KitchenType, ProductLine } from '../model/types';
@@ -210,8 +210,8 @@ function SettingsMenu({
 
   const line = design.line ?? 'ext';
   const isNewAge = line !== 'ext';
-  const lineFinishes = finishesForLine(line);
-  // NewAge finishes group by series (Classic / Louvered / Aluminum).
+  const lineFinishes = finishesForLine(line, design.kitchenType);
+  // NewAge finishes group by series; indoor finishes by Painted / Wood Stains.
   const finishGroups = [...new Set(lineFinishes.map((f) => f.group ?? ''))];
 
   return (
@@ -252,8 +252,11 @@ function SettingsMenu({
             <label className="settings-menu-row">
               <span>Door style</span>
               <select className="select" value={design.doorStyle} onChange={(e) => setDesignMeta({ doorStyle: e.target.value as Design['doorStyle'] })}>
-                <option value="shaker">Shaker (groove)</option>
-                <option value="flat">Euro / flat</option>
+                {doorStylesFor(design.kitchenType).map((s) => (
+                  <option key={s} value={s}>
+                    {DOOR_STYLE_LABELS[s]}
+                  </option>
+                ))}
               </select>
             </label>
           )}

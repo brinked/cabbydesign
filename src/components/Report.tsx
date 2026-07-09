@@ -3,7 +3,7 @@ import type { OrderLine } from '../api/client';
 import type { CatalogItem } from '../model/types';
 import SubmitOrderModal from './SubmitOrderModal';
 import RequestQuoteModal from './RequestQuoteModal';
-import { ALL_FINISHES, TOEKICK_H, catalogById, handleCount } from '../model/catalog';
+import { ALL_FINISHES, DOOR_STYLE_LABELS, TOEKICK_H, catalogById, handleCount } from '../model/catalog';
 import { LINE_LABELS, NA_COUNTER_RATE_PER_SQFT, itemFinishId, naVariantFor } from '../model/newage';
 import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
@@ -39,7 +39,7 @@ export default function Report() {
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
   // Spec summary values for the cover/report.
-  const doorStyleLabel = design.doorStyle === 'flat' ? 'Euro / Flat' : 'Shaker (groove)';
+  const doorStyleLabel = DOOR_STYLE_LABELS[design.doorStyle] ?? design.doorStyle;
   const counterSqft = counterAreaSqft(design);
   const totalHandles = design.items.reduce((n, it) => n + handleCount(catalogById(it.catalogId), it.w), 0);
 
@@ -83,7 +83,9 @@ export default function Report() {
 
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-  const designName = design.doorStyle === 'shaker' ? 'Vibe' : 'Euro';
+  // Panel style name on the report: EXT product names for the outdoor HDPE
+  // styles, the door-style label itself for indoor wood styles.
+  const designName = design.doorStyle === 'shaker' ? 'Vibe' : design.doorStyle === 'flat' ? 'Euro' : DOOR_STYLE_LABELS[design.doorStyle] ?? design.doorStyle;
   const rate = PANEL_RATE_PER_SQFT;
 
   // NewAge designs: item names carry the SKU for the selected finish; the
@@ -552,7 +554,7 @@ export default function Report() {
         {showPricing && !isNewAge && (
           <p className="report-note">
             Applied end and back panels bill at {money(rate * factor)}/sq ft (panel height excludes the 4″ toe kick) in the{' '}
-            {designName} ({design.doorStyle === 'shaker' ? 'shaker' : 'flat'}) design; island cabinets receive finished back
+            {designName} ({doorStyleLabel.toLowerCase()}) design; island cabinets receive finished back
             panels automatically, split into panels of {MAX_PANEL_W}″ max. Appliances shown for visual reference are not
             priced.
           </p>

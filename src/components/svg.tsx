@@ -250,6 +250,20 @@ function GrillHead({ w, counter }: { w: number; counter: boolean }) {
   );
 }
 
+/** Drop-in glass cooktop: a slim black slab sitting on the counter (or on a
+ *  range body when counter=false). */
+function CooktopSlab({ w, counter }: { w: number; counter: boolean }) {
+  const cw = Math.min(w - 4, 30);
+  const x = (w - cw) / 2;
+  const base = counter ? -COUNTER_T : 0;
+  return (
+    <g>
+      <rect x={x} y={base - 0.8} width={cw} height={0.8} rx={0.25} fill="#141518" />
+      <line x1={x + 0.6} y1={base - 0.62} x2={x + cw - 0.6} y2={base - 0.62} stroke="#ffffff" strokeWidth={0.18} opacity={0.35} />
+    </g>
+  );
+}
+
 function GriddleHead({ w, counter }: { w: number; counter: boolean }) {
   const gw = Math.max(20, w - 3);
   const x = (w - gw) / 2;
@@ -373,15 +387,17 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
           if (n === 1) hx = hinge === 'left' ? dx + dw - 1.8 : dx + 1.8;
           else hx = i < n / 2 ? dx + dw - 1.8 : dx + 1.8;
           const topLen = Math.min(8, dw * 0.45);
+          // wall (upper-lane) cabinet handles sit at the BOTTOM of the door
+          const low = cat.lane === 'upper';
           return (
             <g key={i}>
               <Shaker x={dx} y={y + gap} w={dw} h={dh - gap * 2} fin={fin} />
               {naTopPull && dh > 8 ? (
-                <BarHandle x={hx > dx + dw / 2 ? hx - topLen : hx} y={y + gap + 1.6} len={topLen} />
+                <BarHandle x={hx > dx + dw / 2 ? hx - topLen : hx} y={low ? y + dh - gap - 2.2 : y + gap + 1.6} len={topLen} />
               ) : dh > 14 ? (
-                <BarHandle x={hx} y={y + dh * 0.16} len={handleLen} vertical />
+                <BarHandle x={hx} y={low ? y + dh - handleLen - dh * 0.08 : y + dh * 0.16} len={handleLen} vertical />
               ) : (
-                <Knob x={hx} y={y + dh / 2} />
+                <Knob x={hx} y={low ? y + dh - 3 : y + dh / 2} />
               )}
             </g>
           );
@@ -502,6 +518,40 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
           <BarHandle x={handleX} y={fh * 0.28} len={Math.min(7, fh * 0.4)} vertical />
         </g>
       );
+      break;
+    }
+    case 'cooktop': {
+      // false front (no pull) up top, doors below; glass cooktop above counter
+      const topH = fh * 0.2;
+      front = (
+        <g>
+          <Shaker x={gap} y={gap} w={w - gap * 2} h={topH - gap} fin={fin} />
+          {doors(w >= 24 ? 2 : 1, topH, fh - topH)}
+        </g>
+      );
+      gear = <CooktopSlab w={w} counter={cat.counter} />;
+      break;
+    }
+    case 'range': {
+      const rw = w - gap * 2;
+      const knobY = gap + 2;
+      const winY = gap + 8.5;
+      const winH = fh * 0.34;
+      front = (
+        <g>
+          <rect x={gap} y={gap} width={rw} height={fh - gap * 2} rx={0.8} fill="url(#g-steel)" stroke={STEEL_LN} strokeWidth={0.3} />
+          <rect x={gap} y={gap} width={rw} height={fh - gap * 2} rx={0.8} fill="url(#p-brush)" opacity={0.45} />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <circle key={i} cx={gap + rw * (0.14 + i * 0.18)} cy={knobY} r={1.05} fill={STEEL_DK} />
+          ))}
+          <BarHandle x={w / 2 - rw * 0.42} y={gap + 4.6} len={rw * 0.84} />
+          <rect x={w / 2 - rw * 0.31} y={winY} width={rw * 0.62} height={winH} rx={1} fill="#1b1c1e" />
+          <rect x={w / 2 - rw * 0.31} y={winY} width={rw * 0.62} height={winH * 0.4} rx={1} fill="#ffffff" opacity={0.07} />
+          <line x1={gap + 1} y1={fh - 6.5} x2={w - gap - 1} y2={fh - 6.5} stroke={STEEL_LN} strokeWidth={0.4} />
+          <BarHandle x={w / 2 - rw * 0.2} y={fh - 5.2} len={rw * 0.4} />
+        </g>
+      );
+      gear = <CooktopSlab w={w} counter={false} />;
       break;
     }
     case 'drawers3':
@@ -796,6 +846,29 @@ export function CabinetTop({ cat, w, d, fin, hinge = 'left' }: { cat: CatalogIte
       }
       case 'griddle':
         return <rect x={4} y={d * 0.15} width={w - 8} height={d * 0.6} rx={1} fill="#dfe2e5" stroke={STEEL_LN} strokeWidth={0.4} />;
+      case 'cooktop':
+      case 'range': {
+        const cw = Math.min(w - 4, 30);
+        const cx0 = (w - cw) / 2;
+        return (
+          <g>
+            <rect x={cx0} y={d * 0.12} width={cw} height={d * 0.68} rx={1} fill="#212327" />
+            {[0, 1].map((ix) =>
+              [0, 1].map((iz) => (
+                <circle
+                  key={`${ix}${iz}`}
+                  cx={cx0 + cw * (0.28 + ix * 0.44)}
+                  cy={d * (0.3 + iz * 0.34)}
+                  r={iz === 1 ? Math.min(3.4, cw / 8) : Math.min(2.6, cw / 10)}
+                  fill="none"
+                  stroke="#8d939a"
+                  strokeWidth={0.5}
+                />
+              ))
+            )}
+          </g>
+        );
+      }
       case 'burner':
         return (
           <g>
