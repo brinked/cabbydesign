@@ -732,9 +732,12 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         // cabinet front picture-frames it: apron below, panel stiles wrapping
         // both sides, doors at the bottom.
         const isGrill = cat.front === 'grill' || cat.front === 'grill4';
+        const isBurner = cat.front === 'burner';
         // With the real grill model its own control panel fills the opening —
-        // a shorter opening avoids a bare band under the panel.
-        const applH = isGrill ? (hasModel('grill') || (dims.modelKey && hasModel(dims.modelKey)) ? 6 : 9) : 7;
+        // a shorter opening avoids a bare band under the panel. Side/power
+        // burners use the SAME face height as grills so door tops line up
+        // across a run.
+        const applH = isGrill || isBurner ? (hasModel('grill') || (dims.modelKey && hasModel(dims.modelKey)) ? 6 : 9) : 7;
         const apronH = 4.5;
         const doorH = fh - applH - apronH - GAP * 2;
         if (cat.front === 'grill4' || cat.front === 'griddle4') {
@@ -756,8 +759,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         } else {
           fronts.push({ dx: 0, dy: -fh / 2 + doorH / 2, w: fw, h: doorH, handle: oneDoorHandle });
         }
-        // apron band below the appliance
-        fronts.push({ dx: 0, dy: -fh / 2 + doorH + GAP + apronH / 2, w: fw, h: apronH, handle: 'none', slab: true });
+        // apron band below the appliance — runs tight to the appliance band
+        // above (no reveal there, so no carcass seam shows across the apron)
+        fronts.push({ dx: 0, dy: -fh / 2 + doorH + GAP + (apronH + GAP) / 2, w: fw, h: apronH + GAP, handle: 'none', slab: true });
         // side stiles wrap the appliance face. They widen as the cabinet grows so
         // the appliance opening stays a fixed (realistic) width, not stretched.
         const stileY = fh / 2 - applH / 2;
@@ -1340,8 +1344,10 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   } else if (cat.front === 'burner' && !isAppliance) {
     // Drop-in side/power burner: recessed control face, lip and rounded lid.
+    // Face height mirrors the grill cabinets' (see the fronts layout) so the
+    // steel face fills the opening and door tops line up across a run.
     const gw = applianceFaceW(w);
-    const applH = 7;
+    const applH = hasModel('grill') ? 6 : 9;
     const faceY = kick + carcassH - REVEAL - applH / 2;
     const face = box(gw, applH, 1.5, mats.steel);
     face.position.set(0, faceY, d - 0.2);
