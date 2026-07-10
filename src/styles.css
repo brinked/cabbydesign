@@ -615,6 +615,29 @@ button:disabled {
   color: #fff;
 }
 
+/* compact segmented control (4-option rows in the cabinet editor) */
+.seg-sm .seg-btn {
+  padding: 6px 8px;
+  font-size: 11.5px;
+}
+
+/* Cabinet editor: two columns so the modal stays short enough to skip
+   scrolling (sizes on the left, end treatments & hinge on the right). */
+.edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 26px;
+  align-items: start;
+}
+.edit-grid > .stepper-list {
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .edit-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- 3D ---------- */
 .view3d {
   display: flex;

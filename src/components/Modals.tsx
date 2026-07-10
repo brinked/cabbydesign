@@ -444,120 +444,102 @@ export function EditItemModal() {
   const island = wall.ghost;
   const maxTrays = cat.maxTrays ?? 0;
 
+  // One end treatment per side: none / applied panel / finished end / waterfall.
+  const endRow = (side: 'left' | 'right') => {
+    const L = side === 'left';
+    const applied = L ? it.endL : it.endR;
+    const fin = L ? it.finL : it.finR;
+    const wf = L ? it.waterfallL : it.waterfallR;
+    const set = (mode: 'none' | 'applied' | 'finished' | 'waterfall') =>
+      updateItem(
+        it.id,
+        L
+          ? { endL: mode === 'applied', finL: mode === 'finished', waterfallL: mode === 'waterfall' }
+          : { endR: mode === 'applied', finR: mode === 'finished', waterfallR: mode === 'waterfall' }
+      );
+    return (
+      <div className="stepper-row">
+        <span className="stepper-label">
+          {L ? 'Left end' : 'Right end'}
+          {L && <span className="stepper-note">applied adds 0.75″ width</span>}
+        </span>
+        <div className="seg seg-sm">
+          <button className={!applied && !fin && !wf ? 'seg-btn active' : 'seg-btn'} onClick={() => set('none')}>
+            None
+          </button>
+          {takesAppliedEnds(cat) && (
+            <button className={applied ? 'seg-btn active' : 'seg-btn'} title="Applied end panel (+0.75″ width)" onClick={() => set('applied')}>
+              Applied
+            </button>
+          )}
+          {takesAppliedEnds(cat) && (
+            <button
+              className={fin ? 'seg-btn active' : 'seg-btn'}
+              title="Finished end — side built in finished material (no added width)"
+              onClick={() => set('finished')}
+            >
+              Finished
+            </button>
+          )}
+          {takesWaterfall(cat) && (
+            <button className={wf ? 'seg-btn active' : 'seg-btn'} title="Waterfall — countertop wraps to the floor (run ends)" onClick={() => set('waterfall')}>
+              Waterfall
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+  const hasEndOptions = takesAppliedEnds(cat) || takesWaterfall(cat);
+
   return (
-    <Modal title={`${fmtIn(it.w)} ${cat.name}`} sub={`Space left: ${fmtIn(Math.max(0, left))}`} onClose={() => openEditor(null)}>
+    <Modal title={`${fmtIn(it.w)} ${cat.name}`} sub={`Space left: ${fmtIn(Math.max(0, left))}`} onClose={() => openEditor(null)} wide>
       {cat.note && <div className="edit-note">{cat.note}</div>}
-      <div className="stepper-list">
-        <Stepper label="Width" value={it.w} step={1} min={minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
-        <Stepper label="Depth" value={it.d} step={1} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
-        <Stepper label="Height" value={it.h} step={1} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
-        {cat.front === 'filler' ? (
-          <div className="stepper-row">
-            <span className="stepper-label">
-              Outset of wall
-              <span className="stepper-note">auto — flush with neighbor</span>
-            </span>
-            <span className="stepper">{fmtIn(it.outset)}</span>
-          </div>
-        ) : cat.lane === 'floor' ? (
-          <Stepper label="Outset of wall" value={it.outset} step={1} min={-24} max={24} onChange={(outset) => updateItem(it.id, { outset })} />
-        ) : (
-          <Stepper label="Height off floor" value={it.mount} step={3} min={30} max={84} onChange={(mount) => updateItem(it.id, { mount })} />
-        )}
-        {maxTrays > 0 && (
-          <Stepper label="Pull-out trays" value={it.trays} step={1} min={0} max={maxTrays} onChange={(trays) => updateItem(it.id, { trays })} />
-        )}
-        {takesAppliedEnds(cat) && (
-          <div className="stepper-row">
-            <span className="stepper-label">
-              Applied ends
-              <span className="stepper-note">+0.75″ width each</span>
-            </span>
-            <div className="seg">
-              <button
-                className={it.endL ? 'seg-btn active' : 'seg-btn'}
-                title="Applied end panel on the left side (+0.75″ width)"
-                onClick={() => updateItem(it.id, it.endL ? { endL: false } : { endL: true, finL: false, waterfallL: false })}
-              >
-                Left
-              </button>
-              <button
-                className={it.endR ? 'seg-btn active' : 'seg-btn'}
-                title="Applied end panel on the right side (+0.75″ width)"
-                onClick={() => updateItem(it.id, it.endR ? { endR: false } : { endR: true, finR: false, waterfallR: false })}
-              >
-                Right
-              </button>
+      <div className="edit-grid">
+        <div className="stepper-list">
+          <Stepper label="Width" value={it.w} step={1} min={minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
+          <Stepper label="Depth" value={it.d} step={1} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
+          <Stepper label="Height" value={it.h} step={1} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
+          {cat.front === 'filler' ? (
+            <div className="stepper-row">
+              <span className="stepper-label">
+                Outset of wall
+                <span className="stepper-note">auto — flush with neighbor</span>
+              </span>
+              <span className="stepper">{fmtIn(it.outset)}</span>
             </div>
-          </div>
-        )}
-        {takesAppliedEnds(cat) && (
-          <div className="stepper-row">
-            <span className="stepper-label">
-              Finished ends
-              <span className="stepper-note">side built in finished material, no added width</span>
-            </span>
-            <div className="seg">
-              <button
-                className={it.finL ? 'seg-btn active' : 'seg-btn'}
-                title="Finished end on the left side (side built in finished material)"
-                onClick={() => updateItem(it.id, it.finL ? { finL: false } : { finL: true, endL: false, waterfallL: false })}
-              >
-                Left
-              </button>
-              <button
-                className={it.finR ? 'seg-btn active' : 'seg-btn'}
-                title="Finished end on the right side (side built in finished material)"
-                onClick={() => updateItem(it.id, it.finR ? { finR: false } : { finR: true, endR: false, waterfallR: false })}
-              >
-                Right
-              </button>
+          ) : cat.lane === 'floor' ? (
+            <Stepper label="Outset of wall" value={it.outset} step={1} min={-24} max={24} onChange={(outset) => updateItem(it.id, { outset })} />
+          ) : (
+            <Stepper label="Height off floor" value={it.mount} step={3} min={30} max={84} onChange={(mount) => updateItem(it.id, { mount })} />
+          )}
+          {maxTrays > 0 && (
+            <Stepper label="Pull-out trays" value={it.trays} step={1} min={0} max={maxTrays} onChange={(trays) => updateItem(it.id, { trays })} />
+          )}
+        </div>
+        <div className="stepper-list">
+          {hasEndOptions && endRow('left')}
+          {hasEndOptions && endRow('right')}
+          {HINGED_FRONTS.includes(cat.front) && (
+            <div className="stepper-row">
+              <span className="stepper-label">{cat.front === 'blind' ? 'Door side' : 'Hinge side'}</span>
+              <div className="seg">
+                <button
+                  className={it.hinge === 'left' ? 'seg-btn active' : 'seg-btn'}
+                  onClick={() => updateItem(it.id, { hinge: 'left' })}
+                >
+                  {cat.front === 'blind' ? 'Door left' : 'Left'}
+                </button>
+                <button
+                  className={it.hinge === 'right' ? 'seg-btn active' : 'seg-btn'}
+                  onClick={() => updateItem(it.id, { hinge: 'right' })}
+                >
+                  {cat.front === 'blind' ? 'Door right' : 'Right'}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-        {takesWaterfall(cat) && (
-          <div className="stepper-row">
-            <span className="stepper-label">
-              Waterfall edge
-              <span className="stepper-note">counter wraps to the floor (run ends)</span>
-            </span>
-            <div className="seg">
-              <button
-                className={it.waterfallL ? 'seg-btn active' : 'seg-btn'}
-                title="Waterfall countertop down the left side"
-                onClick={() => updateItem(it.id, it.waterfallL ? { waterfallL: false } : { waterfallL: true, endL: false, finL: false })}
-              >
-                Left
-              </button>
-              <button
-                className={it.waterfallR ? 'seg-btn active' : 'seg-btn'}
-                title="Waterfall countertop down the right side"
-                onClick={() => updateItem(it.id, it.waterfallR ? { waterfallR: false } : { waterfallR: true, endR: false, finR: false })}
-              >
-                Right
-              </button>
-            </div>
-          </div>
-        )}
-        {HINGED_FRONTS.includes(cat.front) && (
-          <div className="stepper-row">
-            <span className="stepper-label">{cat.front === 'blind' ? 'Door side' : 'Hinge side'}</span>
-            <div className="seg">
-              <button
-                className={it.hinge === 'left' ? 'seg-btn active' : 'seg-btn'}
-                onClick={() => updateItem(it.id, { hinge: 'left' })}
-              >
-                {cat.front === 'blind' ? 'Door left' : 'Left'}
-              </button>
-              <button
-                className={it.hinge === 'right' ? 'seg-btn active' : 'seg-btn'}
-                onClick={() => updateItem(it.id, { hinge: 'right' })}
-              >
-                {cat.front === 'blind' ? 'Door right' : 'Right'}
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       {cat.applianceCat && <ApplianceSection it={it} cat={cat} />}
       {island && cat.category !== 'appliance' && (
