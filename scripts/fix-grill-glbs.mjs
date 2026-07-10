@@ -10,26 +10,24 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
 
+// NOTE: the current `3dgrillswithliners` source models are already correctly
+// oriented — do NOT bulk-run this. Snapping their (intentionally non-axis-
+// aligned) authored rotations actually TILTS/flips them (that's what broke the
+// Blaze + Napoleon heads). This tool is kept only for a one-off mis-exported
+// model and must be run with explicit filenames. Running it with no args is a
+// no-op on purpose.
 const DIR = resolve(process.cwd(), 'public/models/grills');
-const FILES = process.argv.slice(2).length
-  ? process.argv.slice(2)
-  : [
-      'blaze-lte-32.glb', 'blaze-lte-40.glb', 'blaze-lte-pro-40.glb', 'broilmaster-b-32.glb',
-      'napoleon-700-32.glb', 'napoleon-700-38.glb', 'napoleon-700-44.glb',
-      'xo-xlt-32.glb', 'xo-xlt-40.glb', 'legriddle-commercial-75.glb', 'legriddle-commercial-105.glb',
-    ];
+const FILES = process.argv.slice(2);
+if (!FILES.length) {
+  console.log('No files given. The shipped grill models are already correctly oriented — nothing to do.\nPass explicit filenames only if you have a freshly mis-exported model to snap.');
+  process.exit(0);
+}
 
 const JACKET_RE = /(^|[^a-z])ij\d*(\b|$)|liner|jacket|zcl|bsasl/i;
 
 /** Explicit head orientations for files whose authored rotation is too far
  *  off for nearest-snap to recover (keyed `file::meshName`). */
-const OVERRIDES = process.env.OVERRIDES_JSON
-  ? JSON.parse(process.env.OVERRIDES_JSON)
-  : {
-      // picked visually from the 4 span-valid candidates (see shot harness)
-      'napoleon-700-32.glb::Napoleon 700 32"': [0, 0, -1, 0],
-      'napoleon-700-44.glb::Napoleon 700s 44".004': [0, -0.7071068, -0.7071068, 0],
-    };
+const OVERRIDES = process.env.OVERRIDES_JSON ? JSON.parse(process.env.OVERRIDES_JSON) : {};
 
 // ---------- quaternion / matrix helpers ----------
 const qMul = (a, b) => [
