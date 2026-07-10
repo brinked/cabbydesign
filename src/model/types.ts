@@ -89,6 +89,23 @@ export interface ApplianceItem {
  *  receives; the dealer automatically gets half of it. */
 export type ApplianceBrands = Record<string, { discountPct: number }>;
 
+/** Per-model 3D placement override, tuned in the admin Appliance Aligner and
+ *  applied on top of the automatic seating. Keyed by model key (e.g.
+ *  "blaze-lte-32"). All fields optional; absent = no adjustment. */
+export interface ModelAlign {
+  /** Rotation in degrees. yaw = around vertical, pitch = tip fwd/back, roll = tilt. */
+  yaw?: number;
+  pitch?: number;
+  roll?: number;
+  /** Position nudge in inches: left/right, up/down, forward/back. */
+  dx?: number;
+  dy?: number;
+  dz?: number;
+  /** Uniform size multiplier on top of the width fit (default 1). */
+  scale?: number;
+}
+export type ModelAligns = Record<string, ModelAlign>;
+
 /** One cabinet handle/pull in the admin-managed hardware inventory. */
 export interface HandleItem {
   /** Stable slug id. */

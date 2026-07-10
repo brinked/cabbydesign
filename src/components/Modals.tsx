@@ -26,7 +26,7 @@ const HINGED_FRONTS: FrontKind[] = ['door1', 'doordrawer', 'burner', 'propane', 
 const LINER_RULE_CATS = ['grill', 'griddle', 'sideburner', 'powerburner'];
 const usesLinerRule = (c?: string) => !!c && LINER_RULE_CATS.includes(c);
 
-function Modal({ title, sub, onClose, children, wide }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+export function Modal({ title, sub, onClose, children, wide }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className={`modal ${wide ? 'modal-wide' : ''}`} onClick={(e) => e.stopPropagation()}>
@@ -679,7 +679,7 @@ export function OpeningModal() {
 }
 
 /** Footer that pushes the current admin globals to the server for all dealers. */
-function SaveGlobalFooter({ onSave }: { onSave: () => Promise<void> }) {
+export function SaveGlobalFooter({ onSave }: { onSave: () => Promise<void> }) {
   const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [error, setError] = useState<string | null>(null);
   return (

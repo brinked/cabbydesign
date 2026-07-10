@@ -10,6 +10,7 @@ import AdminPanel from './components/AdminPanel';
 import JobsScreen from './components/JobsScreen';
 import ProfileScreen from './components/ProfileScreen';
 import { AddItemModal, AppliancesModal, EditItemModal, HandlesModal, MyAppliancesModal, OpeningModal, PricingModal, RetailPricingModal, RoughInModal, SettingsModal } from './components/Modals';
+import { ApplianceAlignerModal } from './components/ApplianceAligner';
 import SaveJobModal from './components/SaveJobModal';
 import { SvgDefs } from './components/svg';
 import { useStore } from './state/store';
@@ -88,6 +89,7 @@ export default function App() {
       <AppliancesModal />
       <MyAppliancesModal />
       <HandlesModal />
+      <ApplianceAlignerModal />
       <SaveJobModal />
     </div>
   );

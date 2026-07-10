@@ -17,6 +17,7 @@ const APPLIANCES_KEY = 'appliances';
 const APPLIANCE_BRANDS_KEY = 'applianceBrands';
 const RESTRICTED_BRANDS_KEY = 'restrictedBrands';
 const HANDLES_KEY = 'handles';
+const MODEL_ALIGNS_KEY = 'modelAligns';
 const DEFAULT_TAX_RATE = 6.5; // Florida
 /** Grill/griddle/burner cabinet must be this much wider than its liner cutout (inches). */
 const DEFAULT_LINER_CLEARANCE = 4;
@@ -275,6 +276,32 @@ settingsRouter.put('/handles', requireAdmin, (req, res) => {
   }
   upsertSetting.run(HANDLES_KEY, JSON.stringify(parsed.data));
   res.json({ handles: parsed.data });
+});
+
+// Per-model 3D placement overrides (admin aligner). Map of modelKey -> nudge.
+const modelAlignSchema = z.object({
+  yaw: z.number().min(-360).max(360).optional(),
+  pitch: z.number().min(-360).max(360).optional(),
+  roll: z.number().min(-360).max(360).optional(),
+  dx: z.number().min(-60).max(60).optional(),
+  dy: z.number().min(-60).max(60).optional(),
+  dz: z.number().min(-60).max(60).optional(),
+  scale: z.number().min(0.2).max(3).optional(),
+});
+const modelAlignsSchema = z.record(z.string().min(1).max(120), modelAlignSchema);
+
+settingsRouter.get('/model-aligns', (_req, res) => {
+  res.json({ modelAligns: readJson(MODEL_ALIGNS_KEY) });
+});
+
+settingsRouter.put('/model-aligns', requireAdmin, (req, res) => {
+  const parsed = modelAlignsSchema.safeParse(req.body?.modelAligns ?? req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid model alignments' });
+    return;
+  }
+  upsertSetting.run(MODEL_ALIGNS_KEY, JSON.stringify(parsed.data));
+  res.json({ modelAligns: parsed.data });
 });
 
 // Per-brand visibility: brand -> allowed account (user) ids. Admin-only; the

@@ -3,7 +3,7 @@ import { BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catal
 import { cornerCounterExtend, frameForWall, planBounds } from '../model/geometry';
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
-import type { ApplianceItem, Design, FinishOption, PlacedItem, Wall } from '../model/types';
+import type { ApplianceItem, Design, FinishOption, ModelAligns, PlacedItem, Wall } from '../model/types';
 import { backsplashSpans, footprintW, laneItems, reservesFor } from '../state/store';
 import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
 
@@ -220,7 +220,7 @@ function counterSlabHoles(
 }
 
 /** Builds all walls, cabinets and counters for a design as one group. */
-export function buildDesignGroup(design: Design, fin: FinishOption, appliances: ApplianceItem[] = []): BuiltScene {
+export function buildDesignGroup(design: Design, fin: FinishOption, appliances: ApplianceItem[] = [], modelAligns: ModelAligns = {}): BuiltScene {
   const group = new THREE.Group();
   const mats = createMats(fin, countertopById(design.counterId));
   const cT = design.counterThickness ?? COUNTER_T;
@@ -302,7 +302,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const mref = cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' ? appliance3dModel(it.appliance, appliances) : null;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w },
+        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined },
         mats
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;

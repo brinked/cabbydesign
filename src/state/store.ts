@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, LayoutKind, Measurement, Opening, OpeningKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
+import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
 import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
@@ -209,6 +209,10 @@ interface AppState {
   handlesOpen: boolean;
   /** Admin-managed handle (cabinet pull) inventory. */
   handles: HandleItem[];
+  /** Admin appliance-model aligner modal. */
+  alignerOpen: boolean;
+  /** Admin-tuned per-model 3D placement overrides (modelKey -> nudge). */
+  modelAligns: ModelAligns;
   /** catalogId -> formula override (base / dealer cost) */
   pricing: Record<string, string>;
   /** catalogId -> retail price formula (basis for contractor "% off retail") */
@@ -235,6 +239,8 @@ interface AppState {
   setLinerClearance: (linerClearance: number) => void;
   setHandlesOpen: (open: boolean) => void;
   setHandles: (handles: HandleItem[]) => void;
+  setAlignerOpen: (open: boolean) => void;
+  setModelAligns: (modelAligns: ModelAligns) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
   setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight' | 'dimFrom' | 'handleId'>>) => void;
   applyPreset: (layout: LayoutKind) => void;
@@ -708,6 +714,8 @@ export const useStore = create<AppState>()(
       myAppliancesOpen: false,
       handlesOpen: false,
       handles: [],
+      alignerOpen: false,
+      modelAligns: {},
       pricing: {},
       retailPricing: {},
       dims: {},
@@ -726,6 +734,8 @@ export const useStore = create<AppState>()(
       setLinerClearance: (linerClearance) => set({ linerClearance }),
       setHandlesOpen: (open) => set({ handlesOpen: open }),
       setHandles: (handles) => set({ handles }),
+      setAlignerOpen: (open) => set({ alignerOpen: open }),
+      setModelAligns: (modelAligns) => set({ modelAligns }),
       setDim: (catalogId, patch) =>
         set((s) => {
           const cur = s.dims[catalogId] ?? {};

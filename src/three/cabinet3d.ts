@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
-import type { CatalogItem, DoorStyle, FinishOption, HingeSide } from '../model/types';
+import type { CatalogItem, DoorStyle, FinishOption, HingeSide, ModelAlign } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
 import { applianceModelInfo, fitModel, hasModel, requestModel } from './models';
 
@@ -213,6 +213,22 @@ export interface CabDims {
    *  loaded on first use; the generic head renders until it arrives. */
   modelKey?: string;
   modelW?: number;
+  /** Admin aligner override for this model — applied on top of auto-seating. */
+  modelAlign?: ModelAlign;
+}
+
+/** Apply an admin aligner override (rotation nudge, position offset, scale) to
+ *  a placed appliance model, on top of its automatic seating. */
+function applyModelAlign(model: THREE.Object3D, a?: ModelAlign): void {
+  if (!a) return;
+  const rad = (deg?: number) => ((deg ?? 0) * Math.PI) / 180;
+  model.rotation.x += rad(a.pitch);
+  model.rotation.y += rad(a.yaw);
+  model.rotation.z += rad(a.roll);
+  model.position.x += a.dx ?? 0;
+  model.position.y += a.dy ?? 0;
+  model.position.z += a.dz ?? 0;
+  if (a.scale && a.scale > 0 && a.scale !== 1) model.scale.multiplyScalar(a.scale);
 }
 
 /** Max width of one applied panel; wider runs are split into multiple panels. */
@@ -1215,6 +1231,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         // firebox sinks into the cabinet; hood rises above the countertop
         model.position.set(0, h - GRILL_MODEL_SINK, d - md / 2 - GRILL_MODEL_BACK);
       }
+      applyModelAlign(model, dims.modelAlign);
       g.add(model);
     } else {
       const applH = 9;
@@ -1282,6 +1299,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       } else {
         model.position.set(0, h + GRIDDLE_MODEL_PROUD - mh, d - md / 2 - GRIDDLE_MODEL_BACK);
       }
+      applyModelAlign(model, dims.modelAlign);
       g.add(model);
     } else {
       const gw = openW;

@@ -33,6 +33,7 @@ export default function AdminPanel() {
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
   const setHandlesOpen = useStore((s) => s.setHandlesOpen);
+  const setAlignerOpen = useStore((s) => s.setAlignerOpen);
 
   async function refresh() {
     try {
@@ -120,6 +121,9 @@ export default function AdminPanel() {
           </button>
           <button className="btn-ghost" onClick={() => setHandlesOpen(true)}>
             Handles
+          </button>
+          <button className="btn-ghost" onClick={() => setAlignerOpen(true)}>
+            Appliance aligner
           </button>
           <button className="btn-ghost" onClick={() => setShowDesigns(true)}>
             Saved designs

@@ -12,6 +12,7 @@ export default function View3D() {
   const design = useStore((s) => s.design);
   const fin = useFinish(design.finishId);
   const appliances = useStore((s) => s.appliances);
+  const modelAligns = useStore((s) => s.modelAligns);
   const modelsReady = useStore((s) => s.modelsReady);
   const setSnapshot = useStore((s) => s.setSnapshot);
   const [saved, setSaved] = useState(false);
@@ -63,7 +64,7 @@ export default function View3D() {
     ground.receiveShadow = true;
     scene.add(ground);
 
-    const { group, center, radius, dispose } = buildDesignGroup(design, fin, appliances);
+    const { group, center, radius, dispose } = buildDesignGroup(design, fin, appliances, modelAligns);
     scene.add(group);
 
     sun.position.copy(center).add(new THREE.Vector3(radius, radius * 1.4, radius * 0.6));
@@ -126,7 +127,7 @@ export default function View3D() {
       dispose();
       camRef.current = null;
     };
-  }, [design, fin, appliances, modelsReady]);
+  }, [design, fin, appliances, modelAligns, modelsReady]);
 
   return (
     <div className="view3d">
