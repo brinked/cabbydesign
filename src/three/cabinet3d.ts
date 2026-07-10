@@ -206,6 +206,9 @@ export interface CabDims {
    *  housings. When shorter than the cabinet, the unit renders to this height
    *  and leaves a visible gap under the counter. Defaults to the cabinet height. */
   applianceH?: number;
+  /** Finished end — side built in finished material (no added width). */
+  finL?: boolean;
+  finR?: boolean;
   /** Countertop slab thickness (inches). Defaults to COUNTER_T. */
   counterT?: number;
   /** Brand-accurate 3D model for the selected grill/griddle appliance (key
@@ -542,7 +545,7 @@ export function gearAbove(cat: CatalogItem): number {
  */
 export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats): THREE.Group {
   const g = new THREE.Group();
-  const { w, d, h, hinge, style, endL, endR, backPanel } = dims;
+  const { w, d, h, hinge, style, endL, endR, finL, finR, backPanel } = dims;
   const isAppliance = cat.category === 'appliance';
   const isFridge = cat.front === 'fridge' || cat.front === 'fridge2' || cat.front === 'fridgep' || cat.front === 'fridgep2';
   const fridgeDrawers = cat.front === 'fridge2' || cat.front === 'fridgep2';
@@ -873,9 +876,16 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         bar.castShadow = true;
         if (isV) {
           bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + 1.6 : fr.w / 2 - 1.6;
-          // handle sits in the upper third of the door (per design reference), or
-          // the lower third for high-mounted doors (handleLow) so it's reachable
-          bar.position.y = fr.handleLow ? -fr.h / 2 + len / 2 + 1.4 : fr.h / 2 - len / 2 - 1.4;
+          // Base doors carry the pull near the TOP; wall (upper-lane) doors and
+          // high-mounted doors (handleLow) near the BOTTOM — like real cabinets.
+          const yTop = fr.h / 2 - len / 2 - 1.4;
+          const yLow = -fr.h / 2 + len / 2 + 1.4;
+          let yPos = fr.handleLow || cat.lane === 'upper' ? yLow : yTop;
+          // Tall doors (pantry/broom…): cap the pull at a reachable height
+          // (~44″ off the floor) instead of the very top of an 84″ door.
+          const faceCenter = kick + carcassH / 2 + fr.dy;
+          if (yPos === yTop && faceCenter + yTop > 48) yPos = Math.max(yLow, 44 - faceCenter);
+          bar.position.y = yPos;
         } else {
           bar.rotation.z = Math.PI / 2;
           // horizontal handle: centered by default, or near the top of the door
@@ -902,7 +912,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const len = Math.min(7, fh * 0.45);
       const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
       bar.castShadow = true;
-      bar.position.set(cornerSide * (-span / 2 + 1.7), fh / 2 - len / 2 - 1.4, 1.1);
+      // wall corner cabinets carry the pull at the door bottom
+      const cy = cat.lane === 'upper' ? -fh / 2 + len / 2 + 1.4 : fh / 2 - len / 2 - 1.4;
+      bar.position.set(cornerSide * (-span / 2 + 1.7), cy, 1.1);
       door.add(bar);
       g.add(door);
     }
@@ -915,7 +927,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const addBar = (door: THREE.Object3D, localX: number) => {
         const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
         bar.castShadow = true;
-        bar.position.set(localX, fh / 2 - len / 2 - 1.4, 1.1);
+        // wall susans carry the pull at the door bottom
+        const cy = cat.lane === 'upper' ? -fh / 2 + len / 2 + 1.4 : fh / 2 - len / 2 - 1.4;
+        bar.position.set(localX, cy, 1.1);
         door.add(bar);
       };
       // A bi-fold susan has ONE pull on its lead door; the other door follows.
@@ -997,6 +1011,16 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       for (const side of [-1, 1] as const) {
         if ((side === -1 && !endL) || (side === 1 && !endR)) continue;
         addPanel(d, side * (w / 2 + END_PANEL_T / 2), d / 2, side * (Math.PI / 2));
+      }
+      // Finished ends: the cabinet side itself in finished material — a flat
+      // flush skin in the panel colour, adding no width to the footprint.
+      for (const side of [-1, 1] as const) {
+        if ((side === -1 && !finL) || (side === 1 && !finR)) continue;
+        if ((side === -1 && endL) || (side === 1 && endR)) continue; // applied end covers it
+        const skin = box(Math.max(2, d - FRONT_T), carcassH, 0.15, mats.panel);
+        skin.rotation.y = side * (Math.PI / 2);
+        skin.position.set(side * (w / 2 + 0.08), kick + carcassH / 2, (d - FRONT_T) / 2);
+        g.add(skin);
       }
     }
   }

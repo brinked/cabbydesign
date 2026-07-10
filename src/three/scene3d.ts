@@ -302,7 +302,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const mref = cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' ? appliance3dModel(it.appliance, appliances) : null;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined },
+        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined },
         mats
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;

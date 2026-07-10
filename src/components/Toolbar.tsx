@@ -300,16 +300,19 @@ function CounterThicknessInput({ value, onChange }: { value: number; onChange: (
   const commit = () => {
     setEditing(false);
     const v = parseFloat(text);
-    if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100) / 100);
-    else setText(String(value));
+    if (Number.isFinite(v) && v > 0) {
+      const clamped = Math.min(5, Math.round(v * 100) / 100);
+      setText(String(clamped));
+      onChange(clamped);
+    } else setText(String(value));
   };
   // apply live as typed (no Enter needed) once it's a valid positive number
   const live = (t: string) => {
     const v = parseFloat(t);
-    if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100) / 100);
+    if (Number.isFinite(v) && v > 0) onChange(Math.min(5, Math.round(v * 100) / 100));
   };
   return (
-    <span className="counter-thick" title="Countertop thickness in inches (default 1.25″ = 3cm)">
+    <span className="counter-thick" title="Countertop thickness in inches (default 1.25″ = 3cm, max 5″)">
       <span>Counter</span>
       <input
         className="counter-input"

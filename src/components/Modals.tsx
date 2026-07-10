@@ -460,7 +460,7 @@ export function EditItemModal() {
             <span className="stepper">{fmtIn(it.outset)}</span>
           </div>
         ) : cat.lane === 'floor' ? (
-          <Stepper label="Outset of wall" value={it.outset} step={1} min={0} max={24} onChange={(outset) => updateItem(it.id, { outset })} />
+          <Stepper label="Outset of wall" value={it.outset} step={1} min={-24} max={24} onChange={(outset) => updateItem(it.id, { outset })} />
         ) : (
           <Stepper label="Height off floor" value={it.mount} step={3} min={30} max={84} onChange={(mount) => updateItem(it.id, { mount })} />
         )}
@@ -477,14 +477,38 @@ export function EditItemModal() {
               <button
                 className={it.endL ? 'seg-btn active' : 'seg-btn'}
                 title="Applied end panel on the left side (+0.75″ width)"
-                onClick={() => updateItem(it.id, { endL: !it.endL })}
+                onClick={() => updateItem(it.id, it.endL ? { endL: false } : { endL: true, finL: false, waterfallL: false })}
               >
                 Left
               </button>
               <button
                 className={it.endR ? 'seg-btn active' : 'seg-btn'}
                 title="Applied end panel on the right side (+0.75″ width)"
-                onClick={() => updateItem(it.id, { endR: !it.endR })}
+                onClick={() => updateItem(it.id, it.endR ? { endR: false } : { endR: true, finR: false, waterfallR: false })}
+              >
+                Right
+              </button>
+            </div>
+          </div>
+        )}
+        {takesAppliedEnds(cat) && (
+          <div className="stepper-row">
+            <span className="stepper-label">
+              Finished ends
+              <span className="stepper-note">side built in finished material, no added width</span>
+            </span>
+            <div className="seg">
+              <button
+                className={it.finL ? 'seg-btn active' : 'seg-btn'}
+                title="Finished end on the left side (side built in finished material)"
+                onClick={() => updateItem(it.id, it.finL ? { finL: false } : { finL: true, endL: false, waterfallL: false })}
+              >
+                Left
+              </button>
+              <button
+                className={it.finR ? 'seg-btn active' : 'seg-btn'}
+                title="Finished end on the right side (side built in finished material)"
+                onClick={() => updateItem(it.id, it.finR ? { finR: false } : { finR: true, endR: false, waterfallR: false })}
               >
                 Right
               </button>
@@ -501,14 +525,14 @@ export function EditItemModal() {
               <button
                 className={it.waterfallL ? 'seg-btn active' : 'seg-btn'}
                 title="Waterfall countertop down the left side"
-                onClick={() => updateItem(it.id, { waterfallL: !it.waterfallL })}
+                onClick={() => updateItem(it.id, it.waterfallL ? { waterfallL: false } : { waterfallL: true, endL: false, finL: false })}
               >
                 Left
               </button>
               <button
                 className={it.waterfallR ? 'seg-btn active' : 'seg-btn'}
                 title="Waterfall countertop down the right side"
-                onClick={() => updateItem(it.id, { waterfallR: !it.waterfallR })}
+                onClick={() => updateItem(it.id, it.waterfallR ? { waterfallR: false } : { waterfallR: true, endR: false, finR: false })}
               >
                 Right
               </button>
@@ -796,10 +820,33 @@ export function PricingModal() {
   const setOpen = useStore((s) => s.setPricingOpen);
   const pricing = useStore((s) => s.pricing);
   const setFormula = useStore((s) => s.setFormula);
+  const panelRates = useStore((s) => s.panelRates);
+  const setPanelRates = useStore((s) => s.setPanelRates);
 
   const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch), []);
 
   if (!open) return null;
+  const rateField = (label: string, note: string, key: 'applied' | 'finished') => (
+    <label className="stepper-row" style={{ alignItems: 'center' }}>
+      <span className="stepper-label">
+        {label}
+        <span className="stepper-note">{note}</span>
+      </span>
+      <span className="stepper">
+        $
+        <input
+          className="stepper-input"
+          inputMode="decimal"
+          value={panelRates[key]}
+          onChange={(e) => {
+            const v = parseFloat(e.target.value);
+            if (Number.isFinite(v) && v >= 0) setPanelRates({ ...panelRates, [key]: v });
+          }}
+        />
+        /sqft
+      </span>
+    </label>
+  );
   return (
     <Modal
       title="Base pricing formulas"
@@ -807,6 +854,10 @@ export function PricingModal() {
       onClose={() => setOpen(false)}
       wide
     >
+      <div className="stepper-list" style={{ marginBottom: 12 }}>
+        {rateField('Applied end / island back panels', 'separate ¾″ finished panel', 'applied')}
+        {rateField('Finished ends', 'cabinet side built in finished material', 'finished')}
+      </div>
       <div className="pricing-table">
         <div className="pricing-row pricing-head">
           <span>Cabinet</span>
@@ -842,7 +893,11 @@ export function PricingModal() {
           );
         })}
       </div>
-      <SaveGlobalFooter onSave={() => api.setPricing(useStore.getState().pricing).then(() => undefined)} />
+      <SaveGlobalFooter
+        onSave={() =>
+          Promise.all([api.setPricing(useStore.getState().pricing), api.setPanelRates(useStore.getState().panelRates)]).then(() => undefined)
+        }
+      />
     </Modal>
   );
 }

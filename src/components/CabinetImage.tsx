@@ -31,10 +31,10 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
   const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
   // brand-accurate 3D head for the selected grill/griddle appliance
   const mref = cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' ? appliance3dModel(it.appliance, appliances) : null;
-  const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, cornerSide, applianceH, counterT, modelKey: mref?.key, modelW: mref?.w };
+  const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, cornerSide, applianceH, counterT, modelKey: mref?.key, modelW: mref?.w };
   const url = useMemo(
     () => cabinetSprite(cat, dims, fin, 'front'),
-    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, style, fin, cornerSide, applianceH, counterT, mref?.key, mref?.w, modelsReady]
+    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, it.finL, it.finR, style, fin, cornerSide, applianceH, counterT, mref?.key, mref?.w, modelsReady]
   );
   if (!url) return <CabinetFront cat={cat} w={it.w} h={it.h} fin={fin} hinge={it.hinge} />;
   const top = spriteTopY(cat, it.h);

@@ -67,7 +67,7 @@ export function cabinetSprite(cat: CatalogItem, dims: CabDims, fin: FinishOption
     dims.modelKey && hasModel(dims.modelKey) ? 'M' : '',
     (cat.applianceCat === 'griddle' && hasModel('griddle')) || ((cat.front === 'grill' || cat.front === 'grill4') && hasModel('grill')) ? 'G' : '',
   ].join('~');
-  const key = `${cat.id}|${dims.w}x${dims.d}x${dims.h}|${dims.hinge}|${dims.cornerSide ?? ''}|${dims.style}|${dims.endL ? 'L' : ''}${dims.endR ? 'R' : ''}|${dims.applianceH ?? ''}|${dims.counterT ?? ''}|${modelTag}|${fin.id}|${view}`;
+  const key = `${cat.id}|${dims.w}x${dims.d}x${dims.h}|${dims.hinge}|${dims.cornerSide ?? ''}|${dims.style}|${dims.endL ? 'L' : ''}${dims.endR ? 'R' : ''}${dims.finL ? 'l' : ''}${dims.finR ? 'r' : ''}|${dims.applianceH ?? ''}|${dims.counterT ?? ''}|${modelTag}|${fin.id}|${view}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
 

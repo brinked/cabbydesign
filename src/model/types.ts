@@ -89,6 +89,13 @@ export interface ApplianceItem {
  *  receives; the dealer automatically gets half of it. */
 export type ApplianceBrands = Record<string, { discountPct: number }>;
 
+/** Admin-managed $/sqft rates for end/back panels. `applied` covers applied
+ *  end + island back panels; `finished` covers finished ends (costlier). */
+export interface PanelRates {
+  applied: number;
+  finished: number;
+}
+
 /** Per-model 3D placement override, tuned in the admin Appliance Aligner and
  *  applied on top of the automatic seating. Keyed by model key (e.g.
  *  "blaze-lte-32"). All fields optional; absent = no adjustment. */
@@ -219,6 +226,10 @@ export interface PlacedItem {
   /** Applied (finished) end panel on the left/right end of a run. */
   endL: boolean;
   endR: boolean;
+  /** Finished end — the cabinet side itself built from finished material
+   *  (no added width, priced per sqft above the applied-end rate). */
+  finL?: boolean;
+  finR?: boolean;
   /** Pull-out trays added inside this cabinet (0..maxTrays). */
   trays: number;
   /** Appliance chosen for this cabinet (appliance-housing cabinets only). */

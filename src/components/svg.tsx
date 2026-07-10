@@ -314,6 +314,12 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
   const doors = (n: number, y = 0, dh = fh) => {
     const dw = (w - gap * (n + 1)) / n;
     const handleLen = Math.min(7, dh * 0.4);
+    // Base doors: pull near the top. Wall (upper-lane) doors: pull at the
+    // BOTTOM. Tall doors: cap the pull at a reachable height (~44″ off the
+    // floor; svg y runs down from the carcass top, floor at y = h).
+    let hy = y + dh * 0.16;
+    if (cat.lane === 'upper') hy = y + dh - handleLen - dh * 0.06;
+    else if (h - (y + dh * 0.16) > 48) hy = Math.min(y + dh - handleLen - 1.4, Math.max(y + 1.4, h - 44 - handleLen / 2));
     return (
       <g>
         {Array.from({ length: n }, (_, i) => {
@@ -325,7 +331,7 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
             <g key={i}>
               <Shaker x={dx} y={y + gap} w={dw} h={dh - gap * 2} fin={fin} />
               {dh > 14 ? (
-                <BarHandle x={hx} y={y + dh * 0.16} len={handleLen} vertical />
+                <BarHandle x={hx} y={hy} len={handleLen} vertical />
               ) : (
                 <Knob x={hx} y={y + dh / 2} />
               )}

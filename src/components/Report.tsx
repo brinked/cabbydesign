@@ -5,7 +5,7 @@ import { TOEKICK_H, catalogById, handleCount } from '../model/catalog';
 import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
 import { countertopById } from '../model/countertops';
-import { PANEL_RATE_PER_SQFT, appliedEnds, counterAreaSqft, footprintW, itemNumbers, itemOnIsland, itemPrice, reservesFor, roughInConflict, roughInHost, useStore } from '../state/store';
+import { appliedEnds, counterAreaSqft, finishedEnds, footprintW, itemNumbers, itemOnIsland, itemPrice, reservesFor, roughInConflict, roughInHost, useStore } from '../state/store';
 import { useSession } from '../state/session';
 import { MAX_PANEL_W } from '../three/cabinet3d';
 import { TopViewSvg } from './TopView';
@@ -74,7 +74,7 @@ export default function Report() {
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
   const designName = design.doorStyle === 'shaker' ? 'Vibe' : 'Euro';
-  const rate = PANEL_RATE_PER_SQFT;
+  const { applied: rate, finished: finRate } = useStore((s) => s.panelRates);
 
   // Cabinet line items (cabinet price only — panels are itemized separately).
   const lines = [...design.items]
@@ -97,22 +97,28 @@ export default function Report() {
     const cat = catalogById(it.catalogId);
     return Math.max(0, it.h - (cat.lane === 'floor' ? TOEKICK_H : 0));
   };
-  const endGroups = new Map<string, { w: number; h: number; qty: number; unit: number; nums: Set<number> }>();
+  const endGroups = new Map<string, { kind: 'applied' | 'finished'; w: number; h: number; qty: number; unit: number; nums: Set<number> }>();
   for (const it of design.items) {
-    const e = appliedEnds(it);
-    const nEnds = (e.l ? 1 : 0) + (e.r ? 1 : 0);
-    if (!nEnds) continue;
     const h = panelH(it);
-    const key = `${it.d}x${h}`;
-    const unit = Math.round(((it.d * h) / 144) * rate * 100) / 100;
-    const g = endGroups.get(key) ?? { w: it.d, h, qty: 0, unit, nums: new Set<number>() };
-    g.qty += nEnds;
-    g.nums.add(numbers.get(it.id) ?? 0);
-    endGroups.set(key, g);
+    // applied end panels + finished ends (side in finished material), each at
+    // its own admin-managed $/sqft rate
+    for (const [kind, sides, r] of [
+      ['applied', appliedEnds(it), rate],
+      ['finished', finishedEnds(it), finRate],
+    ] as const) {
+      const n = (sides.l ? 1 : 0) + (sides.r ? 1 : 0);
+      if (!n) continue;
+      const key = `${kind}|${it.d}x${h}`;
+      const unit = Math.round(((it.d * h) / 144) * r * 100) / 100;
+      const g = endGroups.get(key) ?? { kind, w: it.d, h, qty: 0, unit, nums: new Set<number>() };
+      g.qty += n;
+      g.nums.add(numbers.get(it.id) ?? 0);
+      endGroups.set(key, g);
+    }
   }
   const endRows = [...endGroups.values()]
     .map((g) => ({ ...g, nums: [...g.nums].sort((a, b) => a - b) }))
-    .sort((a, b) => b.w * b.h - a.w * a.h);
+    .sort((a, b) => (a.kind === b.kind ? b.w * b.h - a.w * a.h : a.kind === 'applied' ? -1 : 1));
   const endSubtotal = endRows.reduce((s, g) => s + g.unit * g.qty, 0);
 
   // Applied back panels (islands) — combined into a single summed line.
@@ -322,7 +328,7 @@ export default function Report() {
               {endRows.map((g, i) => (
                 <tr key={`e${i}`}>
                   <td>
-                    Applied End Panel <span className="panel-cabs">(cabinet {g.nums.join(', ')})</span>
+                    {g.kind === 'applied' ? 'Applied End Panel' : 'Finished End'} <span className="panel-cabs">(cabinet {g.nums.join(', ')})</span>
                   </td>
                   <td>{designName}</td>
                   <td>

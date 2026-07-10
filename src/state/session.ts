@@ -36,7 +36,7 @@ interface SessionState {
 }
 
 async function pullGlobals(set: (partial: Partial<SessionState>) => void) {
-  const [{ dims }, { pricing }, { retailPricing }, { rate }, { appliances }, { brands }, { handles }, { clearance }, { modelAligns }] = await Promise.all([
+  const [{ dims }, { pricing }, { retailPricing }, { rate }, { appliances }, { brands }, { handles }, { clearance }, { modelAligns }, { rates }] = await Promise.all([
     api.getCabinetDims(),
     api.getPricing(),
     api.getRetailPricing(),
@@ -46,10 +46,11 @@ async function pullGlobals(set: (partial: Partial<SessionState>) => void) {
     api.getHandles(),
     api.getLinerClearance(),
     api.getModelAligns(),
+    api.getPanelRates(),
   ]);
   // Push server-managed globals into the designer store. These override the
   // per-browser values that store.ts persists in localStorage.
-  useStore.setState({ dims, pricing, retailPricing, appliances, applianceBrands: brands, handles, linerClearance: clearance, modelAligns });
+  useStore.setState({ dims, pricing, retailPricing, appliances, applianceBrands: brands, handles, linerClearance: clearance, modelAligns, panelRates: rates });
   set({ taxRate: rate });
 }
 

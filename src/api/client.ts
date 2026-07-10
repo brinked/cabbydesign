@@ -1,7 +1,7 @@
 // Typed client for the CabDesign API. All requests are same-origin (the Vite
 // dev server proxies /api to the Express backend), so the session cookie rides
 // along automatically with credentials: 'include'.
-import type { ApplianceBrands, ApplianceItem, Design, HandleItem, ModelAligns } from '../model/types';
+import type { ApplianceBrands, ApplianceItem, Design, HandleItem, ModelAligns, PanelRates } from '../model/types';
 
 export type Role = 'admin' | 'dealer' | 'contractor';
 
@@ -179,6 +179,9 @@ export const api = {
   // clearance (inches) a grill/griddle/burner cabinet must be wider than its liner cutout
   getLinerClearance: () => request<{ clearance: number }>('GET', '/settings/liner-clearance'),
   setLinerClearance: (clearance: number) => request<{ clearance: number }>('PUT', '/settings/liner-clearance', { clearance }),
+  // $/sqft rates for applied end / island back panels and finished ends
+  getPanelRates: () => request<{ rates: PanelRates }>('GET', '/settings/panel-rates'),
+  setPanelRates: (rates: PanelRates) => request<{ rates: PanelRates }>('PUT', '/settings/panel-rates', { rates }),
 
   // ---- admin: appliance inventory + per-brand discounts ----
   getAppliances: () => request<{ appliances: ApplianceItem[] }>('GET', '/settings/appliances'),

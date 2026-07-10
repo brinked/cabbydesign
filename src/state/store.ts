@@ -1,14 +1,23 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
+import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
 import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
 import { CORNER_EPS, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
 
-/** Applied panels (ends + island backs) bill at this rate per square foot. */
+/** Applied panels (ends + island backs) bill at this rate per square foot.
+ *  Default only — the admin-managed rates live in store.panelRates. */
 export const PANEL_RATE_PER_SQFT = 36;
+/** Finished ends (the side itself in finished material) cost a bit more. */
+export const FINISHED_END_RATE_PER_SQFT = 45;
+export const DEFAULT_PANEL_RATES: PanelRates = { applied: PANEL_RATE_PER_SQFT, finished: FINISHED_END_RATE_PER_SQFT };
+
+/** The current admin-managed panel rates (synced from the server at login). */
+export function panelRates(): PanelRates {
+  return useStore.getState().panelRates ?? DEFAULT_PANEL_RATES;
+}
 
 /** Catalog ids that were renamed/removed — remap (or drop) on load. */
 const CATALOG_MIGRATE: Record<string, string> = { 'base-doordrawer': 'base-1door1drawer', 'base-blind': 'base-blindr', 'app-icemaker': 'out-icemaker' };
@@ -168,21 +177,30 @@ export function normalizeDesign(raw: Design): Design {
       // Appliances and appliance openings (fridges, ice makers) can't take
       // applied ends — strip any stale flags so they don't render or bill.
       const noEnds = !takesAppliedEnds(catalogById(it.catalogId));
-      return autoFourDoor({
+      const next = autoFourDoor({
         ...it,
         hinge: it.hinge ?? 'left',
         endL: noEnds ? false : it.endL ?? false,
         endR: noEnds ? false : it.endR ?? false,
+        finL: noEnds ? false : it.finL ?? false,
+        finR: noEnds ? false : it.finR ?? false,
         trays: it.trays ?? 0,
         waterfallL: it.waterfallL ?? false,
         waterfallR: it.waterfallR ?? false,
       });
+      // One end treatment per side: applied end wins over finished end, which
+      // wins over a waterfall edge (they'd occupy the same face).
+      if (next.endL) next.finL = false;
+      if (next.endR) next.finR = false;
+      if (next.endL || next.finL) next.waterfallL = false;
+      if (next.endR || next.finR) next.waterfallR = false;
+      return next;
     });
   const finishId = FINISH_MIGRATE[raw.finishId] ?? raw.finishId;
   const wallIds = new Set(walls.map((w) => w.id));
   const roughIns = (raw.roughIns ?? []).filter((r) => wallIds.has(r.wallId));
   const openings = (raw.openings ?? []).filter((o) => wallIds.has(o.wallId));
-  const counterThickness = raw.counterThickness && raw.counterThickness > 0 ? raw.counterThickness : COUNTER_T;
+  const counterThickness = raw.counterThickness && raw.counterThickness > 0 ? Math.min(5, raw.counterThickness) : COUNTER_T;
   const counterId = raw.counterId ?? DEFAULT_COUNTERTOP;
   const backsplashHeight = raw.backsplashHeight && raw.backsplashHeight > 0 ? raw.backsplashHeight : 0;
   const result = { ...defaultDesign(), ...raw, finishId, doorStyle: raw.doorStyle ?? 'shaker', counterThickness, counterId, backsplashHeight, dimFrom: raw.dimFrom ?? 'left', walls, items, roughIns, openings };
@@ -226,6 +244,8 @@ interface AppState {
   /** Admin-managed clearance (inches) a grill/griddle/burner cabinet must be
    *  wider than its insulated liner's cutout. Synced from the server. */
   linerClearance: number;
+  /** Admin-managed $/sqft rates for applied/finished end panels. */
+  panelRates: PanelRates;
   /** Bumped as each real 3D appliance model (glb) loads — re-renders views. */
   modelsReady: number;
   snapshot3d: string | null;
@@ -237,6 +257,7 @@ interface AppState {
   setAppliances: (appliances: ApplianceItem[]) => void;
   setApplianceBrands: (brands: ApplianceBrands) => void;
   setLinerClearance: (linerClearance: number) => void;
+  setPanelRates: (panelRates: PanelRates) => void;
   setHandlesOpen: (open: boolean) => void;
   setHandles: (handles: HandleItem[]) => void;
   setAlignerOpen: (open: boolean) => void;
@@ -317,6 +338,12 @@ export function openingClash(o: Opening, items: PlacedItem[], counterT: number):
 export function appliedEnds(it: PlacedItem): { l: boolean; r: boolean } {
   if (!takesAppliedEnds(catalogById(it.catalogId))) return { l: false, r: false };
   return { l: !!it.endL, r: !!it.endR };
+}
+
+/** Finished ends (side built in finished material, no added width). */
+export function finishedEnds(it: PlacedItem): { l: boolean; r: boolean } {
+  if (!takesAppliedEnds(catalogById(it.catalogId))) return { l: false, r: false };
+  return { l: !!it.finL, r: !!it.finR };
 }
 
 /** Overall width an item occupies on the wall: cabinet + applied end panels. */
@@ -404,10 +431,13 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
   const panelH = Math.max(0, it.h - (hasKick ? TOEKICK_H : 0));
   const sqft = (wIn: number) => (wIn * panelH) / 144;
   const trays = (it.trays ?? 0) * DEFAULT_RATES.tray;
+  const rates = panelRates();
   const e = appliedEnds(it);
   const nEnds = (e.l ? 1 : 0) + (e.r ? 1 : 0);
-  const ends = nEnds * sqft(it.d) * PANEL_RATE_PER_SQFT;
-  const back = itemOnIsland(design, it) ? sqft(it.w) * PANEL_RATE_PER_SQFT : 0;
+  const f = finishedEnds(it);
+  const nFin = (f.l ? 1 : 0) + (f.r ? 1 : 0);
+  const ends = nEnds * sqft(it.d) * rates.applied + nFin * sqft(it.d) * rates.finished;
+  const back = itemOnIsland(design, it) ? sqft(it.w) * rates.applied : 0;
   const total = price + trays + ends + back;
   return {
     cabinet: round2(price),
@@ -722,6 +752,7 @@ export const useStore = create<AppState>()(
       appliances: [],
       applianceBrands: {},
       linerClearance: LINER_CABINET_CLEARANCE,
+      panelRates: DEFAULT_PANEL_RATES,
       modelsReady: 0,
       snapshot3d: null,
 
@@ -732,6 +763,7 @@ export const useStore = create<AppState>()(
       setAppliances: (appliances) => set({ appliances }),
       setApplianceBrands: (applianceBrands) => set({ applianceBrands }),
       setLinerClearance: (linerClearance) => set({ linerClearance }),
+      setPanelRates: (panelRates) => set({ panelRates }),
       setHandlesOpen: (open) => set({ handlesOpen: open }),
       setHandles: (handles) => set({ handles }),
       setAlignerOpen: (open) => set({ alignerOpen: open }),
