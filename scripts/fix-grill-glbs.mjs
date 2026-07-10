@@ -28,6 +28,7 @@ const JACKET_RE = /(^|[^a-z])ij\d*(\b|$)|liner|jacket|zcl|bsasl/i;
 /** Explicit head orientations for files whose authored rotation is too far
  *  off for nearest-snap to recover (keyed `file::meshName`). */
 const OVERRIDES = process.env.OVERRIDES_JSON ? JSON.parse(process.env.OVERRIDES_JSON) : {};
+const RESEAT_ONLY = process.env.RESEAT_ONLY === '1';
 
 // ---------- quaternion / matrix helpers ----------
 const qMul = (a, b) => [
@@ -203,7 +204,10 @@ for (const name of FILES) {
     }
     const dot = Math.abs(best[0] * q0[0] + best[1] * q0[1] + best[2] * q0[2] + best[3] * q0[3]);
     const angleOff = (2 * Math.acos(Math.min(1, dot)) * 180) / Math.PI;
-    if (angleOff > 0.5) {
+    // RESEAT_ONLY: keep the (already-correct) authored rotation and only re-seat
+    // the head on its jacket — for models whose rotation is fine but whose head
+    // is authored too far back, hiding the front control panel.
+    if (angleOff > 0.5 && !RESEAT_ONLY) {
       n.rotation = best.map((v) => +v.toFixed(6));
       n._snapped = angleOff;
       changed = true;
@@ -211,10 +215,12 @@ for (const name of FILES) {
     boxes.set(i, worldBox(local, n.rotation ?? [0, 0, 0, 1], s, t));
   }
 
-  // re-seat a snapped head on its jacket
+  // re-seat the head on its jacket (front proud, base above), so the control
+  // panel clears the countertop front. Runs for snapped heads, or always in
+  // RESEAT_ONLY mode.
   const jacket = meshNodes.find(({ n }) => JACKET_RE.test(`${n.name ?? ''} ${json.meshes[n.mesh]?.name ?? ''}`));
   const head = meshNodes.find((x) => x !== jacket);
-  if (jacket && head && head.n._snapped > 2) {
+  if (jacket && head && (RESEAT_ONLY || head.n._snapped > 2)) {
     const jb = boxes.get(jacket.i);
     const hb = boxes.get(head.i);
     const t = head.n.translation ?? [0, 0, 0];
