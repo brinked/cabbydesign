@@ -1204,10 +1204,13 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const md = mb.max.z - mb.min.z; // scaled depth
       if (info?.jacketTopIn) {
         // jacketed unit: the insulated liner's flange rests ON the countertop,
-        // the jacket box hangs through the cut-out into the cabinet
+        // the jacket box hangs through the cut-out into the cabinet. Shift the
+        // model forward so the CONTROL PANEL (not the overhanging hood) lands at
+        // the counter front — capped so the hood can't slide off.
         const counterTop = h + (dims.counterT ?? COUNTER_T);
         const scale = fitW / info.realWIn;
-        model.position.set(0, counterTop - info.jacketTopIn * scale, d - md / 2 - GRILL_MODEL_BACK);
+        const fwd = Math.min((info.ctrlRecessFrac ?? 0) * md, md * 0.25);
+        model.position.set(0, counterTop - info.jacketTopIn * scale, d - md / 2 - GRILL_MODEL_BACK + fwd);
       } else {
         // firebox sinks into the cabinet; hood rises above the countertop
         model.position.set(0, h - GRILL_MODEL_SINK, d - md / 2 - GRILL_MODEL_BACK);
@@ -1271,9 +1274,11 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const mh = mb.max.y - mb.min.y; // scaled height
       const md = mb.max.z - mb.min.z; // scaled depth
       if (info?.jacketTopIn) {
-        // jacketed unit: the liner flange rests on the countertop
+        // jacketed unit: the liner flange rests on the countertop; shift forward
+        // so the controls reach the counter front (capped)
         const counterTop = h + (dims.counterT ?? COUNTER_T);
-        model.position.set(0, counterTop - info.jacketTopIn * (fitW / info.realWIn), d - md / 2 - GRIDDLE_MODEL_BACK);
+        const fwd = Math.min((info.ctrlRecessFrac ?? 0) * md, md * 0.25);
+        model.position.set(0, counterTop - info.jacketTopIn * (fitW / info.realWIn), d - md / 2 - GRIDDLE_MODEL_BACK + fwd);
       } else {
         model.position.set(0, h + GRIDDLE_MODEL_PROUD - mh, d - md / 2 - GRIDDLE_MODEL_BACK);
       }

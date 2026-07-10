@@ -15,6 +15,12 @@ interface ModelTemplate {
   /** Insulated-jacket flange top above the model base (model units). The
    *  flange is what rests on the countertop when the unit drops in. */
   jacketTop?: number;
+  /** How far the control panel (the head's front at its lower band) sits behind
+   *  the model's overall front, as a fraction of depth. The hood usually
+   *  overhangs past the controls, so front-aligning the whole model leaves the
+   *  knobs set back; placement shifts forward by this to bring the control panel
+   *  to the counter front. */
+  ctrlRecessFrac?: number;
 }
 
 const templates = new Map<string, ModelTemplate>();
@@ -110,15 +116,32 @@ function normalize(root: THREE.Object3D): ModelTemplate {
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   let jacketTop: number | undefined;
+  // Front-most z of the control panel: the head (non-jacket) geometry in the
+  // lower ~40% of its height, where the knobs live (the hood above overhangs).
+  const bandTop = box.min.y + size.y * 0.4;
+  let ctrlZ = -Infinity;
+  const v = new THREE.Vector3();
   root.traverse((o) => {
-    if (!(o as THREE.Mesh).isMesh || !JACKET_RE.test(o.name)) return;
-    const jb = new THREE.Box3().setFromObject(o);
-    jacketTop = Math.max(jacketTop ?? -Infinity, jb.max.y - box.min.y);
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    if (JACKET_RE.test(o.name)) {
+      const jb = new THREE.Box3().setFromObject(o);
+      jacketTop = Math.max(jacketTop ?? -Infinity, jb.max.y - box.min.y);
+      return;
+    }
+    const pos = m.geometry.getAttribute('position');
+    if (!pos) return;
+    const step = Math.max(1, Math.floor(pos.count / 4000));
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+      if (v.y <= bandTop && v.z > ctrlZ) ctrlZ = v.z;
+    }
   });
+  const ctrlRecessFrac = ctrlZ > -Infinity && size.z > 1e-6 ? Math.max(0, (box.max.z - ctrlZ) / size.z) : 0;
   const wrap = new THREE.Group();
   root.position.set(-center.x, -box.min.y, -center.z);
   wrap.add(root);
-  return { obj: wrap, size, jacketTop };
+  return { obj: wrap, size, jacketTop, ctrlRecessFrac };
 }
 
 /** Kick off loading every known model once (idempotent). */
@@ -143,12 +166,12 @@ export function loadModels(): void {
 /** Physical facts about a loaded appliance model, in inches at real size:
  *  overall width, and (when it carries an insulated jacket) the height of
  *  the jacket's flange above the model base. Null until loaded. */
-export function applianceModelInfo(key: string): { realWIn: number; jacketTopIn?: number } | null {
+export function applianceModelInfo(key: string): { realWIn: number; jacketTopIn?: number; ctrlRecessFrac?: number } | null {
   const t = templates.get(key);
   if (!t || t.size.x <= 0) return null;
   // model files are authored in real-world meters; report inches
   const IN = 0.0254;
-  return { realWIn: t.size.x / IN, jacketTopIn: t.jacketTop != null ? t.jacketTop / IN : undefined };
+  return { realWIn: t.size.x / IN, jacketTopIn: t.jacketTop != null ? t.jacketTop / IN : undefined, ctrlRecessFrac: t.ctrlRecessFrac };
 }
 
 /**
