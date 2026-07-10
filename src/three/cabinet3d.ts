@@ -517,17 +517,14 @@ export function grillCutout(cat: CatalogItem, w: number, d: number, modelW?: num
     const z2 = d - 3; // front stretcher stays covered
     return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
   }
-  if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle' && cat.front !== 'griddle4') return null;
+  if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle' && cat.front !== 'griddle4' && cat.front !== 'burner') return null;
   const bw = applianceOpeningW(cat.front, w, modelW) + 1; // small gap around the unit
-  if ((cat.front === 'grill' || cat.front === 'grill4') && (modelW != null || hasModel('grill'))) {
-    // Real head: its control panel hangs in front of the counter nose, so the
-    // cut-out runs through the counter's front edge (a notch, not a hole).
-    const z1 = 2.5; // stone strip left behind the unit
-    const z2 = d + 6; // safely past any run's front overhang
-    return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
-  }
-  const bd = Math.max(8, d - 5); // cooking area, leaving a front lip of counter
-  return { bw, bd, zc: d * 0.5 };
+  // Grills, griddles and side/power burners all drop in with an insulated
+  // liner jacket whose face hangs over the counter nose — the cut-out runs
+  // through the counter's front edge (a notch, not a hole).
+  const z1 = 2.5; // stone strip left behind the unit
+  const z2 = d + 6; // safely past any run's front overhang
+  return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
 }
 
 /** Vertical extent of gear drawn above the carcass (for sprite bounding boxes). */

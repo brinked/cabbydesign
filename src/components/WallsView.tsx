@@ -8,7 +8,6 @@ import { ElevationCabinet } from './CabinetImage';
 import { NumberField } from './NumberField';
 import { DimH, DimV, OpeningGlyph, RoughInGlyph, fmtIn } from './svg';
 import { grillCutout } from '../three/cabinet3d';
-import { hasModel } from '../three/models';
 import { appliance3dModel } from '../model/appliances';
 
 const SNAP = 1.25; // inches
@@ -407,8 +406,8 @@ export function WallElevationSvg({
         const gaps = floorItems
           .filter((it) => {
             const c = catalogById(it.catalogId);
-            const mw = appliance3dModel(it.appliance, appliances)?.w;
-            return (c.front === 'grill' || c.front === 'grill4') && (hasModel('grill') || mw != null) && it.x >= r.x1 - 0.1 && it.x <= r.x2 + 0.1 && Math.abs(it.h - r.h) < 0.01;
+            const notched = c.front === 'grill' || c.front === 'grill4' || c.front === 'griddle' || c.front === 'griddle4' || c.front === 'burner';
+            return notched && it.x >= r.x1 - 0.1 && it.x <= r.x2 + 0.1 && Math.abs(it.h - r.h) < 0.01;
           })
           .map((it) => {
             const cut = grillCutout(catalogById(it.catalogId), it.w, it.d, appliance3dModel(it.appliance, appliances)?.w)!;
