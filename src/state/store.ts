@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, PlacedItem, RoughIn, RoughInKind, Wall } from '../model/types';
-import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds } from '../model/catalog';
+import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
@@ -175,8 +175,10 @@ export function normalizeDesign(raw: Design): Design {
     .filter((it) => VALID_IDS.has(it.catalogId))
     .map((it) => {
       // Appliances and appliance openings (fridges, ice makers) can't take
-      // applied ends — strip any stale flags so they don't render or bill.
+      // applied ends or waterfalls — strip stale flags so they don't render
+      // or bill.
       const noEnds = !takesAppliedEnds(catalogById(it.catalogId));
+      const noWf = !takesWaterfall(catalogById(it.catalogId));
       const next = autoFourDoor({
         ...it,
         hinge: it.hinge ?? 'left',
@@ -185,8 +187,8 @@ export function normalizeDesign(raw: Design): Design {
         finL: noEnds ? false : it.finL ?? false,
         finR: noEnds ? false : it.finR ?? false,
         trays: it.trays ?? 0,
-        waterfallL: it.waterfallL ?? false,
-        waterfallR: it.waterfallR ?? false,
+        waterfallL: noWf ? false : it.waterfallL ?? false,
+        waterfallR: noWf ? false : it.waterfallR ?? false,
       });
       // One end treatment per side: applied end wins over finished end, which
       // wins over a waterfall edge (they'd occupy the same face).

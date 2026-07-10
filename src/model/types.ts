@@ -178,6 +178,10 @@ export interface CatalogItem {
   /** Not offered in the Add-cabinet picker (e.g. the 4-door grill/griddle,
    *  which the 2-door version auto-converts into when widened past 41″). */
   hideFromAdd?: boolean;
+  /** Tab the item is listed under in the Add-cabinet picker when it differs
+   *  from `category` (e.g. fridges behave as outdoor cabinets but are picked
+   *  from the Appliances tab). */
+  displayCategory?: Category;
 }
 
 /** User override of a cabinet's allowed size range (Settings). */

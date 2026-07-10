@@ -90,10 +90,10 @@ export const CATALOG: CatalogItem[] = [
   { id: 'out-propanedrawer', name: 'Propane Pull-Out + Drawer', category: 'outdoor', front: 'propanedrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: DRAWER1 },
   // Fridge / ice-maker "openings" are just spaces sized to the appliance — no
   // cabinet box charge (formula '0'); only the selected appliance is priced.
-  { id: 'out-fridge', name: 'Refrigerator (1-Door)', category: 'outdoor', front: 'fridge', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
-  { id: 'out-fridge2', name: 'Refrigerator (2-Drawer)', category: 'outdoor', front: 'fridge2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
-  { id: 'out-fridgep', name: 'Panel-Ready Refrigerator (1-Door)', category: 'outdoor', front: 'fridgep', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
-  { id: 'out-fridgep2', name: 'Panel-Ready Refrigerator (2-Drawer)', category: 'outdoor', front: 'fridgep2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridge', displayCategory: 'appliance', name: 'Refrigerator (1-Door)', category: 'outdoor', front: 'fridge', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridge2', displayCategory: 'appliance', name: 'Refrigerator (2-Drawer)', category: 'outdoor', front: 'fridge2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridgep', displayCategory: 'appliance', name: 'Panel-Ready Refrigerator (1-Door)', category: 'outdoor', front: 'fridgep', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridgep2', displayCategory: 'appliance', name: 'Panel-Ready Refrigerator (2-Drawer)', category: 'outdoor', front: 'fridgep2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
   { id: 'out-kamado', name: 'Kamado Cabinet', category: 'outdoor', front: 'kamado', lane: 'floor', w: 36, d: 30, h: BASE_H, minW: 30, maxW: 42, stepW: 2, counter: true, topGearH: 26, formula: BOX, applianceCat: 'kamado' },
   { id: 'out-kamado-builtin', name: 'Built-In Kamado Cabinet', category: 'outdoor', front: 'kamadoinsert', lane: 'floor', w: 36, d: 30, h: BASE_H, minW: 30, maxW: 42, stepW: 2, counter: true, topGearH: 13, formula: BOX, applianceCat: 'kamado', note: 'Open 12" top compartment the kamado drops into. The counter runs across with a cut-out over the opening.' },
   { id: 'out-icemaker', name: 'Ice Maker', category: 'outdoor', front: 'icemaker', lane: 'floor', w: 15, d: 24, h: BASE_H, minW: 12, maxW: 30, stepW: 1, counter: true, formula: '0', applianceCat: 'icemaker' },
@@ -107,10 +107,10 @@ export const CATALOG: CatalogItem[] = [
   { id: 'trim-endcap', name: 'End-Cap Support Cabinet', category: 'trim', front: 'endcap', lane: 'floor', w: 6, d: 24, h: BASE_H, minW: 3, maxW: 12, stepW: 1, counter: true, formula: BOX },
 
   // ---------- Freestanding appliances (visual) ----------
-  { id: 'app-cartgrill', name: 'Freestanding Grill', category: 'appliance', front: 'cartgrill', lane: 'floor', w: 52, d: 26, h: 48, minW: 42, maxW: 64, stepW: 2, counter: false, formula: '0' },
-  { id: 'app-dishwasher', name: 'Dishwasher', category: 'appliance', front: 'dishwasher', lane: 'floor', w: 24, d: 24, h: BASE_H, minW: 18, maxW: 24, stepW: 3, counter: false, formula: '0' },
-  { id: 'app-kamado', name: 'Kamado on Cart', category: 'appliance', front: 'kamado', lane: 'floor', w: 32, d: 30, h: 48, minW: 28, maxW: 36, stepW: 2, counter: false, formula: '0' },
-  { id: 'app-pizza', name: 'Pizza Oven Cart', category: 'appliance', front: 'pizza', lane: 'floor', w: 36, d: 30, h: 64, minW: 30, maxW: 42, stepW: 2, counter: false, formula: '0' },
+  { id: 'app-cartgrill', name: 'Freestanding Grill', category: 'appliance', front: 'cartgrill', lane: 'floor', w: 52, d: 26, h: 48, minW: 42, maxW: 64, stepW: 2, counter: false, formula: '0' , hideFromAdd: true },
+  { id: 'app-dishwasher', name: 'Dishwasher', category: 'appliance', front: 'dishwasher', lane: 'floor', w: 24, d: 24, h: BASE_H, minW: 18, maxW: 24, stepW: 3, counter: false, formula: '0' , hideFromAdd: true },
+  { id: 'app-kamado', name: 'Kamado on Cart', category: 'appliance', front: 'kamado', lane: 'floor', w: 32, d: 30, h: 48, minW: 28, maxW: 36, stepW: 2, counter: false, formula: '0' , hideFromAdd: true },
+  { id: 'app-pizza', name: 'Pizza Oven Cart', category: 'appliance', front: 'pizza', lane: 'floor', w: 36, d: 30, h: 64, minW: 30, maxW: 42, stepW: 2, counter: false, formula: '0' , hideFromAdd: true },
 ];
 
 export const CATEGORY_LABELS: Record<string, string> = {
@@ -144,6 +144,13 @@ export function takesAppliedEnds(cat: CatalogItem): boolean {
   if (cat.category === 'appliance') return false;
   if (cat.applianceCat && APPLIANCE_OPENING_CATS.includes(cat.applianceCat)) return false;
   return true;
+}
+
+/** Whether an item can take a waterfall counter edge: counter-topped floor
+ *  cabinets, excluding appliance openings (fridges, ice makers) — a waterfall
+ *  needs a real cabinet side to wrap. */
+export function takesWaterfall(cat: CatalogItem): boolean {
+  return cat.counter && cat.lane === 'floor' && takesAppliedEnds(cat);
 }
 
 /** How many door/drawer pulls (handles) a cabinet front needs. Open shelving,

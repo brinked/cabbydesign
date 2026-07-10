@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BASE_H, CATALOG, CATEGORY_LABELS, COUNTER_T, catalogById, takesAppliedEnds } from '../model/catalog';
+import { BASE_H, CATALOG, CATEGORY_LABELS, COUNTER_T, catalogById, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { money, tryFormula } from '../model/pricing';
 import {
   APPLIANCE_CATS,
@@ -63,7 +63,7 @@ export function AddItemModal() {
   const wall = design.walls.find((w) => w.id === wallId);
   if (!wall) return null;
 
-  const cats = CATALOG.filter((c) => c.category === tab && !c.hideFromAdd);
+  const cats = CATALOG.filter((c) => (c.displayCategory ?? c.category) === tab && !c.hideFromAdd);
   const openFloor = largestOpening(design, wallId, 'floor').w;
   const openUpper = largestOpening(design, wallId, 'upper').w;
 
@@ -515,7 +515,7 @@ export function EditItemModal() {
             </div>
           </div>
         )}
-        {cat.counter && cat.lane === 'floor' && (
+        {takesWaterfall(cat) && (
           <div className="stepper-row">
             <span className="stepper-label">
               Waterfall edge
