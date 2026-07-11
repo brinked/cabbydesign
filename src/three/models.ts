@@ -12,17 +12,69 @@ interface ModelTemplate {
   obj: THREE.Object3D;
   /** Real-world bounding-box size (model units, after node transforms). */
   size: THREE.Vector3;
+  /** Insulated-jacket flange top above the model base (model units). The
+   *  flange is what rests on the countertop when the unit drops in. */
+  jacketTop?: number;
+  /** How far the control panel (the head's front at its lower band) sits behind
+   *  the model's overall front, as a fraction of depth. The hood usually
+   *  overhangs past the controls, so front-aligning the whole model leaves the
+   *  knobs set back; placement shifts forward by this to bring the control panel
+   *  to the counter front. */
+  ctrlRecessFrac?: number;
 }
 
 const templates = new Map<string, ModelTemplate>();
 const listeners = new Set<() => void>();
 let started = false;
 
-/** Public model URLs (served from /public). One entry per real model. */
+/** Public model URLs (served from /public). One entry per real model.
+ *  These are small and preloaded at startup as the generic fallbacks. */
 const MODEL_URLS: Record<string, string> = {
   griddle: '/models/griddle.glb',
   grill: '/models/grill.glb', // Broilmaster B-Series head for grill cabinets
 };
+
+/**
+ * Per-appliance models (brand-accurate heads incl. insulated liners). These
+ * are large (~5-8 MB each), so they are NOT preloaded — `requestModel` lazy-
+ * loads one the first time a design actually shows that appliance. Keys are
+ * resolved from the selected appliance by `appliance3dModel` (model layer).
+ */
+const APPLIANCE_MODEL_URLS: Record<string, string> = {
+  'blaze-lte-32': '/models/grills/blaze-lte-32.glb',
+  'blaze-lte-40': '/models/grills/blaze-lte-40.glb',
+  'blaze-lte-pro-40': '/models/grills/blaze-lte-pro-40.glb',
+  'broilmaster-b-32': '/models/grills/broilmaster-b-32.glb',
+  'napoleon-700-32': '/models/grills/napoleon-700-32.glb',
+  'napoleon-700-38': '/models/grills/napoleon-700-38.glb',
+  'napoleon-700-44': '/models/grills/napoleon-700-44.glb',
+  'xo-xlt-32': '/models/grills/xo-xlt-32.glb',
+  'xo-xlt-40': '/models/grills/xo-xlt-40.glb',
+  'legriddle-commercial-75': '/models/grills/legriddle-commercial-75.glb',
+  'legriddle-commercial-105': '/models/grills/legriddle-commercial-105.glb',
+};
+
+const requested = new Set<string>();
+
+/**
+ * Kick off loading a per-appliance model once (idempotent, safe to call from
+ * render paths). Until it arrives, callers fall back to the generic model;
+ * `onModelsLoaded` fires on arrival so views re-render with the real head.
+ */
+export function requestModel(key: string): void {
+  const url = APPLIANCE_MODEL_URLS[key];
+  if (!url || requested.has(key) || templates.has(key)) return;
+  requested.add(key);
+  new GLTFLoader().load(
+    url,
+    (gltf) => {
+      templates.set(key, normalize(gltf.scene));
+      listeners.forEach((l) => l());
+    },
+    undefined,
+    () => undefined // on error: generic fallback stays
+  );
+}
 
 /** True once at least the requested model is available. */
 export function hasModel(key: string): boolean {
@@ -53,16 +105,43 @@ function stripGriddleBranding(root: THREE.Object3D): void {
   remove.forEach((o) => o.parent?.remove(o));
 }
 
-/** Center an object on X/Z with its base at y=0; record its size. */
+/** Node/mesh names that identify the insulated jacket/liner in a grill GLB. */
+const JACKET_RE = /(^|[^a-z0-9])ij\d*($|[^a-z0-9])|liner|jacket|zcl|bsasl/i;
+
+/** Center an object on X/Z with its base at y=0; record its size (and the
+ *  insulated jacket's flange height, when the model carries one). */
 function normalize(root: THREE.Object3D): ModelTemplate {
   root.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
+  let jacketTop: number | undefined;
+  // Front-most z of the control panel: the head (non-jacket) geometry in the
+  // lower ~40% of its height, where the knobs live (the hood above overhangs).
+  const bandTop = box.min.y + size.y * 0.4;
+  let ctrlZ = -Infinity;
+  const v = new THREE.Vector3();
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    if (JACKET_RE.test(o.name)) {
+      const jb = new THREE.Box3().setFromObject(o);
+      jacketTop = Math.max(jacketTop ?? -Infinity, jb.max.y - box.min.y);
+      return;
+    }
+    const pos = m.geometry.getAttribute('position');
+    if (!pos) return;
+    const step = Math.max(1, Math.floor(pos.count / 4000));
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+      if (v.y <= bandTop && v.z > ctrlZ) ctrlZ = v.z;
+    }
+  });
+  const ctrlRecessFrac = ctrlZ > -Infinity && size.z > 1e-6 ? Math.max(0, (box.max.z - ctrlZ) / size.z) : 0;
   const wrap = new THREE.Group();
   root.position.set(-center.x, -box.min.y, -center.z);
   wrap.add(root);
-  return { obj: wrap, size };
+  return { obj: wrap, size, jacketTop, ctrlRecessFrac };
 }
 
 /** Kick off loading every known model once (idempotent). */
@@ -82,6 +161,17 @@ export function loadModels(): void {
       () => undefined // on error: leave it unset, procedural fallback stays
     );
   }
+}
+
+/** Physical facts about a loaded appliance model, in inches at real size:
+ *  overall width, and (when it carries an insulated jacket) the height of
+ *  the jacket's flange above the model base. Null until loaded. */
+export function applianceModelInfo(key: string): { realWIn: number; jacketTopIn?: number; ctrlRecessFrac?: number } | null {
+  const t = templates.get(key);
+  if (!t || t.size.x <= 0) return null;
+  // model files are authored in real-world meters; report inches
+  const IN = 0.0254;
+  return { realWIn: t.size.x / IN, jacketTopIn: t.jacketTop != null ? t.jacketTop / IN : undefined, ctrlRecessFrac: t.ctrlRecessFrac };
 }
 
 /**

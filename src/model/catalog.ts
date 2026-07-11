@@ -83,15 +83,7 @@ const DRAWER1 = 'W*D + 650'; // +1 top drawer
 const DRAWER3 = 'W*D + 1050'; // top + 2 larger
 const DRAWER4 = 'W*D + 1250'; // top + 3 larger
 
-/** Grill/griddle cabinets build with 2 doors up to this width; anything wider
- *  automatically becomes a 4-door build (wide grill liners need the width). */
-export const GRILL_4DOOR_MIN_W = 41;
-/** Large-cabinet add-on baked into wide grill/griddle pricing (see itemPrice). */
-export const GRILL_4DOOR_ADDON = 100;
-/** Door count for a grill/griddle front at a given width. */
-export function grillDoorCount(front: string, w: number): 2 | 4 {
-  return (front === 'grill' || front === 'griddle') && w > GRILL_4DOOR_MIN_W ? 4 : 2;
-}
+const GRILL4 = 'W*D + 600'; // box + $100 large-grill add-on
 // Wall cabinets & the pedestal come in varying heights, so their box price
 // scales with height off a 34" reference (price = (W*D + 900) * H/34).
 const WALLBOX = '((W*D*1) + 900) * (H/34)';
@@ -137,21 +129,25 @@ export const CATALOG: CatalogItem[] = [
 
   // ---------- Outdoor kitchen cabinets ----------
   // Grill/griddle cabinets: the appliance sets INTO the cabinet (recessed face
-  // + apron + doors); the countertop does not run over them.
-  { id: 'out-grill', name: 'Grill Cabinet', category: 'outdoor', front: 'grill', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 60, stepW: 2, counter: true, topGearH: 12, formula: BOX, applianceCat: 'grill', note: `2 doors up to ${GRILL_4DOOR_MIN_W}″ wide — wider builds as a 4-door cabinet automatically.` },
-  { id: 'out-griddle', name: 'Griddle Cabinet', category: 'outdoor', front: 'griddle', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 60, stepW: 2, counter: true, topGearH: 6, formula: BOX, applianceCat: 'griddle', note: `2 doors up to ${GRILL_4DOOR_MIN_W}″ wide — wider builds as a 4-door cabinet automatically.` },
-  { id: 'out-burner', name: 'Side Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 18, d: 27, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: false, topGearH: 6, formula: BOX, applianceCat: 'sideburner' },
-  { id: 'out-power', name: 'Power Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 18, maxW: 30, stepW: 3, counter: false, topGearH: 6, formula: BOX, applianceCat: 'powerburner' },
+  // + apron + doors); the countertop does not run over them. Only the 2-door
+  // versions appear in the Add picker — widening one past 41" auto-converts it
+  // to the 4-door version (and back). See store.autoFourDoor / FOUR_DOOR_AT.
+  { id: 'out-grill', name: 'Grill Cabinet', category: 'outdoor', front: 'grill', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 12, formula: BOX, applianceCat: 'grill', note: 'Over 41″ wide it becomes the 4-door version automatically.' },
+  { id: 'out-grill4', name: 'Large Grill Cabinet (4-Door)', category: 'outdoor', front: 'grill4', lane: 'floor', w: 48, d: 30, h: BASE_H, minW: 40, maxW: 60, stepW: 2, counter: true, topGearH: 12, formula: GRILL4, applianceCat: 'grill', hideFromAdd: true, note: 'At 41″ or under it becomes the 2-door version automatically.' },
+  { id: 'out-griddle', name: 'Griddle Cabinet', category: 'outdoor', front: 'griddle', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 6, formula: BOX, applianceCat: 'griddle', note: 'Over 41″ wide it becomes the 4-door version automatically.' },
+  { id: 'out-griddle4', name: 'Large Griddle Cabinet (4-Door)', category: 'outdoor', front: 'griddle4', lane: 'floor', w: 48, d: 27, h: BASE_H, minW: 40, maxW: 60, stepW: 2, counter: true, topGearH: 6, formula: GRILL4, applianceCat: 'griddle', hideFromAdd: true, note: 'At 41″ or under it becomes the 2-door version automatically.' },
+  { id: 'out-burner', name: 'Side Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 18, d: 27, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, topGearH: 6, formula: BOX, applianceCat: 'sideburner' },
+  { id: 'out-power', name: 'Power Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 18, maxW: 30, stepW: 3, counter: true, topGearH: 6, formula: BOX, applianceCat: 'powerburner' },
   { id: 'out-propane', name: 'Propane Pull-Out', category: 'outdoor', front: 'propane', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: BOX },
   { id: 'out-propanedrawer', name: 'Propane Pull-Out + Drawer', category: 'outdoor', front: 'propanedrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: DRAWER1 },
   // Fridge / ice-maker "openings" are just spaces sized to the appliance — no
   // cabinet box charge (formula '0'); only the selected appliance is priced.
-  { id: 'out-fridge', name: 'Refrigerator (1-Door)', category: 'outdoor', front: 'fridge', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
-  { id: 'out-fridge2', name: 'Refrigerator (2-Drawer)', category: 'outdoor', front: 'fridge2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
-  { id: 'out-fridgep', name: 'Panel-Ready Refrigerator (1-Door)', category: 'outdoor', front: 'fridgep', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
-  { id: 'out-fridgep2', name: 'Panel-Ready Refrigerator (2-Drawer)', category: 'outdoor', front: 'fridgep2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridge', displayCategory: 'appliance', name: 'Refrigerator (1-Door)', category: 'outdoor', front: 'fridge', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridge2', displayCategory: 'appliance', name: 'Refrigerator (2-Drawer)', category: 'outdoor', front: 'fridge2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridgep', displayCategory: 'appliance', name: 'Panel-Ready Refrigerator (1-Door)', category: 'outdoor', front: 'fridgep', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
+  { id: 'out-fridgep2', displayCategory: 'appliance', name: 'Panel-Ready Refrigerator (2-Drawer)', category: 'outdoor', front: 'fridgep2', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },
   { id: 'out-kamado', name: 'Kamado Cabinet', category: 'outdoor', front: 'kamado', lane: 'floor', w: 36, d: 30, h: BASE_H, minW: 30, maxW: 42, stepW: 2, counter: true, topGearH: 26, formula: BOX, applianceCat: 'kamado' },
-  { id: 'out-kamado-builtin', name: 'Built-In Kamado Cabinet', category: 'outdoor', front: 'kamadoinsert', lane: 'floor', w: 36, d: 30, h: BASE_H, minW: 30, maxW: 42, stepW: 2, counter: false, topGearH: 13, formula: BOX, applianceCat: 'kamado', note: 'Open 12" top compartment the kamado drops into.' },
+  { id: 'out-kamado-builtin', name: 'Built-In Kamado Cabinet', category: 'outdoor', front: 'kamadoinsert', lane: 'floor', w: 36, d: 30, h: BASE_H, minW: 30, maxW: 42, stepW: 2, counter: true, topGearH: 13, formula: BOX, applianceCat: 'kamado', note: 'Open 12" top compartment the kamado drops into. The counter runs across with a cut-out over the opening.' },
   { id: 'out-icemaker', name: 'Ice Maker', category: 'outdoor', front: 'icemaker', lane: 'floor', w: 15, d: 24, h: BASE_H, minW: 12, maxW: 30, stepW: 1, counter: true, formula: '0', applianceCat: 'icemaker' },
   { id: 'out-sink', name: 'Outdoor Sink Cabinet', category: 'outdoor', front: 'sink', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 36, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
 
@@ -163,11 +159,11 @@ export const CATALOG: CatalogItem[] = [
   { id: 'trim-endcap', name: 'End-Cap Support Cabinet', category: 'trim', front: 'endcap', lane: 'floor', w: 6, d: 24, h: BASE_H, minW: 3, maxW: 12, stepW: 1, counter: true, formula: BOX },
 
   // ---------- Freestanding appliances (visual) ----------
-  { id: 'app-cartgrill', name: 'Freestanding Grill', category: 'appliance', front: 'cartgrill', lane: 'floor', w: 52, d: 26, h: 48, minW: 42, maxW: 64, stepW: 2, counter: false, formula: '0' },
-  { id: 'app-dishwasher', name: 'Dishwasher', category: 'appliance', front: 'dishwasher', lane: 'floor', w: 24, d: 24, h: BASE_H, minW: 18, maxW: 24, stepW: 3, counter: false, formula: '0' },
+  { id: 'app-cartgrill', name: 'Freestanding Grill', category: 'appliance', front: 'cartgrill', lane: 'floor', w: 52, d: 26, h: 48, minW: 42, maxW: 64, stepW: 2, counter: false, formula: '0', hideFromAdd: true },
+  { id: 'app-dishwasher', name: 'Dishwasher', category: 'appliance', front: 'dishwasher', lane: 'floor', w: 24, d: 24, h: BASE_H, minW: 18, maxW: 24, stepW: 3, counter: false, formula: '0', hideFromAdd: true },
   { id: 'app-range', name: 'Range / Stove with Oven', category: 'appliance', front: 'range', lane: 'floor', w: 30, d: 27, h: 36, minW: 30, maxW: 36, stepW: 6, counter: false, topGearH: 1, formula: '0', note: 'Freestanding range — cooktop up top, oven below.' },
-  { id: 'app-kamado', name: 'Kamado on Cart', category: 'appliance', front: 'kamado', lane: 'floor', w: 32, d: 30, h: 48, minW: 28, maxW: 36, stepW: 2, counter: false, formula: '0' },
-  { id: 'app-pizza', name: 'Pizza Oven Cart', category: 'appliance', front: 'pizza', lane: 'floor', w: 36, d: 30, h: 64, minW: 30, maxW: 42, stepW: 2, counter: false, formula: '0' },
+  { id: 'app-kamado', name: 'Kamado on Cart', category: 'appliance', front: 'kamado', lane: 'floor', w: 32, d: 30, h: 48, minW: 28, maxW: 36, stepW: 2, counter: false, formula: '0', hideFromAdd: true },
+  { id: 'app-pizza', name: 'Pizza Oven Cart', category: 'appliance', front: 'pizza', lane: 'floor', w: 36, d: 30, h: 64, minW: 30, maxW: 42, stepW: 2, counter: false, formula: '0', hideFromAdd: true },
 
   // ---------- NewAge Products modular lines (fixed factory sizes) ----------
   ...NEWAGE_CATALOG,
@@ -238,6 +234,13 @@ export function takesAppliedEnds(cat: CatalogItem): boolean {
   return true;
 }
 
+/** Whether an item can take a waterfall counter edge: counter-topped floor
+ *  cabinets, excluding appliance openings (fridges, ice makers) — a waterfall
+ *  needs a real cabinet side to wrap. */
+export function takesWaterfall(cat: CatalogItem): boolean {
+  return cat.counter && cat.lane === 'floor' && takesAppliedEnds(cat);
+}
+
 /** How many door/drawer pulls (handles) a cabinet front needs. Open shelving,
  *  fillers, false fronts and appliance openings have none. Two-door fronts use
  *  a single door under 24″ wide. Used for the report hardware count. */
@@ -255,7 +258,10 @@ export function handleCount(cat: CatalogItem, w: number): number {
       return doublable;
     case 'grill':
     case 'griddle':
-      return grillDoorCount(cat.front, w) === 4 ? 4 : doublable;
+      return doublable;
+    case 'grill4':
+    case 'griddle4':
+      return 4;
     case 'drawers3':
       return 3;
     case 'drawers4':

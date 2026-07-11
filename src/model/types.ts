@@ -44,7 +44,9 @@ export type FrontKind =
   | 'blindl'
   | 'blindr'
   | 'grill'
+  | 'grill4'
   | 'griddle'
+  | 'griddle4'
   | 'burner'
   | 'fridge'
   | 'fridge2'
@@ -106,6 +108,30 @@ export interface ApplianceItem {
 /** Per-brand discount map. The percent is the manufacturer discount the admin
  *  receives; the dealer automatically gets half of it. */
 export type ApplianceBrands = Record<string, { discountPct: number }>;
+
+/** Admin-managed $/sqft rates for end/back panels. `applied` covers applied
+ *  end + island back panels; `finished` covers finished ends (costlier). */
+export interface PanelRates {
+  applied: number;
+  finished: number;
+}
+
+/** Per-model 3D placement override, tuned in the admin Appliance Aligner and
+ *  applied on top of the automatic seating. Keyed by model key (e.g.
+ *  "blaze-lte-32"). All fields optional; absent = no adjustment. */
+export interface ModelAlign {
+  /** Rotation in degrees. yaw = around vertical, pitch = tip fwd/back, roll = tilt. */
+  yaw?: number;
+  pitch?: number;
+  roll?: number;
+  /** Position nudge in inches: left/right, up/down, forward/back. */
+  dx?: number;
+  dy?: number;
+  dz?: number;
+  /** Uniform size multiplier on top of the width fit (default 1). */
+  scale?: number;
+}
+export type ModelAligns = Record<string, ModelAlign>;
 
 /** One cabinet handle/pull in the admin-managed hardware inventory. */
 export interface HandleItem {
@@ -176,6 +202,13 @@ export interface CatalogItem {
   /** NewAge retail pricing per finish id (finish → SKU + price). A finish
    *  missing from the map means the unit isn't made in that finish. */
   naPricing?: Record<string, NaVariant>;
+  /** Not offered in the Add-cabinet picker (e.g. the 4-door grill/griddle,
+   *  which the 2-door version auto-converts into when widened past 41″). */
+  hideFromAdd?: boolean;
+  /** Tab the item is listed under in the Add-cabinet picker when it differs
+   *  from `category` (e.g. fridges behave as outdoor cabinets but are picked
+   *  from the Appliances tab). */
+  displayCategory?: Category;
 }
 
 /** User override of a cabinet's allowed size range (Settings). */
@@ -227,6 +260,10 @@ export interface PlacedItem {
   /** Applied (finished) end panel on the left/right end of a run. */
   endL: boolean;
   endR: boolean;
+  /** Finished end — the cabinet side itself built from finished material
+   *  (no added width, priced per sqft above the applied-end rate). */
+  finL?: boolean;
+  finR?: boolean;
   /** Pull-out trays added inside this cabinet (0..maxTrays). */
   trays: number;
   /** Appliance chosen for this cabinet (appliance-housing cabinets only). */
@@ -354,6 +391,9 @@ export interface Design {
   openings: Opening[];
   /** Persistent tape-measure annotations in the plan view. */
   measurements?: Measurement[];
+  /** Per-corner overrides for the auto-added corner fillers, keyed
+   *  `${wallId}:start|end` — a custom width, or removed entirely. */
+  cornerOverrides?: Record<string, { w?: number; off?: boolean }>;
 }
 
 export interface PricedLine {

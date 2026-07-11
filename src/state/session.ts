@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import { api, ApiError, type ApiUser, type CertInfo, type DealerPrefs } from '../api/client';
 import { NEWAGE_DEFAULT_APPLIANCES } from '../model/newage';
+import { DEFAULT_GRILL_APPLIANCES } from '../model/defaultAppliances';
 import { useStore } from './store';
 
 export type Screen = 'design' | 'admin' | 'jobs' | 'profile';
@@ -40,7 +41,7 @@ interface SessionState {
 }
 
 async function pullGlobals(set: (partial: Partial<SessionState>) => void) {
-  const [{ dims }, { pricing }, { retailPricing }, { rate }, { appliances }, { brands }, { handles }] = await Promise.all([
+  const [{ dims }, { pricing }, { retailPricing }, { rate }, { appliances }, { brands }, { handles }, { clearance }, { modelAligns }, { rates }] = await Promise.all([
     api.getCabinetDims(),
     api.getPricing(),
     api.getRetailPricing(),
@@ -48,10 +49,13 @@ async function pullGlobals(set: (partial: Partial<SessionState>) => void) {
     api.getAppliances(),
     api.getApplianceBrands(),
     api.getHandles(),
+    api.getLinerClearance(),
+    api.getModelAligns(),
+    api.getPanelRates(),
   ]);
   // Push server-managed globals into the designer store. These override the
   // per-browser values that store.ts persists in localStorage.
-  useStore.setState({ dims, pricing, retailPricing, appliances, applianceBrands: brands, handles });
+  useStore.setState({ dims, pricing, retailPricing, appliances, applianceBrands: brands, handles, linerClearance: clearance, modelAligns, panelRates: rates });
   set({ taxRate: rate });
 }
 
@@ -102,10 +106,11 @@ export const useSession = create<SessionState>()((set, get) => ({
     } catch {
       /* offline / no server — the built-in catalog still works */
     }
-    // No admin appliance inventory? Seed the NewAge insert grills so the grill
-    // cabinets have real options to choose from.
+    // No admin appliance inventory? Seed the built-in brand grills/griddles
+    // (with real 3D models) + the NewAge insert grills so every grill cabinet
+    // has real options to choose from.
     if (useStore.getState().appliances.length === 0) {
-      useStore.setState({ appliances: NEWAGE_DEFAULT_APPLIANCES });
+      useStore.setState({ appliances: [...DEFAULT_GRILL_APPLIANCES, ...NEWAGE_DEFAULT_APPLIANCES] });
     }
     localStorage.setItem(GUEST_KEY, '1');
     set({ status: 'guest', user: null, prefs: null, cert: null, screen: 'design' });

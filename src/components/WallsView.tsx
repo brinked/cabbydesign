@@ -3,13 +3,14 @@ import type { FinishOption, OpeningKind, PlacedItem, RoughInKind, Wall } from '.
 import { ALL_FINISHES, BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
 import { resolveItemFinish } from '../model/newage';
 import { countertopById } from '../model/countertops';
-import { isReserveExempt, type CornerReserve } from '../model/geometry';
+import { cornerCounterExtend, isReserveExempt, type CornerReserve } from '../model/geometry';
 import { backsplashSpans, footprintW, laneItems, openingClash, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
 import { grillCutout } from '../three/cabinet3d';
 import { hasModel } from '../three/models';
 import { ElevationCabinet } from './CabinetImage';
 import { NumberField } from './NumberField';
 import { DimH, DimV, OpeningGlyph, RoughInGlyph, fmtIn } from './svg';
+import { appliance3dModel } from '../model/appliances';
 
 const SNAP = 1.25; // inches
 
@@ -64,6 +65,7 @@ export function WallElevationSvg({
   const openOpening = useStore((s) => s.openOpening);
   const editingOpeningId = useStore((s) => s.editingOpeningId);
   const wallOpenings = design.openings.filter((o) => o.wallId === wall.id);
+  const appliances = useStore((s) => s.appliances);
   // re-render when real 3D models arrive (counter gaps depend on the grill model)
   useStore((s) => s.modelsReady);
 
@@ -360,10 +362,11 @@ export function WallElevationSvg({
           <g
             key={it.id}
             transform={`translate(${it.x} ${y})`}
-            style={{ cursor: interactive && !it.auto ? 'grab' : 'default' }}
-            onPointerDown={it.auto ? undefined : (e) => onPointerDown(e, it)}
+            style={{ cursor: interactive ? (it.auto ? 'pointer' : 'grab') : 'default' }}
+            onPointerDown={it.auto ? (e) => e.stopPropagation() : (e) => onPointerDown(e, it)}
             onPointerMove={it.auto ? undefined : (e) => onPointerMove(e, it)}
             onPointerUp={it.auto ? undefined : (e) => onPointerUp(e, it)}
+            onClick={it.auto && interactive ? () => openEditor(it.id) : undefined}
           >
             <ElevationCabinet cat={cat} it={it} fin={itFin} wallLength={wall.length} />
             {numbers && (
@@ -397,18 +400,23 @@ export function WallElevationSvg({
         // counter doesn't cut over an adjoining cabinet of a different height.
         const leftAbut = floorItems.some((o) => Math.abs(o.x + footprintW(o) - r.x1) < 0.75);
         const rightAbut = floorItems.some((o) => Math.abs(o.x - r.x2) < 0.75);
-        const x1 = Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
-        const x2 = Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), wall.length);
+        // At an owned dead corner the counter runs to the wall end (matches 3D).
+        const ext = cornerCounterExtend(wall, design.walls, design.items, design.cornerOverrides);
+        const fillStart = ext.start && r.x1 <= reserve.start + 1;
+        const fillEnd = ext.end && r.x2 >= wall.length - reserve.end - 1;
+        const x1 = fillStart ? 0 : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
+        const x2 = fillEnd ? wall.length : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), wall.length);
         const cy = floorY - r.h - cT; // counter sits on top of this run's cabinets
         // The real grill head's control panel hangs in front of the counter, so
         // the counter visually breaks at its opening (matches the 3D notch).
         const gaps = floorItems
           .filter((it) => {
             const c = catalogById(it.catalogId);
-            return c.front === 'grill' && hasModel('grill') && it.x >= r.x1 - 0.1 && it.x <= r.x2 + 0.1 && Math.abs(it.h - r.h) < 0.01;
+            const notched = c.front === 'grill' || c.front === 'grill4' || c.front === 'griddle' || c.front === 'griddle4' || c.front === 'burner';
+            return notched && it.x >= r.x1 - 0.1 && it.x <= r.x2 + 0.1 && Math.abs(it.h - r.h) < 0.01;
           })
           .map((it) => {
-            const cut = grillCutout(catalogById(it.catalogId), it.w, it.d)!;
+            const cut = grillCutout(catalogById(it.catalogId), it.w, it.d, appliance3dModel(it.appliance, appliances)?.w)!;
             const cx = it.x + footprintW(it) / 2;
             return { x1: cx - cut.bw / 2, x2: cx + cut.bw / 2 };
           })

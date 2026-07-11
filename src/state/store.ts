@@ -1,25 +1,48 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, Opening, OpeningKind, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
-import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, GRILL_4DOOR_ADDON, TOEKICK_H, catalogById, doorStylesFor, finishesForLine, grillDoorCount, takesAppliedEnds } from '../model/catalog';
+import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
+import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
+import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { CORNER_EPS, CORNER_FILLER, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
 
-/** Applied panels (ends + island backs) bill at this rate per square foot. */
+/** Applied panels (ends + island backs) bill at this rate per square foot.
+ *  Default only — the admin-managed rates live in store.panelRates. */
 export const PANEL_RATE_PER_SQFT = 36;
+/** Finished ends (the side itself in finished material) cost a bit more. */
+export const FINISHED_END_RATE_PER_SQFT = 45;
+export const DEFAULT_PANEL_RATES: PanelRates = { applied: PANEL_RATE_PER_SQFT, finished: FINISHED_END_RATE_PER_SQFT };
+
+/** The current admin-managed panel rates (synced from the server at login). */
+export function panelRates(): PanelRates {
+  return useStore.getState().panelRates ?? DEFAULT_PANEL_RATES;
+}
 
 /** Catalog ids that were renamed/removed — remap (or drop) on load. */
 const CATALOG_MIGRATE: Record<string, string> = {
   'base-doordrawer': 'base-1door1drawer',
   'base-blind': 'base-blindr',
   'app-icemaker': 'out-icemaker',
-  // grill cabinets merged: door count now derives from width (see grillDoorCount)
-  'out-grill4': 'out-grill',
   ...NEWAGE_ID_MIGRATE,
 };
 const VALID_IDS = new Set(CATALOG.map((c) => c.id));
+
+/** Width above which a grill/griddle cabinet auto-converts to its 4-door version. */
+export const FOUR_DOOR_AT = 41;
+const FOUR_DOOR_UP: Record<string, string> = { 'out-grill': 'out-grill4', 'out-griddle': 'out-griddle4' };
+const FOUR_DOOR_DOWN: Record<string, string> = { 'out-grill4': 'out-grill', 'out-griddle4': 'out-griddle' };
+
+/** Grill/griddle cabinets over FOUR_DOOR_AT wide become the 4-door version;
+ *  at or under it they revert to the 2-door version. Everything else passes. */
+function autoFourDoor(it: PlacedItem): PlacedItem {
+  const up = FOUR_DOOR_UP[it.catalogId];
+  if (up && it.w > FOUR_DOOR_AT) return { ...it, catalogId: up };
+  const down = FOUR_DOOR_DOWN[it.catalogId];
+  if (down && it.w <= FOUR_DOOR_AT) return { ...it, catalogId: down };
+  return it;
+}
 
 /** Effective allowed size range for a cabinet, with user Settings overrides. */
 export function effectiveDims(
@@ -171,17 +194,28 @@ export function normalizeDesign(raw: Design): Design {
     .filter((it) => VALID_IDS.has(it.catalogId))
     .map((it) => {
       // Appliances and appliance openings (fridges, ice makers) can't take
-      // applied ends — strip any stale flags so they don't render or bill.
+      // applied ends or waterfalls — strip stale flags so they don't render
+      // or bill.
       const noEnds = !takesAppliedEnds(catalogById(it.catalogId));
-      return {
+      const noWf = !takesWaterfall(catalogById(it.catalogId));
+      const next = autoFourDoor({
         ...it,
         hinge: it.hinge ?? 'left',
         endL: noEnds ? false : it.endL ?? false,
         endR: noEnds ? false : it.endR ?? false,
+        finL: noEnds ? false : it.finL ?? false,
+        finR: noEnds ? false : it.finR ?? false,
         trays: it.trays ?? 0,
-        waterfallL: it.waterfallL ?? false,
-        waterfallR: it.waterfallR ?? false,
-      };
+        waterfallL: noWf ? false : it.waterfallL ?? false,
+        waterfallR: noWf ? false : it.waterfallR ?? false,
+      });
+      // One end treatment per side: applied end wins over finished end, which
+      // wins over a waterfall edge (they'd occupy the same face).
+      if (next.endL) next.finL = false;
+      if (next.endR) next.finR = false;
+      if (next.endL || next.finL) next.waterfallL = false;
+      if (next.endR || next.finR) next.waterfallR = false;
+      return next;
     });
   // Product line: map legacy per-material lines to the merged NewAge line and
   // infer from placed items for pre-line saves; keep the finish within the
@@ -205,7 +239,7 @@ export function normalizeDesign(raw: Design): Design {
   const wallIds = new Set(walls.map((w) => w.id));
   const roughIns = (raw.roughIns ?? []).filter((r) => wallIds.has(r.wallId));
   const openings = (raw.openings ?? []).filter((o) => wallIds.has(o.wallId));
-  const counterThickness = raw.counterThickness && raw.counterThickness > 0 ? raw.counterThickness : COUNTER_T;
+  const counterThickness = raw.counterThickness && raw.counterThickness > 0 ? Math.min(5, raw.counterThickness) : COUNTER_T;
   const counterId = raw.counterId ?? DEFAULT_COUNTERTOP;
   const backsplashHeight = raw.backsplashHeight && raw.backsplashHeight > 0 ? raw.backsplashHeight : 0;
   const result = { ...defaultDesign(), ...raw, kitchenType, line, finishId, doorStyle, counterThickness, counterId, backsplashHeight, dimFrom: raw.dimFrom ?? 'left', walls, items, roughIns, openings };
@@ -234,6 +268,10 @@ interface AppState {
   handlesOpen: boolean;
   /** Admin-managed handle (cabinet pull) inventory. */
   handles: HandleItem[];
+  /** Admin appliance-model aligner modal. */
+  alignerOpen: boolean;
+  /** Admin-tuned per-model 3D placement overrides (modelKey -> nudge). */
+  modelAligns: ModelAligns;
   /** catalogId -> formula override (base / dealer cost) */
   pricing: Record<string, string>;
   /** catalogId -> retail price formula (basis for contractor "% off retail") */
@@ -244,8 +282,12 @@ interface AppState {
   appliances: ApplianceItem[];
   /** Per-brand manufacturer discount (dealer gets half). */
   applianceBrands: ApplianceBrands;
-  /** Bumps once per real 3D appliance model (glb) that loads — models arrive
-   *  at different times, so a counter re-renders views for each arrival. */
+  /** Admin-managed clearance (inches) a grill/griddle/burner cabinet must be
+   *  wider than its insulated liner's cutout. Synced from the server. */
+  linerClearance: number;
+  /** Admin-managed $/sqft rates for applied/finished end panels. */
+  panelRates: PanelRates;
+  /** Bumped as each real 3D appliance model (glb) loads — re-renders views. */
   modelsReady: number;
   snapshot3d: string | null;
 
@@ -255,8 +297,12 @@ interface AppState {
   setMyAppliancesOpen: (open: boolean) => void;
   setAppliances: (appliances: ApplianceItem[]) => void;
   setApplianceBrands: (brands: ApplianceBrands) => void;
+  setLinerClearance: (linerClearance: number) => void;
+  setPanelRates: (panelRates: PanelRates) => void;
   setHandlesOpen: (open: boolean) => void;
   setHandles: (handles: HandleItem[]) => void;
+  setAlignerOpen: (open: boolean) => void;
+  setModelAligns: (modelAligns: ModelAligns) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
   setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight' | 'dimFrom' | 'handleId'>>) => void;
   applyPreset: (layout: LayoutKind) => void;
@@ -272,6 +318,8 @@ interface AppState {
   duplicateItem: (id: string) => void;
   moveItem: (id: string, x: number) => void;
   reflowAll: () => void;
+  /** Adjust or remove an auto corner filler (key `${wallId}:start|end`); null resets to the standard 3″. */
+  setCornerOverride: (key: string, o: { w?: number; off?: boolean } | null) => void;
   addRoughIn: (wallId: string, kind: RoughInKind) => void;
   updateRoughIn: (id: string, patch: Partial<Omit<RoughIn, 'id' | 'wallId'>>) => void;
   removeRoughIn: (id: string) => void;
@@ -335,6 +383,12 @@ export function openingClash(o: Opening, items: PlacedItem[], counterT: number):
 export function appliedEnds(it: PlacedItem): { l: boolean; r: boolean } {
   if (!takesAppliedEnds(catalogById(it.catalogId))) return { l: false, r: false };
   return { l: !!it.endL, r: !!it.endR };
+}
+
+/** Finished ends (side built in finished material, no added width). */
+export function finishedEnds(it: PlacedItem): { l: boolean; r: boolean } {
+  if (!takesAppliedEnds(catalogById(it.catalogId))) return { l: false, r: false };
+  return { l: !!it.finL, r: !!it.finR };
 }
 
 /** Overall width an item occupies on the wall: cabinet + applied end panels. */
@@ -423,18 +477,19 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
     return { ...ZERO_PRICE, cabinet: c, total: c };
   }
   const formula = pricing[cat.id] ?? cat.formula;
-  let { price, error } = tryFormula(formula, { W: it.w, D: it.d, H: it.h });
+  const { price, error } = tryFormula(formula, { W: it.w, D: it.d, H: it.h });
   if (error) return { ...ZERO_PRICE, error };
-  // Wide grill/griddle cabinets build as 4-door units — large-cabinet add-on.
-  if (grillDoorCount(cat.front, it.w) === 4) price += GRILL_4DOOR_ADDON;
   const hasKick = cat.lane === 'floor';
   const panelH = Math.max(0, it.h - (hasKick ? TOEKICK_H : 0));
   const sqft = (wIn: number) => (wIn * panelH) / 144;
   const trays = (it.trays ?? 0) * DEFAULT_RATES.tray;
+  const rates = panelRates();
   const e = appliedEnds(it);
   const nEnds = (e.l ? 1 : 0) + (e.r ? 1 : 0);
-  const ends = nEnds * sqft(it.d) * PANEL_RATE_PER_SQFT;
-  const back = itemOnIsland(design, it) ? sqft(it.w) * PANEL_RATE_PER_SQFT : 0;
+  const f = finishedEnds(it);
+  const nFin = (f.l ? 1 : 0) + (f.r ? 1 : 0);
+  const ends = nEnds * sqft(it.d) * rates.applied + nFin * sqft(it.d) * rates.finished;
+  const back = itemOnIsland(design, it) ? sqft(it.w) * rates.applied : 0;
   const total = price + trays + ends + back;
   return {
     cabinet: round2(price),
@@ -460,7 +515,7 @@ export function itemNumbers(design: Design): Map<string, number> {
 }
 
 export function reservesFor(design: Design): Map<string, { start: number; end: number }> {
-  return cornerReserves(design.walls, design.items, catalogById);
+  return cornerReserves(design.walls, design.items, catalogById, design.cornerOverrides);
 }
 
 export function spaceLeft(design: Design, wallId: string, lane: 'floor' | 'upper'): number {
@@ -507,7 +562,7 @@ export function largestOpening(design: Design, wallId: string, lane: 'floor' | '
 /** Where (and how wide) a given catalog item can be added on a wall lane. */
 export function openingFor(design: Design, wallId: string, cat: { front: string; lane: 'floor' | 'upper' }): { x: number; w: number } {
   // corner/blind cabinets drop into a reserved dead-corner zone (start or end)
-  if (cat.front === 'corner' || cat.front === 'susan' || cat.front === 'blind') {
+  if (cat.front === 'corner' || cat.front === 'susan' || cat.front === 'blind' || cat.front === 'blindl' || cat.front === 'blindr') {
     const wall = design.walls.find((w) => w.id === wallId);
     if (!wall) return { x: 0, w: 0 };
     const r = reservesFor(design).get(wallId) ?? { start: 0, end: 0 };
@@ -554,7 +609,7 @@ function packLane(items: PlacedItem[], wallLength: number, lo: number, hi: numbe
 
 /** Re-pack every wall (corner reserves depend on neighbouring walls, so pack globally). */
 function packAll(design: Design): void {
-  const reserves = cornerReserves(design.walls, design.items, catalogById);
+  const reserves = cornerReserves(design.walls, design.items, catalogById, design.cornerOverrides);
   for (const wall of design.walls) {
     const r = reserves.get(wall.id) ?? { start: 0, end: 0 };
     packLane(laneItems(design.items, wall.id, 'floor'), wall.length, r.start, wall.length - r.end);
@@ -591,8 +646,11 @@ function alignFillers(design: Design): void {
  *  estimate for the report. */
 export function counterAreaSqft(design: Design): number {
   let sqin = 0;
+  const reserves = reservesFor(design);
   for (const wall of design.walls) {
     const floor = laneItems(design.items, wall.id, 'floor');
+    const ext = cornerCounterExtend(wall, design.walls, design.items, design.cornerOverrides);
+    const wr = reserves.get(wall.id) ?? { start: 0, end: 0 };
     // corner & susan units carry their own L-shaped top (≈ their footprint)
     for (const it of floor) {
       const c = catalogById(it.catalogId);
@@ -613,7 +671,12 @@ export function counterAreaSqft(design: Design): number {
         last.d = Math.max(last.d, it.d + it.outset);
       } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset });
     }
-    for (const r of runs) sqin += (r.x2 - r.x1) * (r.d + COUNTER_OVERHANG);
+    for (const r of runs) {
+      // owned dead corners: the run extends to the wall corner (matches 3D)
+      const x1 = ext.start && r.x1 <= wr.start + 1 ? 0 : r.x1;
+      const x2 = ext.end && r.x2 >= wall.length - wr.end - 1 ? wall.length : r.x2;
+      sqin += (x2 - x1) * (r.d + COUNTER_OVERHANG);
+    }
   }
   return Math.round((sqin / 144) * 10) / 10;
 }
@@ -621,9 +684,10 @@ export function counterAreaSqft(design: Design): number {
 /**
  * Auto-place a 3″ base filler on each wall at an inside corner where a plain
  * (non-corner) floor cabinet meets either a plain floor cabinet OR a blind
- * corner cabinet on the adjoining wall — closing the dead-corner gap (and the
- * blind unit's door clearance) so the user doesn't have to add fillers by hand.
- * These carry `auto: true`, are re-derived on every pack, and are not editable.
+ * corner cabinet on the adjoining wall — closing the dead-corner gap (you
+ * can't butt a cabinet right against a blind cabinet's blind face) so the
+ * user doesn't have to add fillers by hand. These carry `auto: true`, are
+ * re-derived on every pack, and are not editable.
  */
 function autoCornerFillers(design: Design): void {
   // re-derive from scratch — drop any previously auto-placed fillers
@@ -668,26 +732,29 @@ function autoCornerFillers(design: Design): void {
         ] as const) {
           const nW = nearest(W, eW);
           const nO = nearest(O, eO);
-          // W needs a plain cabinet bordering the corner; the adjoining wall
-          // needs a plain cabinet OR a blind corner unit (whose buried door
-          // needs the 3" filler). Diagonal/susan corners butt flush — no filler.
+          // W's own cabinet must be plain (a corner unit fills the corner itself).
+          // The other wall's cabinet may be plain OR a blind corner cabinet —
+          // both need the 3" filler; diagonal/susan corners butt flush instead.
           if (!nW || !nO || nW.corner || (nO.corner && !nO.blind)) continue;
           // NewAge modular kitchens don't use HDPE fillers — their corner
           // cabinets close the corner instead.
           if (catalogById(nW.it.catalogId).line || catalogById(nO.it.catalogId).line) continue;
+          // per-corner override: custom filler width, or removed entirely
+          const gap = cornerGapFor(design.cornerOverrides, W.id, eW);
+          if (gap <= 0) continue;
           // only fill when W's cabinet actually borders the dead-corner zone
-          // (the other wall's depth + the 3″ clearance)
-          if (nW.edge > nO.it.d + nO.it.outset + CORNER_FILLER + 1) continue;
+          // (the other wall's depth + the corner clearance)
+          if (nW.edge > nO.it.d + nO.it.outset + gap + 1) continue;
           const id = `cf-${W.id}-${eW}`;
           if (seen.has(id)) continue;
           seen.add(id);
-          const x = eW === 'start' ? nW.it.x - CORNER_FILLER : nW.it.x + footprintW(nW.it);
+          const x = eW === 'start' ? nW.it.x - gap : nW.it.x + footprintW(nW.it);
           add.push({
             id,
             wallId: W.id,
             catalogId: 'trim-basefiller',
-            x: Math.max(0, Math.min(x, W.length - CORNER_FILLER)),
-            w: CORNER_FILLER,
+            x: Math.max(0, Math.min(x, W.length - gap)),
+            w: gap,
             d: fillerCat.d,
             // match the cabinet it abuts so it isn't a different height
             h: nW.it.h,
@@ -733,11 +800,15 @@ export const useStore = create<AppState>()(
       myAppliancesOpen: false,
       handlesOpen: false,
       handles: [],
+      alignerOpen: false,
+      modelAligns: {},
       pricing: {},
       retailPricing: {},
       dims: {},
       appliances: [],
       applianceBrands: {},
+      linerClearance: LINER_CABINET_CLEARANCE,
+      panelRates: DEFAULT_PANEL_RATES,
       modelsReady: 0,
       snapshot3d: null,
 
@@ -747,8 +818,12 @@ export const useStore = create<AppState>()(
       setMyAppliancesOpen: (open) => set({ myAppliancesOpen: open }),
       setAppliances: (appliances) => set({ appliances }),
       setApplianceBrands: (applianceBrands) => set({ applianceBrands }),
+      setLinerClearance: (linerClearance) => set({ linerClearance }),
+      setPanelRates: (panelRates) => set({ panelRates }),
       setHandlesOpen: (open) => set({ handlesOpen: open }),
       setHandles: (handles) => set({ handles }),
+      setAlignerOpen: (open) => set({ alignerOpen: open }),
+      setModelAligns: (modelAligns) => set({ modelAligns }),
       setDim: (catalogId, patch) =>
         set((s) => {
           const cur = s.dims[catalogId] ?? {};
@@ -886,7 +961,7 @@ export const useStore = create<AppState>()(
         // use the default width, or shrink to the largest that fits (≥ min)
         const w = Math.max(minW, Math.min(cat.w, Math.floor(slot.w * 4) / 4));
         // corner cabinets at the wall's far end chamfer toward the other side
-        const isCornerCab = cat.front === 'corner' || cat.front === 'susan' || cat.front === 'blind';
+        const isCornerCab = isCornerFront(cat);
         const hinge: 'left' | 'right' = isCornerCab && slot.x > 1 ? 'right' : 'left';
         const item: PlacedItem = {
           id: uid('item'),
@@ -909,7 +984,7 @@ export const useStore = create<AppState>()(
 
       updateItem: (id, patch) =>
         set((s) => {
-          const items = s.design.items.map((it) => (it.id === id ? { ...it, ...patch } : it));
+          const items = s.design.items.map((it) => (it.id === id ? autoFourDoor({ ...it, ...patch }) : it));
           return { design: withPack({ ...s.design, items }) };
         }),
 
@@ -943,6 +1018,14 @@ export const useStore = create<AppState>()(
         })),
 
       reflowAll: () => set((s) => ({ design: withPack(s.design) })),
+
+      setCornerOverride: (key, o) =>
+        set((s) => {
+          const cur = { ...(s.design.cornerOverrides ?? {}) };
+          if (o == null) delete cur[key];
+          else cur[key] = o;
+          return { design: withPack({ ...s.design, cornerOverrides: cur }) };
+        }),
 
       addRoughIn: (wallId, kind) =>
         set((s) => {

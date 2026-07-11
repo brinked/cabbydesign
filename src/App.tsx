@@ -5,11 +5,13 @@ import TopView from './components/TopView';
 import View3D from './components/View3D';
 import Report from './components/Report';
 import StartScreen from './components/StartScreen';
+import Login from './components/Login';
 import ResetPassword from './components/ResetPassword';
 import AdminPanel from './components/AdminPanel';
 import JobsScreen from './components/JobsScreen';
 import ProfileScreen from './components/ProfileScreen';
 import { AddItemModal, AppliancesModal, EditItemModal, HandlesModal, MyAppliancesModal, OpeningModal, PricingModal, RetailPricingModal, RoughInModal, SettingsModal } from './components/Modals';
+import { ApplianceAlignerModal } from './components/ApplianceAligner';
 import SaveJobModal from './components/SaveJobModal';
 import { SvgDefs } from './components/svg';
 import { useStore } from './state/store';
@@ -24,6 +26,9 @@ export default function App() {
 
   // Password-reset deep link: ?reset=<token> from the emailed link.
   const [resetToken, setResetToken] = useState<string | null>(() => new URLSearchParams(window.location.search).get('reset'));
+  // Unlisted admin/dealer entrance: visiting /?admin shows the sign-in screen
+  // (the public consumer app carries no login UI at all).
+  const [adminGate] = useState(() => new URLSearchParams(window.location.search).has('admin'));
 
   useEffect(() => {
     init();
@@ -61,6 +66,7 @@ export default function App() {
     );
   }
 
+  if (adminGate && status !== 'authed') return <Login />;
   if (status === 'anon') return <StartScreen />;
 
   return (
@@ -88,6 +94,7 @@ export default function App() {
       <AppliancesModal />
       <MyAppliancesModal />
       <HandlesModal />
+      <ApplianceAlignerModal />
       <SaveJobModal />
     </div>
   );

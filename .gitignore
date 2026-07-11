@@ -9,3 +9,6 @@ server/data
 .env
 tsconfig.tsbuildinfo
 .claude/settings.local.json
+
+# local copy of the original tool (reference only)
+cabdesign/

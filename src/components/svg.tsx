@@ -1,5 +1,5 @@
 import type { CatalogItem, FinishOption, HingeSide, OpeningKind, RoughInKind } from '../model/types';
-import { COUNTER_T, TOEKICK_H, grillDoorCount } from '../model/catalog';
+import { COUNTER_T, TOEKICK_H } from '../model/catalog';
 
 // All SVG drawing is done in inch coordinates; the parent <svg> sets a
 // viewBox in inches so everything scales losslessly.
@@ -379,6 +379,12 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
   const doors = (n: number, y = 0, dh = fh) => {
     const dw = (w - gap * (n + 1)) / n;
     const handleLen = naBar ? Math.min(14, dh * 0.5) : Math.min(7, dh * 0.4);
+    // Base doors: pull near the top. Wall (upper-lane) doors: pull at the
+    // BOTTOM. Tall doors: cap the pull at a reachable height (~44″ off the
+    // floor; svg y runs down from the carcass top, floor at y = h).
+    let hy = y + dh * 0.16;
+    if (cat.lane === 'upper') hy = y + dh - handleLen - dh * 0.06;
+    else if (h - (y + dh * 0.16) > 48) hy = Math.min(y + dh - handleLen - 1.4, Math.max(y + 1.4, h - 44 - handleLen / 2));
     return (
       <g>
         {Array.from({ length: n }, (_, i) => {
@@ -395,7 +401,7 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
               {naTopPull && dh > 8 ? (
                 <BarHandle x={hx > dx + dw / 2 ? hx - topLen : hx} y={low ? y + dh - gap - 2.2 : y + gap + 1.6} len={topLen} />
               ) : dh > 14 ? (
-                <BarHandle x={hx} y={low ? y + dh - handleLen - dh * 0.08 : y + dh * 0.16} len={handleLen} vertical />
+                <BarHandle x={hx} y={hy} len={handleLen} vertical />
               ) : (
                 <Knob x={hx} y={low ? y + dh - 3 : y + dh / 2} />
               )}
@@ -627,11 +633,13 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
       );
       break;
     case 'grill':
-      front = doors(grillDoorCount(cat.front, w));
+    case 'grill4':
+      front = doors(cat.front === 'grill4' ? 4 : 2);
       gear = <GrillHead w={w} counter={cat.counter} />;
       break;
     case 'griddle':
-      front = doors(grillDoorCount(cat.front, w));
+    case 'griddle4':
+      front = doors(cat.front === 'griddle4' ? 4 : 2);
       gear = <GriddleHead w={w} counter={cat.counter} />;
       break;
     case 'burner':
@@ -835,6 +843,7 @@ export function CabinetTop({ cat, w, d, fin, hinge = 'left' }: { cat: CatalogIte
           </g>
         );
       case 'grill':
+      case 'grill4':
       case 'cartgrill': {
         const gx = 4;
         return (
@@ -847,6 +856,7 @@ export function CabinetTop({ cat, w, d, fin, hinge = 'left' }: { cat: CatalogIte
         );
       }
       case 'griddle':
+      case 'griddle4':
         return <rect x={4} y={d * 0.15} width={w - 8} height={d * 0.6} rx={1} fill="#dfe2e5" stroke={STEEL_LN} strokeWidth={0.4} />;
       case 'cooktop':
       case 'range': {

@@ -124,17 +124,23 @@ export function appliancePrice(
 /**
  * A grill/griddle/side-burner/power-burner cabinet must be at least this many
  * inches wider than its insulated liner's cutout width (clearance for the
- * cabinet frame around the jacket).
+ * cabinet frame around the jacket). This is the DEFAULT — the admin can adjust
+ * the live value globally (store.linerClearance, synced from app_settings).
  */
 export const LINER_CABINET_CLEARANCE = 4;
 
 /**
  * Minimum housing-cabinet width for a placed cabinet's appliance selection: the
- * associated insulated liner's cutout width + LINER_CABINET_CLEARANCE. Applies
- * whether or not the customer keeps the liner (the grill's own cutout matches
- * its jacket). Returns 0 when there's no selection or no known liner cutout.
+ * associated insulated liner's cutout width + the clearance (admin-adjustable;
+ * defaults to LINER_CABINET_CLEARANCE). Applies whether or not the customer
+ * keeps the liner (the grill's own cutout matches its jacket). Returns 0 when
+ * there's no selection or no known liner cutout.
  */
-export function requiredCabinetWidth(sel: ApplianceSelection | undefined, appliances: ApplianceItem[]): number {
+export function requiredCabinetWidth(
+  sel: ApplianceSelection | undefined,
+  appliances: ApplianceItem[],
+  clearance: number = LINER_CABINET_CLEARANCE
+): number {
   if (!sel || sel.mode !== 'inventory' || !sel.applianceId) return 0;
   const item = appliances.find((a) => a.id === sel.applianceId);
   if (!item) return 0;
@@ -142,7 +148,7 @@ export function requiredCabinetWidth(sel: ApplianceSelection | undefined, applia
   const liner = item.linerId ? appliances.find((a) => a.id === item.linerId) : undefined;
   const cutoutW = liner?.cutoutW ?? item.cutoutW;
   if (!cutoutW || cutoutW <= 0) return 0;
-  return Math.round((cutoutW + LINER_CABINET_CLEARANCE) * 100) / 100;
+  return Math.round((cutoutW + clearance) * 100) / 100;
 }
 
 /** The selected inventory appliance's overall height (cutoutH), or undefined. */
@@ -444,4 +450,58 @@ export function appliancesToCsv(items: ApplianceItem[]): string {
     );
   }
   return lines.join('\n');
+}
+
+/** A brand-accurate 3D head to render for a selected appliance: which model
+ *  (key into three/models APPLIANCE_MODEL_URLS) and the unit's real overall
+ *  width in inches (models render at true size — they never stretch). */
+export interface ApplianceModelRef {
+  key: string;
+  w: number;
+}
+
+/**
+ * Resolve the selected grill/griddle appliance to its 3D model. Matched on
+ * brand + model + name text (not ids) so LP/NG variants and dealer-added
+ * duplicates still resolve. Returns null when we don't carry a model for the
+ * unit — the generic head renders instead.
+ */
+export function appliance3dModel(sel: ApplianceSelection | undefined, appliances: ApplianceItem[]): ApplianceModelRef | null {
+  if (!sel || sel.mode !== 'inventory' || !sel.applianceId) return null;
+  const a = appliances.find((x) => x.id === sel.applianceId);
+  if (!a) return null;
+  const s = `${a.brand} ${a.model} ${a.name}`.toLowerCase();
+  const has = (...terms: string[]) => terms.some((t) => s.includes(t));
+
+  if (a.category === 'grill') {
+    if (has('blaze')) {
+      // check PRO before LTE — pro model strings contain "lte" too
+      if (has('ltepro', 'lte pro')) return has('5ltepro', '40-inch', '40"') ? { key: 'blaze-lte-pro-40', w: 40 } : { key: 'blaze-lte-pro-40', w: 32 };
+      if (has('lte')) return has('5lte', '40-inch', '40"') ? { key: 'blaze-lte-40', w: 40 } : { key: 'blaze-lte-32', w: 32 };
+      return null; // LUX / Prelude etc — no model yet
+    }
+    if (has('napoleon')) {
+      if (has('big44')) return { key: 'napoleon-700-44', w: 44 };
+      if (has('big38')) return { key: 'napoleon-700-38', w: 38 };
+      if (has('big32')) return { key: 'napoleon-700-32', w: 32 };
+      return null; // 500 series / Prestige — no model yet
+    }
+    if (has('xo') && has('xlt')) {
+      return has('40xlt', '40-inch', '40"') ? { key: 'xo-xlt-40', w: 40 } : { key: 'xo-xlt-32', w: 32 };
+    }
+    if (has('broilmaster')) return { key: 'broilmaster-b-32', w: 32 };
+    return null;
+  }
+
+  if (a.category === 'griddle') {
+    // Le Griddle Pro/Commercial (OML…) share the Commercial-series body; the
+    // GFE/GEE units use the generic griddle model (which IS the GFE75).
+    if (has('legriddle', 'le griddle')) {
+      if (has('oml105')) return { key: 'legriddle-commercial-105', w: 41 };
+      if (has('oml75')) return { key: 'legriddle-commercial-75', w: 30 };
+    }
+    return null;
+  }
+
+  return null;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BASE_H, CATALOG, COUNTER_T, catalogById, catalogForDesign, categoryLabelsForLine, finishesForLine, takesAppliedEnds } from '../model/catalog';
+import { BASE_H, CATALOG, COUNTER_T, catalogById, catalogForDesign, categoryLabelsForLine, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { NEWAGE_FINISHES, itemFinishId, naClosestFinish, naVariantFor } from '../model/newage';
 import { money, tryFormula } from '../model/pricing';
 import {
@@ -27,7 +27,7 @@ const HINGED_FRONTS: FrontKind[] = ['door1', 'doordrawer', 'burner', 'propane', 
 const LINER_RULE_CATS = ['grill', 'griddle', 'sideburner', 'powerburner'];
 const usesLinerRule = (c?: string) => !!c && LINER_RULE_CATS.includes(c);
 
-function Modal({ title, sub, onClose, children, wide }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+export function Modal({ title, sub, onClose, children, wide }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className={`modal ${wide ? 'modal-wide' : ''}`} onClick={(e) => e.stopPropagation()}>
@@ -124,13 +124,16 @@ export function AddItemModal() {
   const wall = design.walls.find((w) => w.id === wallId);
   if (!wall) return null;
 
-  // Catalog scoped to this design's product line & kitchen type.
-  const available = catalogForDesign(design.line, design.kitchenType);
+  // Catalog scoped to this design's product line & kitchen type. Auto-convert
+  // variants (4-door grills…) and legacy carts are hidden from the picker, and
+  // items may list under a different tab than their behavioral category
+  // (fridges live under Appliances).
+  const available = catalogForDesign(design.line, design.kitchenType).filter((c) => !c.hideFromAdd);
   const labels = categoryLabelsForLine(design.line);
-  const tabEntries = Object.entries(labels).filter(([id]) => available.some((c) => c.category === id));
+  const tabEntries = Object.entries(labels).filter(([id]) => available.some((c) => (c.displayCategory ?? c.category) === id));
   const activeTab = tabEntries.some(([id]) => id === tab) ? tab : tabEntries[0]?.[0] ?? 'base';
 
-  const cats = available.filter((c) => c.category === activeTab);
+  const cats = available.filter((c) => (c.displayCategory ?? c.category) === activeTab);
   const openFloor = largestOpening(design, wallId, 'floor').w;
   const openUpper = largestOpening(design, wallId, 'upper').w;
 
@@ -301,6 +304,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   const updateItem = useStore((s) => s.updateItem);
   const design = useStore((s) => s.design);
   const dimOverrides = useStore((s) => s.dims);
+  const linerClearance = useStore((s) => s.linerClearance);
   const want = cat.applianceCat;
 
   const options = useMemo(
@@ -319,7 +323,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   const selected = sel?.mode === 'inventory' ? options.find((a) => a.id === sel.applianceId) : undefined;
   const liner = selected?.linerId ? appliances.find((a) => a.id === selected.linerId) : undefined;
   const reqW = usesLinerRule(want)
-    ? requiredCabinetWidth(sel, appliances)
+    ? requiredCabinetWidth(sel, appliances, linerClearance)
     : want === 'fridge' || want === 'icemaker'
       ? selectedApplianceWidth(sel, appliances) ?? 0
       : 0;
@@ -435,7 +439,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
             (usesLinerRule(want) ? (
               <div className="warn" style={{ marginTop: 8 }}>
                 ⚠ This {APPLIANCE_CAT_LABELS[want!].toLowerCase()} needs a cabinet at least {fmtIn(reqW)} wide
-                {liner?.cutoutW ? ` (liner cutout ${fmtIn(liner.cutoutW)} + ${LINER_CABINET_CLEARANCE}″ clearance)` : ''}. Widen the cabinet above to fit it.
+                {liner?.cutoutW ? ` (liner cutout ${fmtIn(liner.cutoutW)} + ${fmtIn(linerClearance)} clearance)` : ''}. Widen the cabinet above to fit it.
               </div>
             ) : (
               <div className="warn" style={{ marginTop: 8 }}>
@@ -465,9 +469,11 @@ export function EditItemModal() {
   const updateItem = useStore((s) => s.updateItem);
   const removeItem = useStore((s) => s.removeItem);
   const duplicateItem = useStore((s) => s.duplicateItem);
+  const setCornerOverride = useStore((s) => s.setCornerOverride);
   const pricing = useStore((s) => s.pricing);
   const dims = useStore((s) => s.dims);
   const appliances = useStore((s) => s.appliances);
+  const linerClearance = useStore((s) => s.linerClearance);
 
   if (!editingId) return null;
   const it = design.items.find((i) => i.id === editingId);
@@ -476,13 +482,51 @@ export function EditItemModal() {
   const wall = design.walls.find((w) => w.id === it.wallId);
   if (!wall) return null;
 
+  // Auto corner filler: a compact editor to adjust or remove the clearance.
+  // Its id is `cf-${wallId}-${end}` (see store.autoCornerFillers).
+  if (it.auto) {
+    const end: 'start' | 'end' = it.id.endsWith('-start') ? 'start' : 'end';
+    const key = `${it.wallId}:${end}`;
+    const overridden = design.cornerOverrides?.[key] != null;
+    return (
+      <Modal title="Corner Filler" sub={`Added automatically on ${wall.name}`} onClose={() => openEditor(null)}>
+        <div className="edit-note">
+          This filler holds the run off the corner so doors and drawers clear the cabinets on the adjoining wall. Narrow it
+          or remove it to free up space — just make sure your hardware still clears.
+        </div>
+        <div className="stepper-list">
+          <Stepper label="Width" value={it.w} step={0.5} min={0.5} max={8} onChange={(w) => setCornerOverride(key, { w })} />
+        </div>
+        <div className="modal-actions">
+          <button
+            className="btn-danger"
+            onClick={() => {
+              setCornerOverride(key, { off: true });
+              openEditor(null);
+            }}
+          >
+            Remove filler
+          </button>
+          {overridden && (
+            <button className="btn-ghost" onClick={() => setCornerOverride(key, null)}>
+              Reset to standard 3″
+            </button>
+          )}
+          <button className="btn-primary" onClick={() => openEditor(null)}>
+            Done
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
   const left = spaceLeft(design, it.wallId, cat.lane);
   const dimRange = effectiveDims(it.catalogId, dims);
   const maxW = Math.min(dimRange.maxW, it.w + left);
   // A grill/griddle/burner's insulated liner needs cabinet width ≥ liner cutout
   // + clearance; a fridge/ice maker needs a cabinet at least as wide as the unit.
   const appMinW = usesLinerRule(cat.applianceCat)
-    ? requiredCabinetWidth(it.appliance, appliances)
+    ? requiredCabinetWidth(it.appliance, appliances, linerClearance)
     : cat.applianceCat === 'fridge' || cat.applianceCat === 'icemaker'
       ? selectedApplianceWidth(it.appliance, appliances) ?? 0
       : 0;
@@ -500,164 +544,170 @@ export function EditItemModal() {
   const naGroups = [...new Set(naFins.map((f) => f.group!))];
   const effGroup = naFins.find((f) => f.id === effFinishId)?.group;
 
+  // One end treatment per side: none / applied panel / finished end / waterfall.
+  const endRow = (side: 'left' | 'right') => {
+    const L = side === 'left';
+    const applied = L ? it.endL : it.endR;
+    const fin = L ? it.finL : it.finR;
+    const wf = L ? it.waterfallL : it.waterfallR;
+    const set = (mode: 'none' | 'applied' | 'finished' | 'waterfall') =>
+      updateItem(
+        it.id,
+        L
+          ? { endL: mode === 'applied', finL: mode === 'finished', waterfallL: mode === 'waterfall' }
+          : { endR: mode === 'applied', finR: mode === 'finished', waterfallR: mode === 'waterfall' }
+      );
+    return (
+      <div className="stepper-row">
+        <span className="stepper-label">
+          {L ? 'Left end' : 'Right end'}
+          {L && <span className="stepper-note">applied adds 0.75″ width</span>}
+        </span>
+        <div className="seg seg-sm">
+          <button className={!applied && !fin && !wf ? 'seg-btn active' : 'seg-btn'} onClick={() => set('none')}>
+            None
+          </button>
+          {takesAppliedEnds(cat) && (
+            <button className={applied ? 'seg-btn active' : 'seg-btn'} title="Applied end panel (+0.75″ width)" onClick={() => set('applied')}>
+              Applied
+            </button>
+          )}
+          {takesAppliedEnds(cat) && (
+            <button
+              className={fin ? 'seg-btn active' : 'seg-btn'}
+              title="Finished end — side built in finished material (no added width)"
+              onClick={() => set('finished')}
+            >
+              Finished
+            </button>
+          )}
+          {takesWaterfall(cat) && (
+            <button className={wf ? 'seg-btn active' : 'seg-btn'} title="Waterfall — countertop wraps to the floor (run ends)" onClick={() => set('waterfall')}>
+              Waterfall
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+  const hasEndOptions = takesAppliedEnds(cat) || takesWaterfall(cat);
+
   return (
-    <Modal title={cat.fixed ? cat.name : `${fmtIn(it.w)} ${cat.name}`} sub={`Space left: ${fmtIn(Math.max(0, left))}`} onClose={() => openEditor(null)}>
+    <Modal title={cat.fixed ? cat.name : `${fmtIn(it.w)} ${cat.name}`} sub={`Space left: ${fmtIn(Math.max(0, left))}`} onClose={() => openEditor(null)} wide>
       {cat.note && <div className="edit-note">{cat.note}</div>}
-      <div className="stepper-list">
-        {cat.fixed ? (
-          <>
-            <div className="stepper-row">
-              <span className="stepper-label">
-                Size
-                <span className="stepper-note">set by the manufacturer — not editable</span>
-              </span>
-              <span className="stepper">
-                {fmtIn(it.w)} W × {fmtIn(it.d)} D × {fmtIn(it.h)} H
-              </span>
-            </div>
-            {naGroups.length > 0 && (
+      <div className="edit-grid">
+        <div className="stepper-list">
+          {cat.fixed ? (
+            <>
               <div className="stepper-row">
                 <span className="stepper-label">
-                  Series
-                  {naGroups.length === 1 && <span className="stepper-note">only series offered for this unit</span>}
+                  Size
+                  <span className="stepper-note">set by the manufacturer — not editable</span>
                 </span>
-                <div className="seg">
-                  {naGroups.map((g) => (
-                    <button
-                      key={g}
-                      className={effGroup === g ? 'seg-btn active' : 'seg-btn'}
-                      title={g}
-                      onClick={() => {
-                        const first = naFins.find((f) => f.group === g);
-                        if (first) updateItem(it.id, { finish: first.id });
-                      }}
-                    >
-                      {g.split(' · ')[0]}
-                    </button>
-                  ))}
-                </div>
+                <span className="stepper">
+                  {fmtIn(it.w)} W × {fmtIn(it.d)} D × {fmtIn(it.h)} H
+                </span>
               </div>
-            )}
-            {naFins.length > 0 && (
-              <div className="stepper-row">
-                <span className="stepper-label">
-                  Door finish
-                  {!it.finish && <span className="stepper-note">following the kitchen default</span>}
-                </span>
-                <div className="seg">
-                  {naFins
-                    .filter((f) => f.group === effGroup)
-                    .map((f) => (
-                      <button key={f.id} className={effFinishId === f.id ? 'seg-btn active' : 'seg-btn'} onClick={() => updateItem(it.id, { finish: f.id })}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            width: 10,
-                            height: 10,
-                            borderRadius: 2,
-                            background: f.body,
-                            marginRight: 6,
-                            border: '1px solid rgba(0,0,0,.25)',
-                            verticalAlign: 'middle',
-                          }}
-                        />
-                        {f.name}
+              {naGroups.length > 0 && (
+                <div className="stepper-row">
+                  <span className="stepper-label">
+                    Series
+                    {naGroups.length === 1 && <span className="stepper-note">only series offered for this unit</span>}
+                  </span>
+                  <div className="seg">
+                    {naGroups.map((g) => (
+                      <button
+                        key={g}
+                        className={effGroup === g ? 'seg-btn active' : 'seg-btn'}
+                        title={g}
+                        onClick={() => {
+                          const first = naFins.find((f) => f.group === g);
+                          if (first) updateItem(it.id, { finish: first.id });
+                        }}
+                      >
+                        {g.split(' · ')[0]}
                       </button>
                     ))}
+                  </div>
                 </div>
+              )}
+              {naFins.length > 0 && (
+                <div className="stepper-row">
+                  <span className="stepper-label">
+                    Door finish
+                    {!it.finish && <span className="stepper-note">following the kitchen default</span>}
+                  </span>
+                  <div className="seg">
+                    {naFins
+                      .filter((f) => f.group === effGroup)
+                      .map((f) => (
+                        <button key={f.id} className={effFinishId === f.id ? 'seg-btn active' : 'seg-btn'} onClick={() => updateItem(it.id, { finish: f.id })}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              width: 10,
+                              height: 10,
+                              borderRadius: 2,
+                              background: f.body,
+                              marginRight: 6,
+                              border: '1px solid rgba(0,0,0,.25)',
+                              verticalAlign: 'middle',
+                            }}
+                          />
+                          {f.name}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <Stepper label="Width" value={it.w} step={1} min={minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
+              <Stepper label="Depth" value={it.d} step={1} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
+              <Stepper label="Height" value={it.h} step={1} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
+            </>
+          )}
+          {cat.front === 'filler' ? (
+            <div className="stepper-row">
+              <span className="stepper-label">
+                Outset of wall
+                <span className="stepper-note">auto — flush with neighbor</span>
+              </span>
+              <span className="stepper">{fmtIn(it.outset)}</span>
+            </div>
+          ) : cat.lane === 'floor' ? (
+            <Stepper label="Outset of wall" value={it.outset} step={1} min={-24} max={24} onChange={(outset) => updateItem(it.id, { outset })} />
+          ) : (
+            <Stepper label="Height off floor" value={it.mount} step={3} min={30} max={84} onChange={(mount) => updateItem(it.id, { mount })} />
+          )}
+          {maxTrays > 0 && (
+            <Stepper label="Pull-out trays" value={it.trays} step={1} min={0} max={maxTrays} onChange={(trays) => updateItem(it.id, { trays })} />
+          )}
+        </div>
+        <div className="stepper-list">
+          {hasEndOptions && endRow('left')}
+          {hasEndOptions && endRow('right')}
+          {HINGED_FRONTS.includes(cat.front) && (
+            <div className="stepper-row">
+              <span className="stepper-label">{cat.front === 'blind' ? 'Door side' : 'Hinge side'}</span>
+              <div className="seg">
+                <button
+                  className={it.hinge === 'left' ? 'seg-btn active' : 'seg-btn'}
+                  onClick={() => updateItem(it.id, { hinge: 'left' })}
+                >
+                  {cat.front === 'blind' ? 'Door left' : 'Left'}
+                </button>
+                <button
+                  className={it.hinge === 'right' ? 'seg-btn active' : 'seg-btn'}
+                  onClick={() => updateItem(it.id, { hinge: 'right' })}
+                >
+                  {cat.front === 'blind' ? 'Door right' : 'Right'}
+                </button>
               </div>
-            )}
-          </>
-        ) : (
-          <>
-            <Stepper label="Width" value={it.w} step={1} min={minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
-            <Stepper label="Depth" value={it.d} step={1} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
-            <Stepper label="Height" value={it.h} step={1} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
-          </>
-        )}
-        {cat.front === 'filler' ? (
-          <div className="stepper-row">
-            <span className="stepper-label">
-              Outset of wall
-              <span className="stepper-note">auto — flush with neighbor</span>
-            </span>
-            <span className="stepper">{fmtIn(it.outset)}</span>
-          </div>
-        ) : cat.lane === 'floor' ? (
-          <Stepper label="Outset of wall" value={it.outset} step={1} min={0} max={24} onChange={(outset) => updateItem(it.id, { outset })} />
-        ) : (
-          <Stepper label="Height off floor" value={it.mount} step={3} min={30} max={84} onChange={(mount) => updateItem(it.id, { mount })} />
-        )}
-        {maxTrays > 0 && (
-          <Stepper label="Pull-out trays" value={it.trays} step={1} min={0} max={maxTrays} onChange={(trays) => updateItem(it.id, { trays })} />
-        )}
-        {takesAppliedEnds(cat) && (
-          <div className="stepper-row">
-            <span className="stepper-label">
-              Applied ends
-              <span className="stepper-note">+0.75″ width each</span>
-            </span>
-            <div className="seg">
-              <button
-                className={it.endL ? 'seg-btn active' : 'seg-btn'}
-                title="Applied end panel on the left side (+0.75″ width)"
-                onClick={() => updateItem(it.id, { endL: !it.endL })}
-              >
-                Left
-              </button>
-              <button
-                className={it.endR ? 'seg-btn active' : 'seg-btn'}
-                title="Applied end panel on the right side (+0.75″ width)"
-                onClick={() => updateItem(it.id, { endR: !it.endR })}
-              >
-                Right
-              </button>
             </div>
-          </div>
-        )}
-        {cat.counter && cat.lane === 'floor' && !cat.line && (
-          <div className="stepper-row">
-            <span className="stepper-label">
-              Waterfall edge
-              <span className="stepper-note">counter wraps to the floor (run ends)</span>
-            </span>
-            <div className="seg">
-              <button
-                className={it.waterfallL ? 'seg-btn active' : 'seg-btn'}
-                title="Waterfall countertop down the left side"
-                onClick={() => updateItem(it.id, { waterfallL: !it.waterfallL })}
-              >
-                Left
-              </button>
-              <button
-                className={it.waterfallR ? 'seg-btn active' : 'seg-btn'}
-                title="Waterfall countertop down the right side"
-                onClick={() => updateItem(it.id, { waterfallR: !it.waterfallR })}
-              >
-                Right
-              </button>
-            </div>
-          </div>
-        )}
-        {HINGED_FRONTS.includes(cat.front) && (
-          <div className="stepper-row">
-            <span className="stepper-label">{cat.front === 'blind' ? 'Door side' : 'Hinge side'}</span>
-            <div className="seg">
-              <button
-                className={it.hinge === 'left' ? 'seg-btn active' : 'seg-btn'}
-                onClick={() => updateItem(it.id, { hinge: 'left' })}
-              >
-                {cat.front === 'blind' ? 'Door left' : 'Left'}
-              </button>
-              <button
-                className={it.hinge === 'right' ? 'seg-btn active' : 'seg-btn'}
-                onClick={() => updateItem(it.id, { hinge: 'right' })}
-              >
-                {cat.front === 'blind' ? 'Door right' : 'Right'}
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       {cat.applianceCat && <ApplianceSection it={it} cat={cat} />}
       {island && cat.category !== 'appliance' && (
@@ -810,7 +860,7 @@ export function OpeningModal() {
 }
 
 /** Footer that pushes the current admin globals to the server for all dealers. */
-function SaveGlobalFooter({ onSave }: { onSave: () => Promise<void> }) {
+export function SaveGlobalFooter({ onSave }: { onSave: () => Promise<void> }) {
   const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [error, setError] = useState<string | null>(null);
   return (
@@ -927,10 +977,33 @@ export function PricingModal() {
   const setOpen = useStore((s) => s.setPricingOpen);
   const pricing = useStore((s) => s.pricing);
   const setFormula = useStore((s) => s.setFormula);
+  const panelRates = useStore((s) => s.panelRates);
+  const setPanelRates = useStore((s) => s.setPanelRates);
 
   const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch && !c.line), []);
 
   if (!open) return null;
+  const rateField = (label: string, note: string, key: 'applied' | 'finished') => (
+    <label className="stepper-row" style={{ alignItems: 'center' }}>
+      <span className="stepper-label">
+        {label}
+        <span className="stepper-note">{note}</span>
+      </span>
+      <span className="stepper">
+        $
+        <input
+          className="stepper-input"
+          inputMode="decimal"
+          value={panelRates[key]}
+          onChange={(e) => {
+            const v = parseFloat(e.target.value);
+            if (Number.isFinite(v) && v >= 0) setPanelRates({ ...panelRates, [key]: v });
+          }}
+        />
+        /sqft
+      </span>
+    </label>
+  );
   return (
     <Modal
       title="Base pricing formulas"
@@ -938,6 +1011,10 @@ export function PricingModal() {
       onClose={() => setOpen(false)}
       wide
     >
+      <div className="stepper-list" style={{ marginBottom: 12 }}>
+        {rateField('Applied end / island back panels', 'separate ¾″ finished panel', 'applied')}
+        {rateField('Finished ends', 'cabinet side built in finished material', 'finished')}
+      </div>
       <div className="pricing-table">
         <div className="pricing-row pricing-head">
           <span>Cabinet</span>
@@ -973,7 +1050,11 @@ export function PricingModal() {
           );
         })}
       </div>
-      <SaveGlobalFooter onSave={() => api.setPricing(useStore.getState().pricing).then(() => undefined)} />
+      <SaveGlobalFooter
+        onSave={() =>
+          Promise.all([api.setPricing(useStore.getState().pricing), api.setPanelRates(useStore.getState().panelRates)]).then(() => undefined)
+        }
+      />
     </Modal>
   );
 }
@@ -1174,7 +1255,7 @@ function ApplianceRow({
         }}
       />
       {sized ? (
-        <div className="cutout-cell" title={a.category === 'liner' ? 'Insulated-liner cutout opening (inches). Width drives the 3″ grill-cabinet rule.' : 'Appliance size (inches). Height drives the gap shown under the counter.'}>
+        <div className="cutout-cell" title={a.category === 'liner' ? 'Insulated-liner cutout opening (inches). Width + the liner clearance sets the minimum cabinet width.' : 'Appliance size (inches). Height drives the gap shown under the counter.'}>
           <input className="dim-input cutout-in" value={cw} inputMode="decimal" placeholder="W" onChange={(e) => setCw(e.target.value)} onBlur={() => commitNum('cutoutW', cw)} />
           <span className="cutout-x">×</span>
           <input className="dim-input cutout-in" value={cd} inputMode="decimal" placeholder="D" onChange={(e) => setCd(e.target.value)} onBlur={() => commitNum('cutoutD', cd)} />
@@ -1263,6 +1344,8 @@ export function AppliancesModal() {
   const brands = useStore((s) => s.applianceBrands);
   const setAppliances = useStore((s) => s.setAppliances);
   const setApplianceBrands = useStore((s) => s.setApplianceBrands);
+  const linerClearance = useStore((s) => s.linerClearance);
+  const setLinerClearance = useStore((s) => s.setLinerClearance);
   const [csvMsg, setCsvMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [accounts, setAccounts] = useState<DealerWithPrefs[]>([]);
   const [restricted, setRestricted] = useState<RestrictedBrands>({});
@@ -1389,6 +1472,25 @@ export function AppliancesModal() {
       </div>
 
       <h3 className="modal-h3" style={{ marginTop: 18 }}>
+        Liner clearance
+      </h3>
+      <p className="card-sub">
+        A grill/griddle/burner cabinet must be at least this much <b>wider than its insulated liner's cutout</b> (frame
+        clearance around the jacket). It sets the minimum cabinet width when a dealer picks an appliance.
+      </p>
+      <div className="stepper-row" style={{ maxWidth: 320 }}>
+        <span className="stepper-label">Minimum extra width</span>
+        <span className="suffix-input">
+          <DimCell
+            value={linerClearance === LINER_CABINET_CLEARANCE ? undefined : linerClearance}
+            placeholder={LINER_CABINET_CLEARANCE}
+            onCommit={(v) => setLinerClearance(v === undefined || v < 0 ? LINER_CABINET_CLEARANCE : Math.min(24, v))}
+          />
+          <span className="suffix">″</span>
+        </span>
+      </div>
+
+      <h3 className="modal-h3" style={{ marginTop: 18 }}>
         Inventory
       </h3>
       <div className="appliance-list">
@@ -1452,6 +1554,7 @@ export function AppliancesModal() {
           await api.setAppliances(useStore.getState().appliances);
           await api.setApplianceBrands(useStore.getState().applianceBrands);
           await api.setRestrictedBrands(restricted);
+          await api.setLinerClearance(useStore.getState().linerClearance);
         }}
       />
     </Modal>

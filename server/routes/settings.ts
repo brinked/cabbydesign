@@ -12,11 +12,15 @@ const CABINET_DIMS_KEY = 'cabinetDims';
 const PRICING_KEY = 'pricing';
 const RETAIL_PRICING_KEY = 'retailPricing';
 const TAX_RATE_KEY = 'taxRate';
+const LINER_CLEARANCE_KEY = 'linerClearance';
 const APPLIANCES_KEY = 'appliances';
 const APPLIANCE_BRANDS_KEY = 'applianceBrands';
 const RESTRICTED_BRANDS_KEY = 'restrictedBrands';
 const HANDLES_KEY = 'handles';
+const MODEL_ALIGNS_KEY = 'modelAligns';
 const DEFAULT_TAX_RATE = 6.5; // Florida
+/** Grill/griddle/burner cabinet must be this much wider than its liner cutout (inches). */
+const DEFAULT_LINER_CLEARANCE = 4;
 
 const getSetting = db.prepare('SELECT value FROM app_settings WHERE key = ?');
 const upsertSetting = db.prepare(
@@ -127,6 +131,63 @@ settingsRouter.put('/tax', requireAdmin, (req, res) => {
   }
   upsertSetting.run(TAX_RATE_KEY, String(parsed.data.rate));
   res.json({ rate: parsed.data.rate });
+});
+
+// ---- Liner clearance: minimum extra cabinet width over the insulated-liner
+// cutout (inches). Readable by all logged-in users; admin-writable. ----
+function readLinerClearance(): number {
+  const row = getSetting.get(LINER_CLEARANCE_KEY) as { value: string } | undefined;
+  if (!row) return DEFAULT_LINER_CLEARANCE;
+  const n = Number(row.value);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_LINER_CLEARANCE;
+}
+
+settingsRouter.get('/liner-clearance', (_req, res) => {
+  res.json({ clearance: readLinerClearance() });
+});
+
+settingsRouter.put('/liner-clearance', requireAdmin, (req, res) => {
+  const parsed = z.object({ clearance: z.number().min(0).max(24) }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Liner clearance must be between 0 and 24 inches' });
+    return;
+  }
+  upsertSetting.run(LINER_CLEARANCE_KEY, String(parsed.data.clearance));
+  res.json({ clearance: parsed.data.clearance });
+});
+
+// ---- Panel rates: $/sqft for applied end / island back panels and finished
+// ends. Readable by all logged-in users; admin-writable. ----
+const PANEL_RATES_KEY = 'panelRates';
+const DEFAULT_PANEL_RATES = { applied: 36, finished: 45 };
+const panelRatesSchema = z.object({
+  applied: z.number().min(0).max(10_000),
+  finished: z.number().min(0).max(10_000),
+});
+
+function readPanelRates(): { applied: number; finished: number } {
+  const row = getSetting.get(PANEL_RATES_KEY) as { value: string } | undefined;
+  if (!row) return DEFAULT_PANEL_RATES;
+  try {
+    const parsed = panelRatesSchema.safeParse(JSON.parse(row.value));
+    return parsed.success ? parsed.data : DEFAULT_PANEL_RATES;
+  } catch {
+    return DEFAULT_PANEL_RATES;
+  }
+}
+
+settingsRouter.get('/panel-rates', (_req, res) => {
+  res.json({ rates: readPanelRates() });
+});
+
+settingsRouter.put('/panel-rates', requireAdmin, (req, res) => {
+  const parsed = panelRatesSchema.safeParse(req.body?.rates ?? req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Panel rates must be numbers ≥ 0' });
+    return;
+  }
+  upsertSetting.run(PANEL_RATES_KEY, JSON.stringify(parsed.data));
+  res.json({ rates: parsed.data });
 });
 
 // ---- Appliance inventory (admin-managed; readable by all logged-in users) ----
@@ -249,6 +310,32 @@ settingsRouter.put('/handles', requireAdmin, (req, res) => {
   }
   upsertSetting.run(HANDLES_KEY, JSON.stringify(parsed.data));
   res.json({ handles: parsed.data });
+});
+
+// Per-model 3D placement overrides (admin aligner). Map of modelKey -> nudge.
+const modelAlignSchema = z.object({
+  yaw: z.number().min(-360).max(360).optional(),
+  pitch: z.number().min(-360).max(360).optional(),
+  roll: z.number().min(-360).max(360).optional(),
+  dx: z.number().min(-60).max(60).optional(),
+  dy: z.number().min(-60).max(60).optional(),
+  dz: z.number().min(-60).max(60).optional(),
+  scale: z.number().min(0.2).max(3).optional(),
+});
+const modelAlignsSchema = z.record(z.string().min(1).max(120), modelAlignSchema);
+
+settingsRouter.get('/model-aligns', (_req, res) => {
+  res.json({ modelAligns: readJson(MODEL_ALIGNS_KEY) });
+});
+
+settingsRouter.put('/model-aligns', requireAdmin, (req, res) => {
+  const parsed = modelAlignsSchema.safeParse(req.body?.modelAligns ?? req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid model alignments' });
+    return;
+  }
+  upsertSetting.run(MODEL_ALIGNS_KEY, JSON.stringify(parsed.data));
+  res.json({ modelAligns: parsed.data });
 });
 
 // Per-brand visibility: brand -> allowed account (user) ids. Admin-only; the

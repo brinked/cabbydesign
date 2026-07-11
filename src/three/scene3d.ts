@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { ALL_FINISHES, BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
-import { CORNER_EPS, frameForWall, planBounds, wallEndpoints } from '../model/geometry';
-import { selectedApplianceHeight } from '../model/appliances';
+import { cornerCounterExtend, frameForWall, planBounds } from '../model/geometry';
+import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
-import type { ApplianceItem, Design, FinishOption, PlacedItem, Wall } from '../model/types';
+import type { ApplianceItem, Design, FinishOption, ModelAligns, PlacedItem, Wall } from '../model/types';
 import { resolveItemFinish } from '../model/newage';
 import { backsplashSpans, footprintW, laneItems, reservesFor } from '../state/store';
 import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
@@ -27,30 +27,6 @@ function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: 
     } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset, h: it.h });
   }
   return runs;
-}
-
-/**
- * Which ends of a wall's counter should extend to the wall corner to cover a
- * dead-corner area. A dead corner is flagged by an auto corner filler on BOTH
- * meeting walls; the lower-id wall "owns" the corner counter so the two runs
- * don't overlap (z-fight) — its counter is extended over the dead square.
- */
-function cornerCounterExtend(wall: Wall, walls: Wall[], items: PlacedItem[]): { start: boolean; end: boolean } {
-  const me = wallEndpoints(wall);
-  const hasFiller = (wid: string, end: 'start' | 'end') => items.some((it) => it.id === `cf-${wid}-${end}`);
-  const out = { start: false, end: false };
-  if (wall.ghost) return out;
-  for (const other of walls) {
-    if (other.id === wall.id || other.ghost) continue;
-    const oe = wallEndpoints(other);
-    for (const [myEnd, myPt] of [['start', me.p0] as const, ['end', me.p1] as const]) {
-      for (const [oEnd, oPt] of [['start', oe.p0] as const, ['end', oe.p1] as const]) {
-        if (Math.hypot(myPt.x - oPt.x, myPt.y - oPt.y) > CORNER_EPS) continue;
-        if (hasFiller(wall.id, myEnd) && hasFiller(other.id, oEnd) && wall.id < other.id) out[myEnd] = true;
-      }
-    }
-  }
-  return out;
 }
 
 export function groundTexture(): THREE.CanvasTexture {
@@ -245,7 +221,7 @@ function counterSlabHoles(
 }
 
 /** Builds all walls, cabinets and counters for a design as one group. */
-export function buildDesignGroup(design: Design, fin: FinishOption, appliances: ApplianceItem[] = []): BuiltScene {
+export function buildDesignGroup(design: Design, fin: FinishOption, appliances: ApplianceItem[] = [], modelAligns: ModelAligns = {}): BuiltScene {
   const group = new THREE.Group();
   const mats = createMats(fin, countertopById(design.counterId));
   // Per-cabinet finish overrides (NewAge series/door options) — one material
@@ -337,9 +313,11 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // sits at — not by the hinge field, which only chooses the handle door.
       const geomSide: 1 | -1 = it.x + footprintW(it) / 2 > f.wall.length / 2 ? -1 : 1;
       const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
+      // brand-accurate 3D head for the selected grill/griddle appliance
+      const mref = cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' ? appliance3dModel(it.appliance, appliances) : null;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT },
+        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined },
         matsFor(resolveItemFinish(fin.id, it, cat))
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;
@@ -430,7 +408,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     }
 
     const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
-    const ext = cornerCounterExtend(f.wall, design.walls, design.items);
+    const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
     for (const r of counterRuns3d(floorItems)) {
       // Overhang only exposed run ends. Where another cabinet abuts (e.g. a
       // shorter neighbour in its own run), keep the counter flush so it doesn't
@@ -449,17 +427,18 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const runCenter = (x1 + x2) / 2;
       // Sink basins and drop-in grills in this run → cut holes so the appliance
       // shows through and the counter frames it.
+      const modelWFor = (it: PlacedItem) => appliance3dModel(it.appliance, appliances)?.w;
       const holes = floorItems
         .filter((it) => {
           const cx = it.x + footprintW(it) / 2;
           if (cx < r.x1 - 0.1 || cx > r.x2 + 0.1) return false;
           const f = catalogById(it.catalogId).front;
-          return isSinkFront(f) || grillCutout(catalogById(it.catalogId), it.w, it.d) !== null;
+          return isSinkFront(f) || grillCutout(catalogById(it.catalogId), it.w, it.d, modelWFor(it)) !== null;
         })
         .map((it) => {
           const cat = catalogById(it.catalogId);
           const cx = it.x + footprintW(it) / 2 - runCenter;
-          const cut = isSinkFront(cat.front) ? sinkBasin(it.w, it.d) : grillCutout(cat, it.w, it.d)!;
+          const cut = isSinkFront(cat.front) ? sinkBasin(it.w, it.d) : grillCutout(cat, it.w, it.d, modelWFor(it))!;
           return { x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: cut.zc - cut.bd / 2, z2: cut.zc + cut.bd / 2 };
         });
       if (holes.length) {

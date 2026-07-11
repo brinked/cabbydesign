@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { BASE_H, COUNTER_T, GRILL_4DOOR_MIN_W, TOEKICK_H, grillDoorCount } from '../model/catalog';
-import type { CatalogItem, DoorStyle, FinishOption, HingeSide } from '../model/types';
+import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
+import type { CatalogItem, DoorStyle, FinishOption, HingeSide, ModelAlign } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
-import { fitModel, hasModel } from './models';
+import { applianceModelInfo, fitModel, hasModel, requestModel } from './models';
 
 // Real griddle model placement (tunable). Width as a fraction of the cabinet,
 // how far the cooking surface sits PROUD of the cabinet top (the firebox drops
@@ -19,6 +19,11 @@ const GRIDDLE_MODEL_YAW = 0;
 const GRILL_MODEL_SINK = 7.5;
 const GRILL_MODEL_BACK = -3;
 const GRILL_MODEL_YAW = 0;
+
+/** Door/drawer front build-out. Like the real construction, a cabinet's
+ *  nominal depth INCLUDES the front: a 24″-deep cabinet has a 23″ box and the
+ *  door face makes up the last inch, ending flush at the nominal depth. */
+export const FRONT_T = 1;
 
 export const STEEL_3D = 0xc9ced2;
 
@@ -285,8 +290,32 @@ export interface CabDims {
    *  housings. When shorter than the cabinet, the unit renders to this height
    *  and leaves a visible gap under the counter. Defaults to the cabinet height. */
   applianceH?: number;
+  /** Finished end — side built in finished material (no added width). */
+  finL?: boolean;
+  finR?: boolean;
   /** Countertop slab thickness (inches). Defaults to COUNTER_T. */
   counterT?: number;
+  /** Brand-accurate 3D model for the selected grill/griddle appliance (key
+   *  into three/models APPLIANCE_MODEL_URLS) + its real overall width. Lazy-
+   *  loaded on first use; the generic head renders until it arrives. */
+  modelKey?: string;
+  modelW?: number;
+  /** Admin aligner override for this model — applied on top of auto-seating. */
+  modelAlign?: ModelAlign;
+}
+
+/** Apply an admin aligner override (rotation nudge, position offset, scale) to
+ *  a placed appliance model, on top of its automatic seating. */
+function applyModelAlign(model: THREE.Object3D, a?: ModelAlign): void {
+  if (!a) return;
+  const rad = (deg?: number) => ((deg ?? 0) * Math.PI) / 180;
+  model.rotation.x += rad(a.pitch);
+  model.rotation.y += rad(a.yaw);
+  model.rotation.z += rad(a.roll);
+  model.position.x += a.dx ?? 0;
+  model.position.y += a.dy ?? 0;
+  model.position.z += a.dz ?? 0;
+  if (a.scale && a.scale > 0 && a.scale !== 1) model.scale.multiplyScalar(a.scale);
 }
 
 /** Max width of one applied panel; wider runs are split into multiple panels. */
@@ -311,22 +340,18 @@ function applianceFaceW(w: number): number {
  *  when the housing cabinet is widened — the cabinet's framing stiles widen
  *  instead. Capped to these per-type maxima; still shrinks to fit a narrow
  *  cabinet. (Undefined types fill the whole face, e.g. side/power burners.) */
-const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, griddle: 30 };
-/** Wide (4-door) grill cabinets fit larger grill heads (procedural fallback). */
-const GRILL_WIDE_MAX_W = 44;
+const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, grill4: 44, griddle: 30, griddle4: 36 };
 /** The real grill model's true width (a 32″ Broilmaster head). Like a real
  *  grill it NEVER stretches — widening the cabinet only widens the framing. */
 export const GRILL_MODEL_REAL_W = 32;
-function applianceOpeningW(front: string, w: number): number {
+function applianceOpeningW(front: string, w: number, modelW?: number): number {
   const faceW = applianceFaceW(w);
   const max =
-    front === 'grill'
-      ? hasModel('grill')
+    modelW != null
+      ? modelW + 1 // brand-accurate head + clearance
+      : (front === 'grill' || front === 'grill4') && hasModel('grill')
         ? GRILL_MODEL_REAL_W + 1 // fixed-size head + clearance
-        : w > GRILL_4DOOR_MIN_W
-          ? GRILL_WIDE_MAX_W
-          : APPLIANCE_MAX_W.grill
-      : APPLIANCE_MAX_W[front];
+        : APPLIANCE_MAX_W[front];
   return max ? Math.min(faceW, max) : faceW;
 }
 
@@ -643,18 +668,23 @@ export function sinkBasin(w: number, d: number): { bw: number; bd: number; zc: n
 /** Counter cut-out (cabinet-local inches) for a drop-in grill/griddle: width,
  *  depth, center-from-wall — so the appliance drops through the countertop and
  *  the counter frames it. Returns null for non-grill fronts. */
-export function grillCutout(cat: CatalogItem, w: number, d: number): { bw: number; bd: number; zc: number } | null {
-  if (cat.front !== 'grill' && cat.front !== 'griddle') return null;
-  const bw = applianceOpeningW(cat.front, w) + 1; // small gap around the unit
-  if (cat.front === 'grill' && hasModel('grill')) {
-    // Real head: its control panel hangs in front of the counter nose, so the
-    // cut-out runs through the counter's front edge (a notch, not a hole).
-    const z1 = 2.5; // stone strip left behind the unit
-    const z2 = d + 6; // safely past any run's front overhang
+export function grillCutout(cat: CatalogItem, w: number, d: number, modelW?: number): { bw: number; bd: number; zc: number } | null {
+  if (cat.front === 'kamadoinsert') {
+    // Open top compartment: the counter runs across the cabinet covering the
+    // front stretcher and side rails; the kamado pokes through this cut-out.
+    const bw = w - 2.5; // side rails
+    const z1 = 1; // strip over the back panel
+    const z2 = d - 3; // front stretcher stays covered
     return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
   }
-  const bd = Math.max(8, d - 5); // cooking area, leaving a front lip of counter
-  return { bw, bd, zc: d * 0.5 };
+  if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle' && cat.front !== 'griddle4' && cat.front !== 'burner') return null;
+  const bw = applianceOpeningW(cat.front, w, modelW) + 1; // small gap around the unit
+  // Grills, griddles and side/power burners all drop in with an insulated
+  // liner jacket whose face hangs over the counter nose — the cut-out runs
+  // through the counter's front edge (a notch, not a hole).
+  const z1 = 2.5; // stone strip left behind the unit
+  const z2 = d + 6; // safely past any run's front overhang
+  return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
 }
 
 /** Vertical extent of gear drawn above the carcass (for sprite bounding boxes). */
@@ -672,7 +702,7 @@ export function gearAbove(cat: CatalogItem): number {
  */
 export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats): THREE.Group {
   const g = new THREE.Group();
-  const { w, d, h, hinge, style, endL, endR, backPanel } = dims;
+  const { w, d, h, hinge, style, endL, endR, finL, finR, backPanel } = dims;
   const isAppliance = cat.category === 'appliance';
   const isFridge = cat.front === 'fridge' || cat.front === 'fridge2' || cat.front === 'fridgep' || cat.front === 'fridgep2';
   const fridgeDrawers = cat.front === 'fridge2' || cat.front === 'fridgep2';
@@ -817,7 +847,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       m.castShadow = m.receiveShadow = true;
       g.add(m);
     };
-    add(w, lowerH, d, 0, yB + lowerH / 2, d / 2); // solid lower body (behind doors)
+    add(w, lowerH, d - FRONT_T, 0, yB + lowerH / 2, (d - FRONT_T) / 2); // solid lower body (behind doors)
     const cy = yB + lowerH;
     add(w, T, d, 0, cy + T / 2, d / 2); // compartment floor / divider shelf
     add(w, openH, T, 0, cy + openH / 2, T / 2); // back of the opening
@@ -833,16 +863,21 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   } else {
     // carcass — white box like the real product; colored fronts go on top.
+    // The box stops FRONT_T short of the nominal depth: the door/drawer face
+    // (added below) makes up the difference, like the real construction.
+    // Steel appliances are the unit itself, so they keep the full depth.
     // Appliance housings only build up to the unit height (gap above).
     const ch2 = isApplianceHousing ? bodyH : carcassH;
-    const carcass = box(w, ch2, d, steel ? mats.steel : mats.carcass);
-    carcass.position.set(0, kick + ch2 / 2, d / 2);
+    const boxD = steel ? d : Math.max(2, d - FRONT_T);
+    const carcass = box(w, ch2, boxD, steel ? mats.steel : mats.carcass);
+    carcass.position.set(0, kick + ch2 / 2, boxD / 2);
     g.add(carcass);
     if (kick > 0) {
       // Full cabinet width and finish-matched: kicks are applied as long strips,
       // so adjacent cabinets read as one seamless band.
-      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, d - 1, steel ? mats.steel : mats.kick);
-      kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, d / 2 - 0.5);
+      const kickD = Math.max(1, boxD - 1);
+      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, kickD, steel ? mats.steel : mats.kick);
+      kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, kickD / 2);
       g.add(kickMesh);
     }
   }
@@ -910,18 +945,23 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         break;
       }
       case 'grill':
+      case 'grill4':
       case 'griddle':
+      case 'griddle4':
       case 'burner': {
         // The appliance face is recessed into the top of the cabinet. The
         // cabinet front picture-frames it: apron below, panel stiles wrapping
         // both sides, doors at the bottom.
-        const isGrill = cat.front === 'grill';
+        const isGrill = cat.front === 'grill' || cat.front === 'grill4';
+        const isBurner = cat.front === 'burner';
         // With the real grill model its own control panel fills the opening —
-        // a shorter opening avoids a bare band under the panel.
-        const applH = isGrill ? (hasModel('grill') ? 6 : 9) : 7;
+        // a shorter opening avoids a bare band under the panel. Side/power
+        // burners use the SAME face height as grills so door tops line up
+        // across a run.
+        const applH = isGrill || isBurner ? (hasModel('grill') || (dims.modelKey && hasModel(dims.modelKey)) ? 6 : 9) : 7;
         const apronH = 4.5;
         const doorH = fh - applH - apronH - GAP * 2;
-        if (grillDoorCount(cat.front, w) === 4) {
+        if (cat.front === 'grill4' || cat.front === 'griddle4') {
           // two double-door pairs: handles meet in the middle of each pair
           const n = 4;
           const dw = (fw - GAP * (n - 1)) / n;
@@ -940,12 +980,13 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         } else {
           fronts.push({ dx: 0, dy: -fh / 2 + doorH / 2, w: fw, h: doorH, handle: oneDoorHandle });
         }
-        // apron band below the appliance
-        fronts.push({ dx: 0, dy: -fh / 2 + doorH + GAP + apronH / 2, w: fw, h: apronH, handle: 'none', slab: true });
+        // apron band below the appliance — runs tight to the appliance band
+        // above (no reveal there, so no carcass seam shows across the apron)
+        fronts.push({ dx: 0, dy: -fh / 2 + doorH + GAP + (apronH + GAP) / 2, w: fw, h: apronH + GAP, handle: 'none', slab: true });
         // side stiles wrap the appliance face. They widen as the cabinet grows so
         // the appliance opening stays a fixed (realistic) width, not stretched.
         const stileY = fh / 2 - applH / 2;
-        const openW = applianceOpeningW(cat.front, w);
+        const openW = applianceOpeningW(cat.front, w, dims.modelW);
         const stileW = Math.max(GRILL_STILE, (fw - openW - GAP * 2) / 2);
         fronts.push({ dx: -fw / 2 + stileW / 2, dy: stileY, w: stileW, h: applH, handle: 'none', slab: true });
         fronts.push({ dx: fw / 2 - stileW / 2, dy: stileY, w: stileW, h: applH, handle: 'none', slab: true });
@@ -1091,11 +1132,16 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         bar.castShadow = true;
         if (isV) {
           bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + 1.6 : fr.w / 2 - 1.6;
-          // handle sits in the upper third of the door (per design reference), or
-          // at the BOTTOM for high-mounted doors — wall cabinets and tall-unit
-          // top doors (handleLow) — so it's reachable.
-          const low = fr.handleLow || cat.lane === 'upper';
-          bar.position.y = low ? -fr.h / 2 + len / 2 + 1.4 : fr.h / 2 - len / 2 - 1.4;
+          // Base doors carry the pull near the TOP; wall (upper-lane) doors and
+          // high-mounted doors (handleLow) near the BOTTOM — like real cabinets.
+          const yTop = fr.h / 2 - len / 2 - 1.4;
+          const yLow = -fr.h / 2 + len / 2 + 1.4;
+          let yPos = fr.handleLow || cat.lane === 'upper' ? yLow : yTop;
+          // Tall doors (pantry/broom…): cap the pull at a reachable height
+          // (~44″ off the floor) instead of the very top of an 84″ door.
+          const faceCenter = kick + carcassH / 2 + fr.dy;
+          if (yPos === yTop && faceCenter + yTop > 48) yPos = Math.max(yLow, 44 - faceCenter);
+          bar.position.y = yPos;
         } else {
           bar.rotation.z = Math.PI / 2;
           if (naTopPull) {
@@ -1113,7 +1159,8 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         bar.position.z = 1.1;
         fg.add(bar);
       }
-      fg.position.set(fr.dx, kick + carcassH / 2 + fr.dy, d + 0.4);
+      // Door slab centered so its outer face ends flush at the nominal depth.
+      fg.position.set(fr.dx, kick + carcassH / 2 + fr.dy, d - 0.35);
       g.add(fg);
     }
 
@@ -1130,9 +1177,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const len = mats.naBar ? Math.min(15, fh * 0.55) : Math.min(7, fh * 0.45);
       const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
       bar.castShadow = true;
-      // wall corner cabinets: handle at the BOTTOM of the door (like all uppers)
-      const barY = cat.lane === 'upper' ? -fh / 2 + len / 2 + 1.4 : fh / 2 - len / 2 - 1.4;
-      bar.position.set(cornerSide * (-span / 2 + 1.7), barY, 1.1);
+      // wall corner cabinets carry the pull at the door bottom
+      const cy = cat.lane === 'upper' ? -fh / 2 + len / 2 + 1.4 : fh / 2 - len / 2 - 1.4;
+      bar.position.set(cornerSide * (-span / 2 + 1.7), cy, 1.1);
       door.add(bar);
       g.add(door);
     }
@@ -1142,12 +1189,12 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const legD = legRet;
       const midH = kick + carcassH / 2;
       const len = Math.min(7, fh * 0.45);
-      // wall susans: handle at the BOTTOM of the door (like all uppers)
-      const barY = cat.lane === 'upper' ? -fh / 2 + len / 2 + 1.4 : fh / 2 - len / 2 - 1.4;
       const addBar = (door: THREE.Object3D, localX: number) => {
         const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), mats.steel);
         bar.castShadow = true;
-        bar.position.set(localX, barY, 1.1);
+        // wall susans carry the pull at the door bottom
+        const cy = cat.lane === 'upper' ? -fh / 2 + len / 2 + 1.4 : fh / 2 - len / 2 - 1.4;
+        bar.position.set(localX, cy, 1.1);
         door.add(bar);
       };
       // A bi-fold susan has ONE pull on its lead door; the other door follows.
@@ -1253,6 +1300,16 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       for (const side of [-1, 1] as const) {
         if ((side === -1 && !endL) || (side === 1 && !endR)) continue;
         addPanel(d, side * (w / 2 + END_PANEL_T / 2), d / 2, side * (Math.PI / 2));
+      }
+      // Finished ends: the cabinet side itself in finished material — a flat
+      // flush skin in the panel colour, adding no width to the footprint.
+      for (const side of [-1, 1] as const) {
+        if ((side === -1 && !finL) || (side === 1 && !finR)) continue;
+        if ((side === -1 && endL) || (side === 1 && endR)) continue; // applied end covers it
+        const skin = box(Math.max(2, d - FRONT_T), carcassH, 0.15, mats.panel);
+        skin.rotation.y = side * (Math.PI / 2);
+        skin.position.set(side * (w / 2 + 0.08), kick + carcassH / 2, (d - FRONT_T) / 2);
+        g.add(skin);
       }
     }
   }
@@ -1535,14 +1592,21 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       g.add(post);
     }
   };
-  if (cat.front === 'grill' && !isAppliance) {
+  if ((cat.front === 'grill' || cat.front === 'grill4') && !isAppliance) {
     // Built-in grill set into the cabinet, fixed width (the cabinet frame
-    // widens around it). Real Broilmaster model when loaded; procedural
-    // stainless face + roll-top hood as the fallback.
-    const gw = applianceOpeningW(cat.front, w);
-    // Real-life size: the head is always 32″ (shrunk only if the cabinet is
-    // narrower) — a wider cabinet grows the framing, not the grill.
-    const model = fitModel('grill', Math.min(applianceFaceW(w), GRILL_MODEL_REAL_W));
+    // widens around it). Brand-accurate head for the selected appliance when
+    // we carry its model (lazy-loaded), else the generic Broilmaster, else
+    // the procedural stainless face + roll-top hood.
+    if (dims.modelKey) requestModel(dims.modelKey);
+    const gw = applianceOpeningW(cat.front, w, dims.modelW);
+    const useKey = dims.modelKey && hasModel(dims.modelKey) ? dims.modelKey : 'grill';
+    // Real-life size: the head renders at its true width (shrunk only if the
+    // cabinet is narrower) — a wider cabinet grows the framing, not the grill.
+    // Jacketed units clamp to the cabinet width (their flange spans the
+    // counter, wider than the face opening between the stiles).
+    const info = useKey !== 'grill' ? applianceModelInfo(useKey) : null;
+    const fitW = info ? Math.min(w - 1.5, info.realWIn) : Math.min(applianceFaceW(w), GRILL_MODEL_REAL_W);
+    const model = fitModel(useKey, fitW);
     if (model) {
       // Close the cabinet's appliance-face opening with a DARK recessed panel
       // behind the unit — the sliver visible either side of the head's control
@@ -1556,8 +1620,20 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       if (GRILL_MODEL_YAW) model.rotation.y = GRILL_MODEL_YAW;
       const mb = new THREE.Box3().setFromObject(model);
       const md = mb.max.z - mb.min.z; // scaled depth
-      // firebox sinks into the cabinet; hood rises above the countertop
-      model.position.set(0, h - GRILL_MODEL_SINK, d - md / 2 - GRILL_MODEL_BACK);
+      if (info?.jacketTopIn) {
+        // jacketed unit: the insulated liner's flange rests ON the countertop,
+        // the jacket box hangs through the cut-out into the cabinet. Shift the
+        // model forward so the CONTROL PANEL (not the overhanging hood) lands at
+        // the counter front — capped so the hood can't slide off.
+        const counterTop = h + (dims.counterT ?? COUNTER_T);
+        const scale = fitW / info.realWIn;
+        const fwd = Math.min((info.ctrlRecessFrac ?? 0) * md, md * 0.25);
+        model.position.set(0, counterTop - info.jacketTopIn * scale, d - md / 2 - GRILL_MODEL_BACK + fwd);
+      } else {
+        // firebox sinks into the cabinet; hood rises above the countertop
+        model.position.set(0, h - GRILL_MODEL_SINK, d - md / 2 - GRILL_MODEL_BACK);
+      }
+      applyModelAlign(model, dims.modelAlign);
       g.add(model);
     } else {
       const applH = 9;
@@ -1591,10 +1667,15 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       // handle across the hood front
       addHoodHandle(gw - 8, h + 1.8 + hoodH * 0.28, hoodFrontZ + 1.7);
     }
-  } else if (cat.front === 'griddle' && !isAppliance) {
+  } else if ((cat.front === 'griddle' || cat.front === 'griddle4') && !isAppliance) {
     // Fixed griddle width (centered) so the unit doesn't stretch with the cabinet.
-    const openW = applianceOpeningW('griddle', w);
-    const model = fitModel('griddle', GRIDDLE_MODEL_W_FRAC * openW);
+    // Brand-accurate unit for the selected appliance when we carry its model.
+    if (dims.modelKey) requestModel(dims.modelKey);
+    const openW = applianceOpeningW(cat.front, w, dims.modelW);
+    const useKey = dims.modelKey && hasModel(dims.modelKey) ? dims.modelKey : 'griddle';
+    const info = useKey !== 'griddle' ? applianceModelInfo(useKey) : null;
+    const fitW = info ? Math.min(w - 1.5, info.realWIn) : GRIDDLE_MODEL_W_FRAC * openW;
+    const model = fitModel(useKey, fitW);
     if (model) {
       // Close the cabinet's appliance-face opening with a stainless panel set
       // back behind the unit, so no carcass shows but the model's own control
@@ -1611,7 +1692,16 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const mb = new THREE.Box3().setFromObject(model);
       const mh = mb.max.y - mb.min.y; // scaled height
       const md = mb.max.z - mb.min.z; // scaled depth
-      model.position.set(0, h + GRIDDLE_MODEL_PROUD - mh, d - md / 2 - GRIDDLE_MODEL_BACK);
+      if (info?.jacketTopIn) {
+        // jacketed unit: the liner flange rests on the countertop; shift forward
+        // so the controls reach the counter front (capped)
+        const counterTop = h + (dims.counterT ?? COUNTER_T);
+        const fwd = Math.min((info.ctrlRecessFrac ?? 0) * md, md * 0.25);
+        model.position.set(0, counterTop - info.jacketTopIn * (fitW / info.realWIn), d - md / 2 - GRIDDLE_MODEL_BACK + fwd);
+      } else {
+        model.position.set(0, h + GRIDDLE_MODEL_PROUD - mh, d - md / 2 - GRIDDLE_MODEL_BACK);
+      }
+      applyModelAlign(model, dims.modelAlign);
       g.add(model);
     } else {
       const gw = openW;
@@ -1631,8 +1721,10 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   } else if (cat.front === 'burner' && !isAppliance) {
     // Drop-in side/power burner: recessed control face, lip and rounded lid.
+    // Face height mirrors the grill cabinets' (see the fronts layout) so the
+    // steel face fills the opening and door tops line up across a run.
     const gw = applianceFaceW(w);
-    const applH = 7;
+    const applH = hasModel('grill') ? 6 : 9;
     const faceY = kick + carcassH - REVEAL - applH / 2;
     const face = box(gw, applH, 1.5, mats.steel);
     face.position.set(0, faceY, d - 0.2);

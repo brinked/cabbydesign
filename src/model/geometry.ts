@@ -165,20 +165,46 @@ export interface CornerReserve {
 /** Extra clearance reserved on each wall at a corner for door/drawer clearance. */
 export const CORNER_FILLER = 3;
 
+/** User override for one auto corner filler: a custom width, or removed. */
+export interface CornerOverride {
+  w?: number;
+  off?: boolean;
+}
+
+/** Overrides are keyed per wall end: `${wallId}:start` / `${wallId}:end`. */
+export function cornerKey(wallId: string, end: 'start' | 'end'): string {
+  return `${wallId}:${end}`;
+}
+
+/** Effective corner clearance (= auto filler width) at a wall end: the user's
+ *  override when set (0 when removed), else the standard 3″. */
+export function cornerGapFor(
+  overrides: Record<string, CornerOverride> | undefined,
+  wallId: string,
+  end: 'start' | 'end'
+): number {
+  const o = overrides?.[cornerKey(wallId, end)];
+  if (o?.off) return 0;
+  return Math.max(0, o?.w ?? CORNER_FILLER);
+}
+
 /**
  * Where two non-island walls meet, each wall reserves a "dead corner" only big
  * enough to clear the OTHER wall's cabinet at that corner — its depth plus a 3"
  * clearance. If the other wall has NO cabinet at the corner, nothing is reserved
  * (so a returning L-wall with no run lets cabinets sit right into the corner).
  * A diagonal/lazy-susan corner cabinet fills the corner, so the adjacent run
- * butts flush against it. A BLIND corner cabinet keeps the 3" clearance — its
- * buried door needs a filler so the adjoining cabinet doesn't pinch it shut.
- * Corner cabinets are exempt and may occupy their own reserve.
+ * butts flush against it (no extra filler). A BLIND corner cabinet keeps the
+ * 3" clearance — a cabinet can't sit right against its blind face, so the
+ * adjoining run is held off and an auto filler closes the gap (see
+ * store.autoCornerFillers). Corner cabinets are exempt and may occupy their
+ * own reserve.
  */
 export function cornerReserves(
   walls: Wall[],
   items: PlacedItem[],
-  catFor: (id: string) => CatalogItem
+  catFor: (id: string) => CatalogItem,
+  overrides?: Record<string, CornerOverride>
 ): Map<string, CornerReserve> {
   const map = new Map<string, CornerReserve>();
   for (const w of walls) map.set(w.id, { start: 0, end: 0 });
@@ -186,7 +212,7 @@ export function cornerReserves(
   // the floor cabinet nearest a wall end — the one that borders the corner and
   // must be cleared. Fillers are shallow trim that sit IN the reserve, so they
   // don't size it. Also reports whether it's a corner cabinet (susan/diagonal/
-  // blind), and blind specifically (blind corners still need the 3" clearance).
+  // blind), and blind specifically (blind corners still need the clearance).
   const nearest = (wall: Wall, atEnd: 'start' | 'end'): { depth: number; corner: boolean; blind: boolean } => {
     let bestDist = Infinity;
     let depth = 0;
@@ -206,11 +232,12 @@ export function cornerReserves(
     }
     return { depth, corner, blind };
   };
-  // No cabinet on the other wall → no reserve. A diagonal/susan corner cabinet
-  // fills the corner → the other run butts flush. A blind corner or plain
-  // cabinet reserves its depth + 3" filler clearance.
-  const reserveFor = (n: { depth: number; corner: boolean; blind: boolean }): number =>
-    n.depth <= 0 ? 0 : n.corner && !n.blind ? n.depth : n.depth + CORNER_FILLER;
+  // No cabinet on the other wall → no reserve. A diagonal/lazy-susan corner
+  // cabinet fills the corner → the other run butts flush (no filler). A blind
+  // corner cabinet (or a plain run) keeps the cabinet's depth + the corner
+  // clearance (3" standard; per-corner user overrides can shrink/remove it).
+  const reserveFor = (n: { depth: number; corner: boolean; blind: boolean }, gap: number): number =>
+    n.depth <= 0 ? 0 : n.corner && !n.blind ? n.depth : n.depth + gap;
 
   for (let i = 0; i < walls.length; i++) {
     for (let j = i + 1; j < walls.length; j++) {
@@ -232,8 +259,8 @@ export function cornerReserves(
         // but when a corner cabinet (susan/diagonal/blind) fills the corner the
         // adjacent run butts flush against it, so no filler is added. Corner
         // cabinets are exempt and may occupy their own reserve.
-        const reserveA = reserveFor(nearest(walls[j], endB));
-        const reserveB = reserveFor(nearest(walls[i], endA));
+        const reserveA = reserveFor(nearest(walls[j], endB), cornerGapFor(overrides, walls[i].id, endA));
+        const reserveB = reserveFor(nearest(walls[i], endA), cornerGapFor(overrides, walls[j].id, endB));
         if (endA === 'start') ra.start = Math.max(ra.start, reserveA);
         else ra.end = Math.max(ra.end, reserveA);
         if (endB === 'start') rb.start = Math.max(rb.start, reserveB);
@@ -244,14 +271,45 @@ export function cornerReserves(
   return map;
 }
 
+/**
+ * Which ends of a wall own a "dead corner" whose counter should extend to the
+ * wall corner, covering the reserved square. A corner qualifies when both
+ * walls hold their runs off it — an auto corner filler sits at each side (or
+ * did, before the user removed it via a corner override). Only ONE of the two
+ * walls (the lexicographically smaller id) extends, so the slabs don't overlap.
+ */
+export function cornerCounterExtend(
+  wall: Wall,
+  walls: Wall[],
+  items: PlacedItem[],
+  overrides?: Record<string, CornerOverride>
+): { start: boolean; end: boolean } {
+  const me = wallEndpoints(wall);
+  const qualifies = (wid: string, end: 'start' | 'end') =>
+    items.some((it) => it.id === `cf-${wid}-${end}`) || overrides?.[cornerKey(wid, end)]?.off === true;
+  const out = { start: false, end: false };
+  if (wall.ghost) return out;
+  for (const other of walls) {
+    if (other.id === wall.id || other.ghost) continue;
+    const oe = wallEndpoints(other);
+    for (const [myEnd, myPt] of [['start', me.p0] as const, ['end', me.p1] as const]) {
+      for (const [oEnd, oPt] of [['start', oe.p0] as const, ['end', oe.p1] as const]) {
+        if (Math.hypot(myPt.x - oPt.x, myPt.y - oPt.y) > CORNER_EPS) continue;
+        if (qualifies(wall.id, myEnd) && qualifies(other.id, oEnd) && wall.id < other.id) out[myEnd] = true;
+      }
+    }
+  }
+  return out;
+}
+
 /** Cabinet fronts allowed to occupy a reserved corner zone. */
 export function isCornerFront(cat: CatalogItem): boolean {
   const f = cat.front;
-  return f === 'corner' || f === 'susan' || f === 'blind' || f === 'blindl' || f === 'blindr';
+  return f === 'corner' || f === 'susan' || isBlindFront(cat);
 }
 
-/** Blind corner cabinets — they fill the corner but their buried door still
- *  needs a 3" filler between it and the adjoining wall's cabinet. */
+/** Blind corner cabinets — fill the corner but still need a 3" filler between
+ *  their blind face and the cabinet run on the adjoining wall. */
 export function isBlindFront(cat: CatalogItem): boolean {
   const f = cat.front;
   return f === 'blind' || f === 'blindl' || f === 'blindr';

@@ -20,6 +20,32 @@ export function bootstrapDealers(): void {
   }
 }
 
+/** Built-in grill/griddle inventory (imported from the original tool) — the
+ *  units the app carries brand-accurate 3D models for. Seeded only when the
+ *  appliances setting is missing/empty; the admin panel owns it afterwards. */
+const DEFAULT_APPLIANCES = [
+  { id: 'blz32', category: 'grill', brand: 'Blaze', model: 'BLZ-4-LTE2', name: 'LTE 32', msrp: 2000 },
+  { id: 'blz40', category: 'grill', brand: 'Blaze', model: 'BLZ-5-LTE2', name: 'LTE 40"', msrp: 2200 },
+  { id: 'blzpro', category: 'grill', brand: 'Blaze', model: 'BLZ-5-LTE-PRO', name: 'LTE Pro 40"', msrp: 2600 },
+  { id: 'nap32', category: 'grill', brand: 'Napoleon', model: 'BIG32', name: '700 BIG32', msrp: 3000 },
+  { id: 'nap38', category: 'grill', brand: 'Napoleon', model: 'BIG38', name: '700 BIG38', msrp: 3400 },
+  { id: 'nap44', category: 'grill', brand: 'Napoleon', model: 'BIG44', name: '700 BIG44', msrp: 3800 },
+  { id: 'xo32', category: 'grill', brand: 'XO', model: 'XLT32', name: 'XLT 32', msrp: 2500 },
+  { id: 'xo40', category: 'grill', brand: 'XO', model: 'XLT40', name: 'XLT 40"', msrp: 2700 },
+  { id: 'lg75', category: 'griddle', brand: 'Le Griddle', model: 'OML75', name: 'Commercial 75', msrp: 1800 },
+  { id: 'lg105', category: 'griddle', brand: 'Le Griddle', model: 'OML105', name: 'Commercial 105', msrp: 2100 },
+];
+
+export function bootstrapAppliances(): void {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'appliances'").get() as { value: string } | undefined;
+  const existing = row ? (JSON.parse(row.value) as unknown[]) : [];
+  if (Array.isArray(existing) && existing.length > 0) return;
+  db.prepare(
+    "INSERT INTO app_settings (key, value) VALUES ('appliances', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  ).run(JSON.stringify(DEFAULT_APPLIANCES));
+  console.log(`[bootstrap] seeded ${DEFAULT_APPLIANCES.length} default grill/griddle appliances.`);
+}
+
 export function bootstrapAdmin(): void {
   const email = process.env.ADMIN_EMAIL?.trim();
   const password = process.env.ADMIN_PASSWORD;

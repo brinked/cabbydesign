@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ALL_FINISHES, COUNTER_OVERHANG, catalogById } from '../model/catalog';
 import { resolveItemFinish } from '../model/newage';
-import { WALL_T, cornerNeedsFlip, frameForWall, isCornerFront, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints } from '../model/geometry';
+import { WALL_T, cornerCounterExtend, cornerNeedsFlip, frameForWall, isCornerFront, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints } from '../model/geometry';
 import type { MeasureEnd, Measurement, PlacedItem, Wall } from '../model/types';
 import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, uid, useStore } from '../state/store';
 import { NumberField } from './NumberField';
@@ -462,10 +462,14 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
             ) : (
               <polygon points={slabPts} fill={isSel ? '#5b5bd6' : '#3f4754'} {...wallHandlers} />
             )}
-            {/* countertop runs */}
+            {/* countertop runs — extended over an owned dead corner (matches 3D) */}
             {runs.map((r, i) => {
-              const x1 = Math.max(r.x1 - COUNTER_OVERHANG, 0);
-              const x2 = Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
+              const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
+              const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
+              const fillStart = ext.start && r.x1 <= wr.start + 1;
+              const fillEnd = ext.end && r.x2 >= f.wall.length - wr.end - 1;
+              const x1 = fillStart ? 0 : Math.max(r.x1 - COUNTER_OVERHANG, 0);
+              const x2 = fillEnd ? f.wall.length : Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
               return (
                 <rect key={i} x={x1} y={0} width={x2 - x1} height={r.d + COUNTER_OVERHANG} fill={fin.counter} stroke="rgba(0,0,0,0.3)" strokeWidth={0.4} />
               );
@@ -496,10 +500,11 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
                 <g
                   key={it.id}
                   transform={`translate(${it.x} ${it.outset})`}
-                  style={{ cursor: interactive && tool === 'select' && !it.auto ? 'grab' : 'default' }}
-                  onPointerDown={it.auto ? undefined : (e) => itemDown(e, it)}
+                  style={{ cursor: interactive && tool === 'select' ? (it.auto ? 'pointer' : 'grab') : 'default' }}
+                  onPointerDown={it.auto ? (e) => e.stopPropagation() : (e) => itemDown(e, it)}
                   onPointerMove={it.auto ? undefined : (e) => itemMove(e, it)}
                   onPointerUp={it.auto ? undefined : (e) => itemUp(e, it)}
+                  onClick={it.auto && interactive && tool === 'select' ? () => openEditor(it.id) : undefined}
                 >
                   <CabinetTop cat={cat} w={fpw} d={it.d} fin={itFin} hinge={cat.front === 'susan' || cat.front === 'corner' ? susanHinge(it) : it.hinge} />
                   <circle cx={fpw / 2} cy={it.d / 2} r={3.4} fill="#fff" stroke="#5b6472" strokeWidth={0.35} />
@@ -681,7 +686,13 @@ export default function TopView() {
   const updateWall = useStore((s) => s.updateWall);
   const removeWall = useStore((s) => s.removeWall);
   const openAdd = useStore((s) => s.openAdd);
+  const cornerOverrides = useStore((s) => s.design.cornerOverrides);
+  const setCornerOverride = useStore((s) => s.setCornerOverride);
   const selectedWall = walls.find((w) => w.id === selectedId);
+  // Corner-filler overrides on the selected wall (adjusted or removed) — offer a reset.
+  const wallOverrides = selectedWall
+    ? (['start', 'end'] as const).filter((end) => cornerOverrides?.[`${selectedWall.id}:${end}`] != null)
+    : [];
 
   return (
     <div className="plan-view">
@@ -755,6 +766,19 @@ export default function TopView() {
               />
               Island
             </label>
+            {wallOverrides.map((end) => {
+              const o = cornerOverrides![`${selectedWall.id}:${end}`];
+              return (
+                <button
+                  key={end}
+                  className="tool-btn"
+                  title={`The corner filler at this wall's ${end} was ${o.off ? 'removed' : `set to ${o.w}″`} — restore the standard 3″ filler`}
+                  onClick={() => setCornerOverride(`${selectedWall.id}:${end}`, null)}
+                >
+                  ↺ Corner filler ({end === 'start' ? 'near end' : 'far end'})
+                </button>
+              );
+            })}
             <button className="tool-btn" title="Rotate this wall 45° about its center" onClick={() => rotateWall(selectedWall.id, 45)}>
               ↻ 45°
             </button>

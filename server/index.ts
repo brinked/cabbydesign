@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { config } from './config.ts';
 import { loadSession } from './auth.ts';
 import './db.ts'; // ensure schema is applied at boot
-import { bootstrapAdmin, bootstrapDealers } from './bootstrap.ts';
+import { bootstrapAdmin, bootstrapAppliances, bootstrapDealers } from './bootstrap.ts';
 import { authRouter } from './routes/auth.ts';
 import { dealersRouter } from './routes/dealers.ts';
 import { settingsRouter } from './routes/settings.ts';
@@ -70,6 +70,7 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 
 bootstrapDealers();
 bootstrapAdmin();
+bootstrapAppliances();
 
 app.listen(config.port, () => {
   console.log(`CabDesign API listening on http://localhost:${config.port}`);
