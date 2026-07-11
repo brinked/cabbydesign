@@ -3,7 +3,17 @@
 // along automatically with credentials: 'include'.
 import type { ApplianceBrands, ApplianceItem, Design, HandleItem, ModelAligns, PanelRates } from '../model/types';
 
-export type Role = 'admin' | 'dealer' | 'contractor';
+export type Role = 'admin' | 'dealer' | 'contractor' | 'homeowner' | 'company';
+
+/** Consumer account types offered at signup. */
+export type AccountType = 'homeowner' | 'company';
+
+/** Cabinet-company catalog customization (ids hidden from the pickers). */
+export interface CatalogPrefs {
+  hiddenCabinets: string[];
+  hiddenHandles: string[];
+  hiddenFinishes: string[];
+}
 
 export interface ApiUser {
   id: number;
@@ -15,6 +25,7 @@ export interface ApiUser {
   address: string;
   phone: string;
   active: boolean;
+  emailVerified: boolean;
   createdAt: string;
   /** Data-URL logo for reports ('' if none). Populated only for the signed-in user. */
   logo: string;
@@ -157,9 +168,16 @@ export interface QuoteInput {
 
 export const api = {
   // ---- auth ----
-  me: () => request<{ user: ApiUser | null; prefs?: DealerPrefs; cert?: CertInfo }>('GET', '/auth/me'),
+  me: () => request<{ user: ApiUser | null; prefs?: DealerPrefs; cert?: CertInfo; catalogPrefs?: CatalogPrefs }>('GET', '/auth/me'),
   login: (email: string, password: string) =>
-    request<{ user: ApiUser; prefs: DealerPrefs; cert: CertInfo }>('POST', '/auth/login', { email, password }),
+    request<{ user: ApiUser; prefs: DealerPrefs; cert: CertInfo; catalogPrefs?: CatalogPrefs }>('POST', '/auth/login', { email, password }),
+  signup: (input: { name: string; email: string; password: string; accountType: AccountType; companyName?: string }) =>
+    request<{ ok: true; needsVerify: boolean; user?: ApiUser; prefs?: DealerPrefs; cert?: CertInfo; catalogPrefs?: CatalogPrefs }>('POST', '/auth/signup', input),
+  verifyEmail: (token: string) =>
+    request<{ ok: true; user: ApiUser; prefs: DealerPrefs; cert: CertInfo; catalogPrefs?: CatalogPrefs }>('POST', '/auth/verify-email', { token }),
+  resendVerify: (email: string) => request<{ ok: true }>('POST', '/auth/resend-verify', { email }),
+  getCatalogPrefs: () => request<{ catalogPrefs: CatalogPrefs }>('GET', '/profile/catalog-prefs'),
+  setCatalogPrefs: (catalogPrefs: CatalogPrefs) => request<{ catalogPrefs: CatalogPrefs }>('PUT', '/profile/catalog-prefs', catalogPrefs),
   logout: () => request<{ ok: true }>('POST', '/auth/logout'),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ ok: true }>('POST', '/auth/change-password', { currentPassword, newPassword }),

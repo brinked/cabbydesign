@@ -39,11 +39,12 @@ ensureColumn('dealer_branding', 'resale_cert', "TEXT NOT NULL DEFAULT ''");
 ensureColumn('dealer_branding', 'resale_cert_name', "TEXT NOT NULL DEFAULT ''");
 
 // The users.role CHECK originally allowed only ('admin','dealer'). Rebuild the
-// table to allow 'contractor' too if the existing CHECK doesn't include it.
-// (SQLite can't ALTER a CHECK; the table must be recreated. FKs are preserved
-// because we rename the new table to the old name with foreign_keys off.)
+// table whenever the CHECK is missing newer roles ('contractor', then the
+// consumer 'homeowner'/'company' account types). (SQLite can't ALTER a CHECK;
+// the table must be recreated. FKs are preserved because we rename the new
+// table to the old name with foreign_keys off.)
 const usersSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get() as { sql: string } | undefined)?.sql ?? '';
-if (usersSql && !usersSql.includes('contractor')) {
+if (usersSql && (!usersSql.includes('contractor') || !usersSql.includes('homeowner'))) {
   db.pragma('foreign_keys = OFF');
   db.exec(`
     BEGIN;
@@ -51,7 +52,7 @@ if (usersSql && !usersSql.includes('contractor')) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
-      role TEXT NOT NULL DEFAULT 'dealer' CHECK (role IN ('admin', 'dealer', 'contractor')),
+      role TEXT NOT NULL DEFAULT 'dealer' CHECK (role IN ('admin', 'dealer', 'contractor', 'homeowner', 'company')),
       company_name TEXT NOT NULL DEFAULT '',
       company_slogan TEXT NOT NULL DEFAULT '',
       address TEXT NOT NULL DEFAULT '',
@@ -61,7 +62,8 @@ if (usersSql && !usersSql.includes('contractor')) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
-    INSERT INTO users_new SELECT id, name, email, role, company_name, company_slogan, address, phone, password_hash, active, created_at, updated_at FROM users;
+    INSERT INTO users_new (id, name, email, role, company_name, company_slogan, address, phone, password_hash, active, created_at, updated_at)
+      SELECT id, name, email, role, company_name, company_slogan, address, phone, password_hash, active, created_at, updated_at FROM users;
     DROP TABLE users;
     ALTER TABLE users_new RENAME TO users;
     COMMIT;
@@ -69,9 +71,17 @@ if (usersSql && !usersSql.includes('contractor')) {
   db.pragma('foreign_keys = ON');
 }
 
+// Consumer accounts: email verification + per-company catalog customization.
+// email_verified defaults to 1 so existing dealer/admin accounts keep working;
+// signup explicitly creates rows with 0 until the emailed link is clicked.
+ensureColumn('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 1');
+ensureColumn('users', 'verify_token', "TEXT NOT NULL DEFAULT ''");
+ensureColumn('users', 'verify_expires', "TEXT NOT NULL DEFAULT ''");
+ensureColumn('users', 'catalog_prefs', "TEXT NOT NULL DEFAULT ''");
+
 // ---- Row types (shape returned from the DB) ----
 
-export type Role = 'admin' | 'dealer' | 'contractor';
+export type Role = 'admin' | 'dealer' | 'contractor' | 'homeowner' | 'company';
 
 export interface UserRow {
   id: number;
@@ -84,6 +94,10 @@ export interface UserRow {
   phone: string;
   password_hash: string;
   active: number;
+  email_verified: number;
+  verify_token: string;
+  verify_expires: string;
+  catalog_prefs: string;
   created_at: string;
   updated_at: string;
 }

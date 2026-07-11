@@ -3,11 +3,36 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db.ts';
 import { requireAuth } from '../auth.ts';
-import { certInfoFor, logoFor, ownAppliancesFor, prefsFor } from '../shape.ts';
+import { catalogPrefsFor, certInfoFor, logoFor, ownAppliancesFor, prefsFor } from '../shape.ts';
 import { appliancesSchema } from './settings.ts';
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
+
+// ---- Cabinet-company catalog customization (role 'company' only) ----
+const catalogPrefsSchema = z.object({
+  hiddenCabinets: z.array(z.string().max(120)).max(1000).default([]),
+  hiddenHandles: z.array(z.string().max(120)).max(1000).default([]),
+  hiddenFinishes: z.array(z.string().max(120)).max(1000).default([]),
+});
+
+profileRouter.get('/catalog-prefs', (req, res) => {
+  res.json({ catalogPrefs: catalogPrefsFor(req.user!) });
+});
+
+profileRouter.put('/catalog-prefs', (req, res) => {
+  if (req.user!.role !== 'company' && req.user!.role !== 'admin') {
+    res.status(403).json({ error: 'Only cabinet company accounts can customize the catalog' });
+    return;
+  }
+  const parsed = catalogPrefsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid catalog preferences' });
+    return;
+  }
+  db.prepare("UPDATE users SET catalog_prefs = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(parsed.data), req.user!.id);
+  res.json({ catalogPrefs: parsed.data });
+});
 
 const prefsSchema = z.object({
   marginPct: z.number().min(0).max(1000),

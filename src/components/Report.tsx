@@ -30,7 +30,10 @@ export default function Report() {
   const prefs = useSession((s) => s.prefs);
   const role = useSession((s) => s.user?.role);
   const sessionStatus = useSession((s) => s.status);
+  const openAuth = useSession((s) => s.openAuth);
   const isGuest = sessionStatus === 'guest';
+  /** Consumers: guests + homeowner/company accounts — no pricing, quote flow. */
+  const isConsumer = isGuest || role === 'homeowner' || role === 'company';
   const taxRate = useSession((s) => s.taxRate);
   const logo = useSession((s) => s.user?.logo) ?? '';
   const fin = useFinish(design.finishId);
@@ -43,9 +46,10 @@ export default function Report() {
   const counterSqft = counterAreaSqft(design);
   const totalHandles = design.items.reduce((n, it) => n + handleCount(catalogById(it.catalogId), it.w), 0);
 
-  // Pricing preferences. Default to showing marked-up pricing. End users
-  // (guests) never see pricing on the report — they request a quote instead.
-  const showPricing = isGuest ? false : prefs?.showPricing ?? true;
+  // Pricing preferences. Default to showing marked-up pricing. Consumers
+  // (guests + homeowner/company accounts) never see pricing on the report —
+  // they request a quote instead.
+  const showPricing = isConsumer ? false : prefs?.showPricing ?? true;
   const priceMode = prefs?.priceMode ?? 'marked_up';
   const isMarkedUp = priceMode === 'marked_up';
   const isContractor = role === 'contractor';
@@ -222,23 +226,26 @@ export default function Report() {
               Open 3D view
             </button>
           )}
-          {!isGuest && (
+          {!isConsumer && (
             <button className="btn-ghost" onClick={() => setOrderOpen(true)}>
               Submit order for review
             </button>
           )}
-          {isGuest && (
+          {isConsumer && (
             <button className="btn-primary" onClick={() => setQuoteOpen(true)}>
               Request a free quote
             </button>
           )}
           {isGuest ? (
-            // End users get their PDF by email (lead capture) instead of printing.
-            <button className="btn-ghost" onClick={() => setPdfGateOpen(true)}>
+            // Downloading the plan requires a (free, verified) account.
+            <button
+              className="btn-ghost"
+              onClick={() => openAuth('Create a free account to download your design as a PDF — and keep it saved for later.')}
+            >
               Save / Download PDF
             </button>
           ) : (
-            <button className="btn-primary" onClick={() => window.print()}>
+            <button className={isConsumer ? 'btn-ghost' : 'btn-primary'} onClick={() => window.print()}>
               Print / Save as PDF
             </button>
           )}
@@ -255,7 +262,7 @@ export default function Report() {
         />
       )}
 
-      {quoteOpen && isGuest && (
+      {quoteOpen && isConsumer && (
         <RequestQuoteModal
           design={design}
           lines={orderLines}
@@ -264,7 +271,7 @@ export default function Report() {
         />
       )}
 
-      {pdfGateOpen && isGuest && (
+      {pdfGateOpen && isConsumer && (
         <RequestQuoteModal
           design={design}
           lines={orderLines}

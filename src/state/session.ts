@@ -3,12 +3,13 @@
 // the admin-controlled global cabinet dims + base pricing formulas into the
 // designer store so every dealer designs against the same catalog rules.
 import { create } from 'zustand';
-import { api, ApiError, type ApiUser, type CertInfo, type DealerPrefs } from '../api/client';
+import { api, ApiError, type AccountType, type ApiUser, type CatalogPrefs, type CertInfo, type DealerPrefs } from '../api/client';
+import { deleteLocalJob, listLocalJobs } from './localJobs';
 import { NEWAGE_DEFAULT_APPLIANCES } from '../model/newage';
 import { DEFAULT_GRILL_APPLIANCES } from '../model/defaultAppliances';
 import { useStore } from './store';
 
-export type Screen = 'design' | 'admin' | 'jobs' | 'profile';
+export type Screen = 'design' | 'admin' | 'jobs' | 'profile' | 'catalog';
 
 interface SessionState {
   /** 'guest' = designing without an account (consumer mode, local-only saves). */
@@ -16,6 +17,8 @@ interface SessionState {
   user: ApiUser | null;
   prefs: DealerPrefs | null;
   cert: CertInfo | null;
+  /** Cabinet-company catalog customization (null for other roles). */
+  catalogPrefs: CatalogPrefs | null;
   /** Global sales-tax rate (percent), admin-controlled. */
   taxRate: number;
   screen: Screen;
@@ -24,9 +27,19 @@ interface SessionState {
   currentJobName: string | null;
   /** Save-job dialog visibility. */
   saveJobOpen: boolean;
+  /** Sign-in / create-account dialog: null = closed, else the reason shown. */
+  authPrompt: string | null;
 
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  /** Create a consumer account (homeowner / cabinet company). Returns true
+   *  when a verification email was sent (vs signed straight in). */
+  signup: (input: { name: string; email: string; password: string; accountType: AccountType; companyName?: string }) => Promise<boolean>;
+  /** Complete email verification from the ?verify=<token> deep link. */
+  verifyEmail: (token: string) => Promise<void>;
+  openAuth: (reason: string | null) => void;
+  closeAuth: () => void;
+  setCatalogPrefs: (catalogPrefs: CatalogPrefs) => Promise<void>;
   /** Enter consumer/guest mode — design without an account. */
   continueAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
@@ -62,11 +75,30 @@ async function pullGlobals(set: (partial: Partial<SessionState>) => void) {
 /** localStorage flag remembering that this browser chose guest mode. */
 const GUEST_KEY = 'cabdesign-guest';
 
+/** Consumer roles created via public signup. */
+const isConsumerRole = (role?: string) => role === 'homeowner' || role === 'company';
+
+/** Move any browser-local guest jobs into the freshly signed-in account so
+ *  nothing designed before signup is lost. Best-effort; failures keep the
+ *  local copy. */
+async function migrateLocalJobs(): Promise<void> {
+  for (const j of listLocalJobs()) {
+    try {
+      await api.createJob({ name: j.name, customerName: '', customerEmail: '', customerAddress: '', design: j.design });
+      deleteLocalJob(j.id);
+    } catch {
+      /* keep the local copy */
+    }
+  }
+}
+
 export const useSession = create<SessionState>()((set, get) => ({
   status: 'loading',
   user: null,
   prefs: null,
   cert: null,
+  catalogPrefs: null,
+  authPrompt: null,
   taxRate: 6.5,
   screen: 'design',
   currentJobId: null,
@@ -75,10 +107,10 @@ export const useSession = create<SessionState>()((set, get) => ({
 
   init: async () => {
     try {
-      const { user, prefs, cert } = await api.me();
+      const { user, prefs, cert, catalogPrefs } = await api.me();
       if (user) {
         await pullGlobals(set);
-        set({ status: 'authed', user, prefs: prefs ?? null, cert: cert ?? null });
+        set({ status: 'authed', user, prefs: prefs ?? null, cert: cert ?? null, catalogPrefs: catalogPrefs ?? null });
         return;
       }
     } catch {
@@ -93,9 +125,35 @@ export const useSession = create<SessionState>()((set, get) => ({
   },
 
   login: async (email, password) => {
-    const { user, prefs, cert } = await api.login(email, password);
+    const { user, prefs, cert, catalogPrefs } = await api.login(email, password);
     await pullGlobals(set);
-    set({ status: 'authed', user, prefs, cert, screen: 'design' });
+    set({ status: 'authed', user, prefs, cert, catalogPrefs: catalogPrefs ?? null, authPrompt: null });
+    if (isConsumerRole(user.role)) void migrateLocalJobs();
+  },
+
+  signup: async (input) => {
+    const r = await api.signup(input);
+    if (r.needsVerify || !r.user) return true;
+    // No-SMTP (local dev) path: the account is pre-verified and signed in.
+    await pullGlobals(set);
+    set({ status: 'authed', user: r.user, prefs: r.prefs ?? null, cert: r.cert ?? null, catalogPrefs: r.catalogPrefs ?? null, authPrompt: null });
+    void migrateLocalJobs();
+    return false;
+  },
+
+  verifyEmail: async (token) => {
+    const { user, prefs, cert, catalogPrefs } = await api.verifyEmail(token);
+    await pullGlobals(set);
+    set({ status: 'authed', user, prefs, cert, catalogPrefs: catalogPrefs ?? null, authPrompt: null });
+    if (isConsumerRole(user.role)) void migrateLocalJobs();
+  },
+
+  openAuth: (reason) => set({ authPrompt: reason ?? 'Sign in or create a free account to continue.' }),
+  closeAuth: () => set({ authPrompt: null }),
+
+  setCatalogPrefs: async (catalogPrefs) => {
+    const { catalogPrefs: saved } = await api.setCatalogPrefs(catalogPrefs);
+    set({ catalogPrefs: saved });
   },
 
   continueAsGuest: async () => {
@@ -123,7 +181,7 @@ export const useSession = create<SessionState>()((set, get) => ({
     } catch {
       /* ignore network errors on logout */
     }
-    set({ status: 'anon', user: null, prefs: null, cert: null, screen: 'design', currentJobId: null, currentJobName: null });
+    set({ status: 'anon', user: null, prefs: null, cert: null, catalogPrefs: null, screen: 'design', currentJobId: null, currentJobName: null });
   },
 
   setScreen: (screen) => set({ screen }),

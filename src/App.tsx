@@ -12,6 +12,8 @@ import JobsScreen from './components/JobsScreen';
 import ProfileScreen from './components/ProfileScreen';
 import { AddItemModal, AppliancesModal, EditItemModal, HandlesModal, MyAppliancesModal, OpeningModal, PricingModal, RetailPricingModal, RoughInModal, SettingsModal } from './components/Modals';
 import { ApplianceAlignerModal } from './components/ApplianceAligner';
+import AuthModal from './components/AuthModal';
+import CatalogPrefsScreen from './components/CatalogPrefsScreen';
 import SaveJobModal from './components/SaveJobModal';
 import { SvgDefs } from './components/svg';
 import { useStore } from './state/store';
@@ -23,6 +25,19 @@ export default function App() {
   const status = useSession((s) => s.status);
   const screen = useSession((s) => s.screen);
   const init = useSession((s) => s.init);
+  const verifyEmail = useSession((s) => s.verifyEmail);
+  // Email-verification deep link: ?verify=<token> from the signup email.
+  const [verifyToken] = useState<string | null>(() => new URLSearchParams(window.location.search).get('verify'));
+  const [verifyMsg, setVerifyMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!verifyToken) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    verifyEmail(verifyToken)
+      .then(() => setVerifyMsg('✅ Email verified — welcome to CabDesign! You are signed in.'))
+      .catch((e) => setVerifyMsg(`⚠ ${e instanceof Error ? e.message : 'Verification failed.'}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verifyToken]);
 
   // Password-reset deep link: ?reset=<token> from the emailed link.
   const [resetToken, setResetToken] = useState<string | null>(() => new URLSearchParams(window.location.search).get('reset'));
@@ -66,16 +81,31 @@ export default function App() {
     );
   }
 
+  const banner = verifyMsg && (
+    <div className="verify-banner" onClick={() => setVerifyMsg(null)}>
+      {verifyMsg} <span className="verify-banner-x">✕</span>
+    </div>
+  );
+
   if (adminGate && status !== 'authed') return <Login />;
-  if (status === 'anon') return <StartScreen />;
+  if (status === 'anon')
+    return (
+      <>
+        {banner}
+        <StartScreen />
+        <AuthModal />
+      </>
+    );
 
   return (
     <div className="app">
+      {banner}
       <SvgDefs />
       <Toolbar />
       {screen === 'admin' && <AdminPanel />}
       {screen === 'jobs' && <JobsScreen />}
       {screen === 'profile' && <ProfileScreen />}
+      {screen === 'catalog' && <CatalogPrefsScreen />}
       {screen === 'design' && (
         <main className={`main main-${tab}`}>
           {tab === 'design' && <WallsView />}
@@ -95,6 +125,7 @@ export default function App() {
       <MyAppliancesModal />
       <HandlesModal />
       <ApplianceAlignerModal />
+      <AuthModal />
       <SaveJobModal />
     </div>
   );

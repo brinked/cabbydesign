@@ -1,16 +1,17 @@
 // Convert DB rows into the JSON shapes the client consumes (camelCase, no secrets).
-import { db, type DealerPrefsRow, type JobRow, type UserRow } from './db.ts';
+import { db, type DealerPrefsRow, type JobRow, type Role, type UserRow } from './db.ts';
 
 export interface ApiUser {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'dealer' | 'contractor';
+  role: Role;
   companyName: string;
   companySlogan: string;
   address: string;
   phone: string;
   active: boolean;
+  emailVerified: boolean;
   createdAt: string;
   /** Data-URL logo for the dealer's reports ('' if none). Only populated for
    *  the signed-in user (me/login/profile), not the admin dealer list. */
@@ -28,9 +29,28 @@ export function shapeUser(u: UserRow, logo = ''): ApiUser {
     address: u.address,
     phone: u.phone,
     active: !!u.active,
+    emailVerified: !!u.email_verified,
     createdAt: u.created_at,
     logo,
   };
+}
+
+/** Cabinet-company catalog customization: catalog ids / handle ids / finish ids
+ *  the company has hidden from their designers' pickers. */
+export interface ApiCatalogPrefs {
+  hiddenCabinets: string[];
+  hiddenHandles: string[];
+  hiddenFinishes: string[];
+}
+
+export function catalogPrefsFor(u: Pick<UserRow, 'catalog_prefs'>): ApiCatalogPrefs {
+  try {
+    const v = u.catalog_prefs ? JSON.parse(u.catalog_prefs) : {};
+    const arr = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string') : []);
+    return { hiddenCabinets: arr(v.hiddenCabinets), hiddenHandles: arr(v.hiddenHandles), hiddenFinishes: arr(v.hiddenFinishes) };
+  } catch {
+    return { hiddenCabinets: [], hiddenHandles: [], hiddenFinishes: [] };
+  }
 }
 
 const getLogo = db.prepare('SELECT logo FROM dealer_branding WHERE user_id = ?');

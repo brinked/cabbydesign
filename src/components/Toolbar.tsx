@@ -29,14 +29,17 @@ export default function Toolbar() {
   const openSaveJob = useSession((s) => s.openSaveJob);
   const setCurrentJob = useSession((s) => s.setCurrentJob);
   const currentJobName = useSession((s) => s.currentJobName);
+  const openAuth = useSession((s) => s.openAuth);
   const isAdmin = user?.role === 'admin';
   const isGuest = status === 'guest';
+  const isCompany = user?.role === 'company';
   const [newOpen, setNewOpen] = useState(false);
 
   const navItems: Array<{ id: Screen; label: string; show: boolean }> = [
     { id: 'design', label: 'Designer', show: true },
-    { id: 'jobs', label: 'My Jobs', show: true },
-    { id: 'profile', label: 'Profile', show: !isGuest },
+    { id: 'jobs', label: 'My Jobs', show: !isGuest },
+    { id: 'catalog', label: 'My Catalog', show: isCompany },
+    { id: 'profile', label: 'Profile', show: !isGuest && !isCompany && user?.role !== 'homeowner' },
     { id: 'admin', label: 'Admin', show: !!isAdmin },
   ];
 
@@ -93,10 +96,18 @@ export default function Toolbar() {
                 Get a free quote
               </button>
             )}
-            <button className="btn-primary" onClick={() => openSaveJob(true)} title="Save this design">
+            <button
+              className="btn-primary"
+              title="Save this design"
+              onClick={() => (isGuest ? openAuth('Create a free account to save your designs — reopen them anytime, on any device.') : openSaveJob(true))}
+            >
               Save job
             </button>
-            <button className="btn-ghost" onClick={() => setScreen('jobs')} title="Open a saved job">
+            <button
+              className="btn-ghost"
+              title="Open a saved job"
+              onClick={() => (isGuest ? openAuth('Sign in to open your saved designs.') : setScreen('jobs'))}
+            >
               Open job
             </button>
             <button className="btn-ghost" onClick={() => setNewOpen(true)}>
@@ -108,9 +119,13 @@ export default function Toolbar() {
 
       <div className="toolbar-user">
         {screen === 'design' && currentJobName && <span className="job-chip">Job: {currentJobName}</span>}
-        {!isGuest && (
+        {isGuest ? (
+          <button className="btn-ghost" onClick={() => openAuth('Sign in or create a free account to save designs and download plans.')}>
+            Sign in
+          </button>
+        ) : (
           <>
-            <span className="user-name">{user?.name}</span>
+            <span className="user-name">{user?.companyName || user?.name}</span>
             <button className="btn-ghost" onClick={() => logout()}>
               Log out
             </button>
@@ -210,7 +225,11 @@ function SettingsMenu({
 
   const line = design.line ?? 'ext';
   const isNewAge = line !== 'ext';
-  const lineFinishes = finishesForLine(line, design.kitchenType);
+  // Cabinet-company accounts can hide finishes/handles from their pickers.
+  const catalogPrefs = useSession((s) => s.catalogPrefs);
+  const hiddenFinishes = new Set(catalogPrefs?.hiddenFinishes ?? []);
+  const hiddenHandles = new Set(catalogPrefs?.hiddenHandles ?? []);
+  const lineFinishes = finishesForLine(line, design.kitchenType).filter((f) => !hiddenFinishes.has(f.id));
   // NewAge finishes group by series; indoor finishes by Painted / Wood Stains.
   const finishGroups = [...new Set(lineFinishes.map((f) => f.group ?? ''))];
 
@@ -266,7 +285,7 @@ function SettingsMenu({
               <select className="select" value={design.handleId ?? ''} onChange={(e) => setDesignMeta({ handleId: e.target.value || undefined })}>
                 <option value="">Not selected</option>
                 {handles
-                  .filter((h) => h.active !== false)
+                  .filter((h) => h.active !== false && !hiddenHandles.has(h.id))
                   .map((h) => (
                     <option key={h.id} value={h.id}>
                       {h.name || 'Unnamed handle'}

@@ -57,7 +57,9 @@ function MiniPreview({ cat, finishId }: { cat: CatalogItem; finishId?: string })
  *  new cabinets match — individual cabinets can still override in their own
  *  settings. */
 function FinishBar({ line, kitchenType, finishId, onPick }: { line: ProductLine | undefined; kitchenType?: KitchenType; finishId: string; onPick: (id: string) => void }) {
-  const fins = finishesForLine(line, kitchenType);
+  const catalogPrefs = useSession((s) => s.catalogPrefs);
+  const hidden = new Set(catalogPrefs?.hiddenFinishes ?? []);
+  const fins = finishesForLine(line, kitchenType).filter((f) => !hidden.has(f.id));
   const groups = [...new Set(fins.map((f) => f.group ?? ''))];
   const cur = fins.find((f) => f.id === finishId) ?? fins[0];
   const swatch = (color: string) => (
@@ -117,6 +119,7 @@ export function AddItemModal() {
   const design = useStore((s) => s.design);
   const setDesignMeta = useStore((s) => s.setDesignMeta);
   const dims = useStore((s) => s.dims);
+  const catalogPrefs = useSession((s) => s.catalogPrefs);
   const [tab, setTab] = useState<string>('base');
   const [warn, setWarn] = useState<string | null>(null);
 
@@ -127,8 +130,9 @@ export function AddItemModal() {
   // Catalog scoped to this design's product line & kitchen type. Auto-convert
   // variants (4-door grills…) and legacy carts are hidden from the picker, and
   // items may list under a different tab than their behavioral category
-  // (fridges live under Appliances).
-  const available = catalogForDesign(design.line, design.kitchenType).filter((c) => !c.hideFromAdd);
+  // (fridges live under Appliances). Cabinet-company accounts can hide more.
+  const hiddenCabinets = new Set(catalogPrefs?.hiddenCabinets ?? []);
+  const available = catalogForDesign(design.line, design.kitchenType).filter((c) => !c.hideFromAdd && !hiddenCabinets.has(c.id));
   const labels = categoryLabelsForLine(design.line);
   const tabEntries = Object.entries(labels).filter(([id]) => available.some((c) => (c.displayCategory ?? c.category) === id));
   const activeTab = tabEntries.some(([id]) => id === tab) ? tab : tabEntries[0]?.[0] ?? 'base';
