@@ -305,6 +305,12 @@ button:disabled {
   background: var(--card);
   border-radius: var(--radius);
   box-shadow: 0 6px 24px rgba(25, 31, 50, 0.07);
+  /* overflow must stay visible so the +Rough-in / +Window dropdown menus in
+     the header aren't clipped; the body clips its own corners instead. */
+}
+
+.wall-card > .wall-card-body {
+  border-radius: 0 0 var(--radius) var(--radius);
   overflow: hidden;
 }
 
@@ -2543,4 +2549,21 @@ button:disabled {
   height: 12px;
   border-radius: 3px;
   border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+/* Rough-in menu on the card's right edge opens leftward so it isn't clipped */
+.roughin-menu-right {
+  left: auto;
+  right: 0;
+}
+
+/* project name/client fields inside the Settings dropdown */
+.settings-text {
+  flex: 1;
+  max-width: 150px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
 }

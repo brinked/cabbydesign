@@ -61,19 +61,6 @@ export default function Toolbar() {
 
       {screen === 'design' && (
         <>
-          <input
-            className="project-name"
-            value={design.name}
-            placeholder="Project name"
-            onChange={(e) => setDesignMeta({ name: e.target.value })}
-          />
-          <input
-            className="project-client"
-            value={design.client}
-            placeholder="Client (optional)"
-            onChange={(e) => setDesignMeta({ client: e.target.value })}
-          />
-
           <nav className="tabs">
             {TABS.map((t) => (
               <button key={t.id} className={tab === t.id ? 'tab active' : 'tab'} onClick={() => setTab(t.id)}>
@@ -84,6 +71,11 @@ export default function Toolbar() {
 
           <div className="toolbar-right">
             <SettingsMenu design={design} setDesignMeta={setDesignMeta} isAdmin={isAdmin} />
+            <FileMenu
+              onSave={() => (isGuest ? openAuth('Create a free account to save your designs — reopen them anytime, on any device.') : openSaveJob(true))}
+              onOpen={() => (isGuest ? openAuth('Sign in to open your saved designs.') : setScreen('jobs'))}
+              onNew={() => setNewOpen(true)}
+            />
             {isGuest && (
               <button
                 className="btn-quote"
@@ -96,23 +88,6 @@ export default function Toolbar() {
                 Get a free quote
               </button>
             )}
-            <button
-              className="btn-primary"
-              title="Save this design"
-              onClick={() => (isGuest ? openAuth('Create a free account to save your designs — reopen them anytime, on any device.') : openSaveJob(true))}
-            >
-              Save job
-            </button>
-            <button
-              className="btn-ghost"
-              title="Open a saved job"
-              onClick={() => (isGuest ? openAuth('Sign in to open your saved designs.') : setScreen('jobs'))}
-            >
-              Open job
-            </button>
-            <button className="btn-ghost" onClick={() => setNewOpen(true)}>
-              New
-            </button>
           </div>
         </>
       )}
@@ -144,6 +119,53 @@ export default function Toolbar() {
         />
       )}
     </header>
+  );
+}
+
+/** File dropdown: save / open / new — keeps the toolbar to a single row. */
+function FileMenu({ onSave, onOpen, onNew }: { onSave: () => void; onOpen: () => void; onNew: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const run = (fn: () => void) => {
+    setOpen(false);
+    fn();
+  };
+
+  return (
+    <div className="settings-dd" ref={ref}>
+      <button className={open ? 'btn-primary active' : 'btn-primary'} onClick={() => setOpen((o) => !o)} title="Save, open or start a design">
+        File ▾
+      </button>
+      {open && (
+        <div className="settings-menu file-menu">
+          <button className="settings-menu-item" onClick={() => run(onSave)}>
+            💾 Save job
+          </button>
+          <button className="settings-menu-item" onClick={() => run(onOpen)}>
+            📂 Open job…
+          </button>
+          <div className="settings-menu-sep" />
+          <button className="settings-menu-item" onClick={() => run(onNew)}>
+            ✨ New design…
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -240,6 +262,16 @@ function SettingsMenu({
       </button>
       {open && (
         <div className="settings-menu">
+          <div className="settings-menu-label">Project</div>
+          <label className="settings-menu-row">
+            <span>Name</span>
+            <input className="settings-text" value={design.name} placeholder="Project name" onChange={(e) => setDesignMeta({ name: e.target.value })} />
+          </label>
+          <label className="settings-menu-row">
+            <span>Client</span>
+            <input className="settings-text" value={design.client} placeholder="Optional" onChange={(e) => setDesignMeta({ client: e.target.value })} />
+          </label>
+          <div className="settings-menu-sep" />
           <div className="settings-menu-label">Design</div>
           <label className="settings-menu-row">
             <span>Cabinet line</span>

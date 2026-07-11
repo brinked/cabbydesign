@@ -615,7 +615,8 @@ function RoughInAdd({ wallId }: { wallId: string }) {
       {open && (
         <>
           <div className="roughin-backdrop" onClick={() => setOpen(false)} />
-          <div className="roughin-menu">
+          {/* right-aligned: this button sits at the card's right edge */}
+          <div className="roughin-menu roughin-menu-right">
             {ROUGHIN_KINDS.map((k) => (
               <button
                 key={k.kind}
