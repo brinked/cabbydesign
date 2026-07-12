@@ -8,11 +8,29 @@ export type Role = 'admin' | 'dealer' | 'contractor' | 'homeowner' | 'company';
 /** Consumer account types offered at signup. */
 export type AccountType = 'homeowner' | 'company';
 
-/** Cabinet-company catalog customization (ids hidden from the pickers). */
+/** A company-defined cabinet color/finish (shown as "My Colors"). */
+export interface CompanyFinish {
+  id: string;
+  name: string;
+  /** Door/body color (hex). */
+  body: string;
+}
+
+/** A company-defined handle with its own retail price. */
+export interface CompanyHandle {
+  id: string;
+  name: string;
+  price: number;
+}
+
+/** Cabinet-company catalog customization: ids hidden from the pickers plus
+ *  the company's own colors/finishes and priced handles. */
 export interface CatalogPrefs {
   hiddenCabinets: string[];
   hiddenHandles: string[];
   hiddenFinishes: string[];
+  customFinishes?: CompanyFinish[];
+  customHandles?: CompanyHandle[];
 }
 
 export interface ApiUser {

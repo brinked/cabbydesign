@@ -36,20 +36,31 @@ export function shapeUser(u: UserRow, logo = ''): ApiUser {
 }
 
 /** Cabinet-company catalog customization: catalog ids / handle ids / finish ids
- *  the company has hidden from their designers' pickers. */
+ *  the company has hidden from their designers' pickers, plus their own
+ *  colors/finishes and priced handles. */
 export interface ApiCatalogPrefs {
   hiddenCabinets: string[];
   hiddenHandles: string[];
   hiddenFinishes: string[];
+  customFinishes: Array<{ id: string; name: string; body: string }>;
+  customHandles: Array<{ id: string; name: string; price: number }>;
 }
 
 export function catalogPrefsFor(u: Pick<UserRow, 'catalog_prefs'>): ApiCatalogPrefs {
+  const empty: ApiCatalogPrefs = { hiddenCabinets: [], hiddenHandles: [], hiddenFinishes: [], customFinishes: [], customHandles: [] };
   try {
     const v = u.catalog_prefs ? JSON.parse(u.catalog_prefs) : {};
     const arr = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string') : []);
-    return { hiddenCabinets: arr(v.hiddenCabinets), hiddenHandles: arr(v.hiddenHandles), hiddenFinishes: arr(v.hiddenFinishes) };
+    const objs = <T>(x: unknown): T[] => (Array.isArray(x) ? x.filter((o) => o && typeof o === 'object') : []);
+    return {
+      hiddenCabinets: arr(v.hiddenCabinets),
+      hiddenHandles: arr(v.hiddenHandles),
+      hiddenFinishes: arr(v.hiddenFinishes),
+      customFinishes: objs(v.customFinishes),
+      customHandles: objs(v.customHandles),
+    };
   } catch {
-    return { hiddenCabinets: [], hiddenHandles: [], hiddenFinishes: [] };
+    return empty;
   }
 }
 

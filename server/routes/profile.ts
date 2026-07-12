@@ -14,6 +14,14 @@ const catalogPrefsSchema = z.object({
   hiddenCabinets: z.array(z.string().max(120)).max(1000).default([]),
   hiddenHandles: z.array(z.string().max(120)).max(1000).default([]),
   hiddenFinishes: z.array(z.string().max(120)).max(1000).default([]),
+  customFinishes: z
+    .array(z.object({ id: z.string().min(1).max(120), name: z.string().min(1).max(120), body: z.string().regex(/^#[0-9a-fA-F]{6}$/) }))
+    .max(200)
+    .default([]),
+  customHandles: z
+    .array(z.object({ id: z.string().min(1).max(120), name: z.string().min(1).max(200), price: z.number().min(0).max(100000) }))
+    .max(200)
+    .default([]),
 });
 
 profileRouter.get('/catalog-prefs', (req, res) => {

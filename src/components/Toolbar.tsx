@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { DOOR_STYLE_LABELS, doorStylesFor, finishesForLine } from '../model/catalog';
+import { companyFinishes, mergedHandles } from '../model/companyCatalog';
 import { LINE_LABELS } from '../model/newage';
 import { COUNTERTOPS, COUNTER_CATEGORY_LABELS, type CounterCategory } from '../model/countertops';
 import type { Design, KitchenType, ProductLine } from '../model/types';
@@ -247,11 +248,14 @@ function SettingsMenu({
 
   const line = design.line ?? 'ext';
   const isNewAge = line !== 'ext';
-  // Cabinet-company accounts can hide finishes/handles from their pickers.
+  // Cabinet-company accounts can hide finishes/handles and add their own.
   const catalogPrefs = useSession((s) => s.catalogPrefs);
   const hiddenFinishes = new Set(catalogPrefs?.hiddenFinishes ?? []);
-  const hiddenHandles = new Set(catalogPrefs?.hiddenHandles ?? []);
-  const lineFinishes = finishesForLine(line, design.kitchenType).filter((f) => !hiddenFinishes.has(f.id));
+  const lineFinishes = [
+    ...finishesForLine(line, design.kitchenType).filter((f) => !hiddenFinishes.has(f.id)),
+    ...(isNewAge ? [] : companyFinishes(catalogPrefs)),
+  ];
+  const handleOptions = mergedHandles(handles, catalogPrefs);
   // NewAge finishes group by series; indoor finishes by Painted / Wood Stains.
   const finishGroups = [...new Set(lineFinishes.map((f) => f.group ?? ''))];
 
@@ -316,8 +320,7 @@ function SettingsMenu({
               <span>Handle</span>
               <select className="select" value={design.handleId ?? ''} onChange={(e) => setDesignMeta({ handleId: e.target.value || undefined })}>
                 <option value="">Not selected</option>
-                {handles
-                  .filter((h) => h.active !== false && !hiddenHandles.has(h.id))
+                {handleOptions
                   .map((h) => (
                     <option key={h.id} value={h.id}>
                       {h.name || 'Unnamed handle'}

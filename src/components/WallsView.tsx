@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import type { FinishOption, OpeningKind, PlacedItem, RoughInKind, Wall } from '../model/types';
 import { ALL_FINISHES, BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
+import { companyFinishById } from '../model/companyCatalog';
+import { useSession } from '../state/session';
 import { resolveItemFinish } from '../model/newage';
 import { countertopById } from '../model/countertops';
 import { cornerCounterExtend, isReserveExempt, type CornerReserve } from '../model/geometry';
@@ -674,7 +676,9 @@ function OpeningAdd({ wallId }: { wallId: string }) {
 }
 
 export function useFinish(id: string): FinishOption {
-  return ALL_FINISHES.find((f) => f.id === id) ?? ALL_FINISHES[0];
+  // Company-defined colors resolve alongside the built-in palettes.
+  const catalogPrefs = useSession((s) => s.catalogPrefs);
+  return ALL_FINISHES.find((f) => f.id === id) ?? companyFinishById(catalogPrefs, id) ?? ALL_FINISHES[0];
 }
 
 export default function WallsView() {

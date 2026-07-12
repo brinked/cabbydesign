@@ -7,6 +7,7 @@ import { ALL_FINISHES, DOOR_STYLE_LABELS, TOEKICK_H, catalogById, handleCount } 
 import { LINE_LABELS, NA_COUNTER_RATE_PER_SQFT, itemFinishId, naVariantFor } from '../model/newage';
 import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
+import { mergedHandles } from '../model/companyCatalog';
 import { countertopById } from '../model/countertops';
 import { appliedEnds, counterAreaSqft, finishedEnds, footprintW, itemNumbers, itemOnIsland, itemPrice, reservesFor, roughInConflict, roughInHost, useStore } from '../state/store';
 import { useSession } from '../state/session';
@@ -27,6 +28,7 @@ export default function Report() {
   const appliances = useStore((s) => s.appliances);
   const applianceBrands = useStore((s) => s.applianceBrands);
   const handles = useStore((s) => s.handles);
+  const catalogPrefs = useSession((s) => s.catalogPrefs);
   const prefs = useSession((s) => s.prefs);
   const role = useSession((s) => s.user?.role);
   const sessionStatus = useSession((s) => s.status);
@@ -182,7 +184,7 @@ export default function Report() {
 
   // Cabinet handles: the selected handle priced across the whole design.
   // Retail (customer) in marked-up mode, dealer cost in cost mode.
-  const handle = handles.find((h) => h.id === design.handleId);
+  const handle = mergedHandles(handles, catalogPrefs).find((h) => h.id === design.handleId);
   const handleUnit = handle ? (isMarkedUp ? handle.retail : handle.dealer) : 0;
   const handleSubtotal = handle ? totalHandles * handleUnit : 0;
 

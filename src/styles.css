@@ -2567,3 +2567,138 @@ button:disabled {
   font: inherit;
   font-size: 13px;
 }
+
+/* ---------- My Catalog (company personalization) ---------- */
+
+.prefs-tabs {
+  margin: 4px 0 16px;
+  align-self: flex-start;
+  margin-left: 0;
+}
+
+.prefs-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 18px 16px;
+  margin-bottom: 14px;
+}
+
+.prefs-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.prefs-card-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.prefs-count {
+  font-size: 12px;
+  color: var(--muted);
+  display: inline-flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.prefs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 4px 16px;
+}
+
+.prefs-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.prefs-check:hover {
+  background: #f2f3f7;
+}
+
+.prefs-check input {
+  accent-color: var(--accent);
+}
+
+.prefs-check-off {
+  color: var(--muted);
+}
+
+.prefs-check span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.prefs-dirty {
+  font-size: 12.5px;
+  color: #b45309;
+  margin-right: 10px;
+}
+
+.prefs-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
+.prefs-list-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+
+.prefs-list-row > span:first-child {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prefs-price {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12.5px;
+}
+
+.prefs-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.prefs-add-name {
+  max-width: 320px;
+  flex: 1;
+}
+
+.prefs-add-price {
+  max-width: 90px;
+}
+
+.prefs-add-currency {
+  color: var(--muted);
+}
+
+.prefs-color {
+  width: 44px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  cursor: pointer;
+}

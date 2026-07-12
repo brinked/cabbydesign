@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BASE_H, CATALOG, COUNTER_T, catalogById, catalogForDesign, categoryLabelsForLine, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { NEWAGE_FINISHES, itemFinishId, naClosestFinish, naVariantFor } from '../model/newage';
+import { companyFinishes } from '../model/companyCatalog';
 import { money, tryFormula } from '../model/pricing';
 import {
   APPLIANCE_CATS,
@@ -59,7 +60,10 @@ function MiniPreview({ cat, finishId }: { cat: CatalogItem; finishId?: string })
 function FinishBar({ line, kitchenType, finishId, onPick }: { line: ProductLine | undefined; kitchenType?: KitchenType; finishId: string; onPick: (id: string) => void }) {
   const catalogPrefs = useSession((s) => s.catalogPrefs);
   const hidden = new Set(catalogPrefs?.hiddenFinishes ?? []);
-  const fins = finishesForLine(line, kitchenType).filter((f) => !hidden.has(f.id));
+  const fins = [
+    ...finishesForLine(line, kitchenType).filter((f) => !hidden.has(f.id)),
+    ...((line ?? 'ext') === 'ext' ? companyFinishes(catalogPrefs) : []),
+  ];
   const groups = [...new Set(fins.map((f) => f.group ?? ''))];
   const cur = fins.find((f) => f.id === finishId) ?? fins[0];
   const swatch = (color: string) => (
