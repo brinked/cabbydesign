@@ -12,6 +12,7 @@ import JobsScreen from './components/JobsScreen';
 import ProfileScreen from './components/ProfileScreen';
 import { AddItemModal, AppliancesModal, EditItemModal, HandlesModal, MyAppliancesModal, OpeningModal, PricingModal, RetailPricingModal, RoughInModal, SettingsModal } from './components/Modals';
 import { ApplianceAlignerModal } from './components/ApplianceAligner';
+import AccountScreen from './components/AccountScreen';
 import AuthModal from './components/AuthModal';
 import CatalogPrefsScreen from './components/CatalogPrefsScreen';
 import SaveJobModal from './components/SaveJobModal';
@@ -106,6 +107,7 @@ export default function App() {
       {screen === 'jobs' && <JobsScreen />}
       {screen === 'profile' && <ProfileScreen />}
       {screen === 'catalog' && <CatalogPrefsScreen />}
+      {screen === 'account' && <AccountScreen />}
       {screen === 'design' && (
         <main className={`main main-${tab}`}>
           {tab === 'design' && <WallsView />}

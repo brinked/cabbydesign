@@ -182,6 +182,42 @@ authRouter.post('/change-password', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---- Change email (password-confirmed; new address must be re-verified) ----
+
+authRouter.post('/change-email', requireAuth, async (req, res) => {
+  const parsed = z.object({ password: z.string().min(1), newEmail: z.string().trim().email('A valid email is required').max(200) }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
+    return;
+  }
+  const user = req.user!;
+  if (!verifyPassword(parsed.data.password, user.password_hash)) {
+    res.status(400).json({ error: 'Your current password is incorrect' });
+    return;
+  }
+  const newEmail = parsed.data.newEmail;
+  if (newEmail.toLowerCase() === user.email.toLowerCase()) {
+    res.status(400).json({ error: 'That is already your email address' });
+    return;
+  }
+  const taken = getByEmail.get(newEmail) as UserRow | undefined;
+  if (taken && taken.id !== user.id) {
+    res.status(409).json({ error: 'An account with this email already exists' });
+    return;
+  }
+  // Consumers re-verify the new address (they stay signed in; the next
+  // sign-in requires the link). Dealer/admin accounts skip verification.
+  const consumer = user.role === 'homeowner' || user.role === 'company';
+  const needsVerify = consumer && emailEnabled;
+  const token = crypto.randomBytes(32).toString('hex');
+  db.prepare(
+    "UPDATE users SET email = ?, email_verified = ?, verify_token = ?, verify_expires = datetime('now', '+24 hours'), updated_at = datetime('now') WHERE id = ?"
+  ).run(newEmail, needsVerify ? 0 : 1, needsVerify ? sha256(token) : '', user.id);
+  if (needsVerify) await sendVerifyEmail(newEmail, user.name, token);
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as UserRow;
+  res.json({ ok: true, needsVerify, user: shapeUser(fresh, logoFor(user.id)) });
+});
+
 // ---- Forgot / reset password (emailed one-time token) ----
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 

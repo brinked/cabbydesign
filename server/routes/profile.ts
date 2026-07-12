@@ -1,13 +1,39 @@
 // A dealer's own profile: margin % + report pricing preferences.
 import { Router } from 'express';
 import { z } from 'zod';
-import { db } from '../db.ts';
+import { db, type UserRow } from '../db.ts';
 import { requireAuth } from '../auth.ts';
-import { catalogPrefsFor, certInfoFor, logoFor, ownAppliancesFor, prefsFor } from '../shape.ts';
+import { catalogPrefsFor, certInfoFor, logoFor, ownAppliancesFor, prefsFor, shapeUser } from '../shape.ts';
 import { appliancesSchema } from './settings.ts';
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
+
+// ---- Account details (name / company / phone / address) ----
+const accountSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(200),
+  companyName: z.string().trim().max(200).default(''),
+  phone: z.string().trim().max(40).default(''),
+  address: z.string().trim().max(400).default(''),
+});
+
+profileRouter.put('/account', (req, res) => {
+  const parsed = accountSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid details' });
+    return;
+  }
+  const a = parsed.data;
+  db.prepare("UPDATE users SET name = ?, company_name = ?, phone = ?, address = ?, updated_at = datetime('now') WHERE id = ?").run(
+    a.name,
+    a.companyName,
+    a.phone,
+    a.address,
+    req.user!.id
+  );
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user!.id) as UserRow;
+  res.json({ user: shapeUser(fresh, logoFor(req.user!.id)) });
+});
 
 // ---- Cabinet-company catalog customization (role 'company' only) ----
 const catalogPrefsSchema = z.object({

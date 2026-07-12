@@ -2702,3 +2702,27 @@ button:disabled {
   background: var(--card);
   cursor: pointer;
 }
+
+/* ---------- account settings ---------- */
+.screen-narrow {
+  max-width: 720px;
+}
+
+.account-card {
+  margin-bottom: 16px;
+}
+
+.account-card h2 {
+  margin-bottom: 6px;
+}
+
+.account-card .ok-inline,
+.account-card .warn {
+  margin: 8px 0;
+}
+
+.account-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}

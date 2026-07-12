@@ -36,11 +36,13 @@ export default function Toolbar() {
   const isCompany = user?.role === 'company';
   const [newOpen, setNewOpen] = useState(false);
 
+  const isConsumerAccount = isCompany || user?.role === 'homeowner';
   const navItems: Array<{ id: Screen; label: string; show: boolean }> = [
     { id: 'design', label: 'Designer', show: true },
     { id: 'jobs', label: 'My Jobs', show: !isGuest },
     { id: 'catalog', label: 'My Catalog', show: isCompany },
-    { id: 'profile', label: 'Profile', show: !isGuest && !isCompany && user?.role !== 'homeowner' },
+    { id: 'profile', label: 'Profile', show: !isGuest && !isConsumerAccount },
+    { id: 'account', label: 'Account', show: isConsumerAccount },
     { id: 'admin', label: 'Admin', show: !!isAdmin },
   ];
 

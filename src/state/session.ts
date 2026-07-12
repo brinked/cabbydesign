@@ -9,7 +9,7 @@ import { NEWAGE_DEFAULT_APPLIANCES } from '../model/newage';
 import { DEFAULT_GRILL_APPLIANCES } from '../model/defaultAppliances';
 import { useStore } from './store';
 
-export type Screen = 'design' | 'admin' | 'jobs' | 'profile' | 'catalog';
+export type Screen = 'design' | 'admin' | 'jobs' | 'profile' | 'catalog' | 'account';
 
 interface SessionState {
   /** 'guest' = designing without an account (consumer mode, local-only saves). */
@@ -39,6 +39,11 @@ interface SessionState {
   verifyEmail: (token: string) => Promise<void>;
   openAuth: (reason: string | null) => void;
   closeAuth: () => void;
+  /** Update account details (name/company/phone/address). */
+  updateAccount: (input: { name: string; companyName?: string; phone?: string; address?: string }) => Promise<void>;
+  /** Change the sign-in email (password confirmed). Returns true when the new
+   *  address must be verified via the emailed link. */
+  changeEmail: (password: string, newEmail: string) => Promise<boolean>;
   setCatalogPrefs: (catalogPrefs: CatalogPrefs) => Promise<void>;
   /** Enter consumer/guest mode — design without an account. */
   continueAsGuest: () => Promise<void>;
@@ -150,6 +155,17 @@ export const useSession = create<SessionState>()((set, get) => ({
 
   openAuth: (reason) => set({ authPrompt: reason ?? 'Sign in or create a free account to continue.' }),
   closeAuth: () => set({ authPrompt: null }),
+
+  updateAccount: async (input) => {
+    const { user } = await api.updateAccount(input);
+    set({ user });
+  },
+
+  changeEmail: async (password, newEmail) => {
+    const { needsVerify, user } = await api.changeEmail(password, newEmail);
+    set({ user });
+    return needsVerify;
+  },
 
   setCatalogPrefs: async (catalogPrefs) => {
     const { catalogPrefs: saved } = await api.setCatalogPrefs(catalogPrefs);

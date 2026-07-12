@@ -194,6 +194,10 @@ export const api = {
   verifyEmail: (token: string) =>
     request<{ ok: true; user: ApiUser; prefs: DealerPrefs; cert: CertInfo; catalogPrefs?: CatalogPrefs }>('POST', '/auth/verify-email', { token }),
   resendVerify: (email: string) => request<{ ok: true }>('POST', '/auth/resend-verify', { email }),
+  changeEmail: (password: string, newEmail: string) =>
+    request<{ ok: true; needsVerify: boolean; user: ApiUser }>('POST', '/auth/change-email', { password, newEmail }),
+  updateAccount: (input: { name: string; companyName?: string; phone?: string; address?: string }) =>
+    request<{ user: ApiUser }>('PUT', '/profile/account', input),
   getCatalogPrefs: () => request<{ catalogPrefs: CatalogPrefs }>('GET', '/profile/catalog-prefs'),
   setCatalogPrefs: (catalogPrefs: CatalogPrefs) => request<{ catalogPrefs: CatalogPrefs }>('PUT', '/profile/catalog-prefs', catalogPrefs),
   logout: () => request<{ ok: true }>('POST', '/auth/logout'),
