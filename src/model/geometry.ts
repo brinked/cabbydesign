@@ -259,8 +259,17 @@ export function cornerReserves(
         // but when a corner cabinet (susan/diagonal/blind) fills the corner the
         // adjacent run butts flush against it, so no filler is added. Corner
         // cabinets are exempt and may occupy their own reserve.
-        const reserveA = reserveFor(nearest(walls[j], endB), cornerGapFor(overrides, walls[i].id, endA));
-        const reserveB = reserveFor(nearest(walls[i], endA), cornerGapFor(overrides, walls[j].id, endB));
+        const nA = nearest(walls[i], endA);
+        const nB = nearest(walls[j], endB);
+        const gapA = cornerGapFor(overrides, walls[i].id, endA);
+        const gapB = cornerGapFor(overrides, walls[j].id, endB);
+        let reserveA = reserveFor(nB, gapA);
+        let reserveB = reserveFor(nA, gapB);
+        // L-corner: the other wall has no run, but this wall's cabinet is pushed
+        // against the returning wall — reserve the filler gap so a filler fits
+        // between the cabinet and the wall.
+        if (reserveA === 0 && gapA > 0 && nA.depth > 0 && !nA.corner && cornerBlocksRun(walls[i], walls[j], endB)) reserveA = gapA;
+        if (reserveB === 0 && gapB > 0 && nB.depth > 0 && !nB.corner && cornerBlocksRun(walls[j], walls[i], endA)) reserveB = gapB;
         if (endA === 'start') ra.start = Math.max(ra.start, reserveA);
         else ra.end = Math.max(ra.end, reserveA);
         if (endB === 'start') rb.start = Math.max(rb.start, reserveB);
@@ -349,6 +358,20 @@ export function cornerNeedsFlip(wall: Wall, other: Wall): boolean {
   const dot = fW.nx * ax + fW.ny * ay;
   if (Math.abs(dot) < 0.01) return false; // collinear — no corner
   return dot < 0;
+}
+
+/**
+ * True when `other`'s wall, meeting `wall` at their shared corner, rises into
+ * the side where `wall`'s cabinets sit — so a cabinet run reaching that end is
+ * blocked by the returning wall (an inside L corner) and needs a filler between
+ * the cabinet and the wall. `otherEnd` is `other`'s endpoint at the corner.
+ */
+export function cornerBlocksRun(wall: Wall, other: Wall, otherEnd: 'start' | 'end'): boolean {
+  const fW = frameForWall(wall);
+  const fO = frameForWall(other);
+  const ax = otherEnd === 'start' ? fO.dx : -fO.dx;
+  const ay = otherEnd === 'start' ? fO.dy : -fO.dy;
+  return fW.nx * ax + fW.ny * ay > 0.01;
 }
 
 /** Axis-aligned bounding box of all wall frames including cabinet depth allowance. */

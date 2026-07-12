@@ -6,7 +6,7 @@ import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { CORNER_EPS, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot.
  *  Default only — the admin-managed rates live in store.panelRates. */
@@ -761,18 +761,26 @@ function autoCornerFillers(design: Design): void {
           const nW = nearest(W, eW);
           const nO = nearest(O, eO);
           // W's own cabinet must be plain (a corner unit fills the corner itself).
-          // The other wall's cabinet may be plain OR a blind corner cabinet —
-          // both need the 3" filler; diagonal/susan corners butt flush instead.
-          if (!nW || !nO || nW.corner || (nO.corner && !nO.blind)) continue;
+          if (!nW || nW.corner) continue;
           // NewAge modular kitchens don't use HDPE fillers — their corner
           // cabinets close the corner instead.
-          if (catalogById(nW.it.catalogId).line || catalogById(nO.it.catalogId).line) continue;
+          if (catalogById(nW.it.catalogId).line || (nO && catalogById(nO.it.catalogId).line)) continue;
           // per-corner override: custom filler width, or removed entirely
           const gap = cornerGapFor(design.cornerOverrides, W.id, eW);
           if (gap <= 0) continue;
-          // only fill when W's cabinet actually borders the dead-corner zone
-          // (the other wall's depth + the corner clearance)
-          if (nW.edge > nO.it.d + nO.it.outset + gap + 1) continue;
+          // A filler is needed when W's run borders the corner and either:
+          //  - the other wall has a plain OR blind cabinet there (dead corner), or
+          //  - the other wall has NO run but its returning wall blocks W's cabinet
+          //    (an L corner). A diagonal/susan corner cabinet butts flush → none.
+          let borders: boolean;
+          if (nO && !(nO.corner && !nO.blind)) {
+            borders = nW.edge <= nO.it.d + nO.it.outset + gap + 1;
+          } else if (!nO) {
+            borders = cornerBlocksRun(W, O, eO) && nW.edge <= gap + 1;
+          } else {
+            borders = false;
+          }
+          if (!borders) continue;
           const id = `cf-${W.id}-${eW}`;
           if (seen.has(id)) continue;
           seen.add(id);
