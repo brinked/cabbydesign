@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
-import { CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
+import { BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
@@ -439,6 +439,19 @@ export function itemOnIsland(design: Design, it: PlacedItem): boolean {
   return design.walls.find((w) => w.id === it.wallId)?.ghost ?? false;
 }
 
+/**
+ * The height a counter run passes over this item at. Undercounter appliance
+ * openings (fridges, ice makers) auto-size to the unit, which is usually
+ * shorter than counter height — the counter still runs across at the standard
+ * BASE_H with the gap showing underneath, instead of stepping down to the
+ * appliance (or breaking the neighbouring run).
+ */
+export function counterHeightFor(it: PlacedItem): number {
+  const cat = catalogById(it.catalogId);
+  const opening = cat.applianceCat === 'fridge' || cat.applianceCat === 'icemaker';
+  return opening && it.h <= BASE_H + 0.01 ? BASE_H : it.h;
+}
+
 export interface ItemPrice {
   /** Box price from the formula (drawers/add-ons baked in) or filler per-inch. */
   cabinet: number;
@@ -676,6 +689,21 @@ export function counterAreaSqft(design: Design): number {
       const x1 = ext.start && r.x1 <= wr.start + 1 ? 0 : r.x1;
       const x2 = ext.end && r.x2 >= wall.length - wr.end - 1 ? wall.length : r.x2;
       sqin += (x2 - x1) * (r.d + COUNTER_OVERHANG);
+    }
+    // stone backsplash band above the counters (real walls only) — same stone,
+    // so it counts toward the countertop square footage.
+    const bsH = design.backsplashHeight ?? 0;
+    if (bsH > 0 && !wall.ghost) {
+      for (const s of backsplashSpans(floor, wall.length, wr)) sqin += (s.x2 - s.x1) * bsH;
+    }
+    // waterfall edges: a side slab dropping from the counter top to the floor
+    const cT = design.counterThickness ?? COUNTER_T;
+    for (const it of floor) {
+      if (!catalogById(it.catalogId).counter) continue;
+      const drop = counterHeightFor(it) + cT;
+      const depth = it.d + it.outset + COUNTER_OVERHANG;
+      if (it.waterfallL) sqin += drop * depth;
+      if (it.waterfallR) sqin += drop * depth;
     }
   }
   return Math.round((sqin / 144) * 10) / 10;

@@ -6,7 +6,7 @@ import { useSession } from '../state/session';
 import { resolveItemFinish } from '../model/newage';
 import { countertopById } from '../model/countertops';
 import { cornerCounterExtend, isReserveExempt, type CornerReserve } from '../model/geometry';
-import { backsplashSpans, footprintW, laneItems, openingClash, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
+import { backsplashSpans, counterHeightFor, footprintW, laneItems, openingClash, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
 import { grillCutout } from '../three/cabinet3d';
 import { hasModel } from '../three/models';
 import { ElevationCabinet } from './CabinetImage';
@@ -24,9 +24,11 @@ function counterRuns(items: PlacedItem[]): Array<{ x1: number; x2: number; h: nu
     .sort((a, b) => a.x - b.x);
   const runs: Array<{ x1: number; x2: number; h: number }> = [];
   for (const it of tops) {
+    // undercounter appliances keep the counter at standard height over them
+    const h = counterHeightFor(it);
     const last = runs[runs.length - 1];
-    if (last && it.x <= last.x2 + 0.2 && Math.abs(last.h - it.h) < 0.01) last.x2 = Math.max(last.x2, it.x + footprintW(it));
-    else runs.push({ x1: it.x, x2: it.x + footprintW(it), h: it.h });
+    if (last && it.x <= last.x2 + 0.2 && Math.abs(last.h - h) < 0.01) last.x2 = Math.max(last.x2, it.x + footprintW(it));
+    else runs.push({ x1: it.x, x2: it.x + footprintW(it), h });
   }
   return runs;
 }

@@ -5,7 +5,7 @@ import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import type { ApplianceItem, Design, FinishOption, ModelAligns, PlacedItem, Wall } from '../model/types';
 import { resolveItemFinish } from '../model/newage';
-import { backsplashSpans, footprintW, laneItems, reservesFor } from '../state/store';
+import { backsplashSpans, counterHeightFor, footprintW, laneItems, reservesFor } from '../state/store';
 import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
 
 function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: number; h: number }> {
@@ -18,13 +18,16 @@ function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: 
     .sort((a, b) => a.x - b.x);
   const runs: Array<{ x1: number; x2: number; d: number; h: number }> = [];
   for (const it of tops) {
+    // Undercounter appliances (fridges/ice makers) keep the counter at the
+    // standard height passing over them — the gap shows underneath.
+    const h = counterHeightFor(it);
     const last = runs[runs.length - 1];
     // Merge only with an adjacent cabinet of the same height — a height change
     // starts a new run so the counter steps down to follow each cabinet.
-    if (last && it.x <= last.x2 + 0.2 && Math.abs(last.h - it.h) < 0.01) {
+    if (last && it.x <= last.x2 + 0.2 && Math.abs(last.h - h) < 0.01) {
       last.x2 = Math.max(last.x2, it.x + footprintW(it));
       last.d = Math.max(last.d, it.d + it.outset);
-    } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset, h: it.h });
+    } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset, h });
   }
   return runs;
 }

@@ -41,6 +41,15 @@ export default function Report() {
   const fin = useFinish(design.finishId);
   const numbers = itemNumbers(design);
 
+  // Walls with nothing on them (no cabinets, rough-ins or windows/doors) are
+  // left out of the report; elevation letters follow the shown walls.
+  const shownWalls = design.walls.filter(
+    (w) =>
+      design.items.some((it) => it.wallId === w.id) ||
+      design.roughIns.some((r) => r.wallId === w.id) ||
+      design.openings.some((o) => o.wallId === w.id)
+  );
+
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
   // Spec summary values for the cover/report.
@@ -320,8 +329,8 @@ export default function Report() {
         </div>
       </section>
 
-      {/* Elevations */}
-      {design.walls.map((wall, i) => (
+      {/* Elevations — walls with nothing on them are omitted */}
+      {shownWalls.map((wall, i) => (
         <section className="report-page" key={wall.id}>
           <h2>
             Elevation {String.fromCharCode(65 + i)} — {wall.name}
@@ -343,7 +352,7 @@ export default function Report() {
       ))}
 
       {/* Rough-in schedule — utility stub-out locations & measurements */}
-      {design.roughIns.length > 0 && <RoughInSchedule design={design} numbers={numbers} />}
+      {design.roughIns.length > 0 && <RoughInSchedule design={design} numbers={numbers} walls={shownWalls} />}
 
       {/* Schedule & pricing */}
       <section className="report-page">
@@ -611,8 +620,9 @@ const ROUGHIN_LABEL: Record<RoughInKind, string> = {
  * end and the height off the finished floor, both to the CENTER of the stub, plus
  * the opening size. Each wall that carries rough-ins gets a dimensioned elevation.
  */
-function RoughInSchedule({ design, numbers }: { design: Design; numbers: Map<string, number> }) {
-  const wallsWithRough = design.walls
+function RoughInSchedule({ design, numbers, walls }: { design: Design; numbers: Map<string, number>; walls: Wall[] }) {
+  // letters match the shown elevations (empty walls are omitted from both)
+  const wallsWithRough = walls
     .map((wall, i) => ({
       wall,
       letter: String.fromCharCode(65 + i),
