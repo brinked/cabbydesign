@@ -724,6 +724,25 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
       );
       break;
     }
+    case 'hood': {
+      // wall-canopy range hood: capture band + tapering chimney, brushed steel
+      const bandH = Math.min(h * 0.45, 10);
+      const topW = Math.min(w - 12, w * 0.56);
+      front = (
+        <g>
+          <polygon
+            points={`${(w - topW) / 2},0 ${(w + topW) / 2},0 ${w},${h - bandH} 0,${h - bandH}`}
+            fill="url(#g-steel)"
+            stroke={STEEL_LN}
+            strokeWidth={0.3}
+          />
+          <rect x={0} y={h - bandH} width={w} height={bandH} rx={0.6} fill="url(#g-steel)" stroke={STEEL_LN} strokeWidth={0.3} />
+          <rect x={0} y={h - bandH} width={w} height={bandH} rx={0.6} fill="url(#p-brush)" opacity={0.4} />
+          <rect x={3} y={h - bandH + 1.2} width={w - 6} height={1.2} rx={0.6} fill="url(#g-steel-h)" stroke={STEEL_LN} strokeWidth={0.12} filter="url(#f-handle)" />
+        </g>
+      );
+      break;
+    }
     case 'kamado':
       if (cat.category === 'appliance') {
         front = <KamadoEgg w={w} counter={false} standalone h={h} />;
@@ -791,7 +810,7 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
     }
   }
 
-  const noBody = cat.category === 'appliance';
+  const noBody = cat.category === 'appliance' || cat.front === 'hood'; // hood IS the unit — no carcass behind it
   return (
     <g>
       {noBody ? null : body}

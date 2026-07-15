@@ -150,6 +150,7 @@ export const CATALOG: CatalogItem[] = [
   { id: 'out-kamado-builtin', name: 'Built-In Kamado Cabinet', category: 'outdoor', front: 'kamadoinsert', lane: 'floor', w: 36, d: 30, h: BASE_H, minW: 30, maxW: 42, stepW: 2, counter: true, topGearH: 13, formula: BOX, applianceCat: 'kamado', note: 'Open 12" top compartment the kamado drops into. The counter runs across with a cut-out over the opening.' },
   { id: 'out-icemaker', name: 'Ice Maker', category: 'outdoor', front: 'icemaker', lane: 'floor', w: 15, d: 24, h: BASE_H, minW: 12, maxW: 30, stepW: 1, counter: true, formula: '0', applianceCat: 'icemaker' },
   { id: 'out-sink', name: 'Outdoor Sink Cabinet', category: 'outdoor', front: 'sink', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 36, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
+  { id: 'out-hood', displayCategory: 'appliance', name: 'Range Hood', category: 'outdoor', front: 'hood', lane: 'upper', w: 48, d: 24, h: 24, minW: 24, maxW: 72, stepW: 1, minD: 18, maxD: 30, minH: 12, maxH: 48, counter: false, formula: '0', mount: 66, applianceCat: 'hood', note: 'Wall-mounted vent hood — pick a hood model to size it automatically.' },
 
   // ---------- Fillers & trim ----------
   // Fillers are shallow (4" deep) and auto-outset to align flush with the
@@ -222,7 +223,7 @@ export function catalogById(id: string): CatalogItem {
 
 /** Appliance openings — fridges and ice makers are appliances (spaces sized to
  *  the unit), not cabinets, so they can't take applied end panels. */
-const APPLIANCE_OPENING_CATS: ApplianceCat[] = ['fridge', 'icemaker'];
+const APPLIANCE_OPENING_CATS: ApplianceCat[] = ['fridge', 'icemaker', 'hood'];
 
 /** Whether an item can take applied end panels. Appliances (e.g. freestanding
  *  grill, dishwasher) and appliance openings (fridges, ice makers) cannot;

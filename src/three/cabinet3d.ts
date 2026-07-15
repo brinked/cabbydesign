@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide, ModelAlign } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
-import { applianceModelInfo, fitModel, hasModel, requestModel } from './models';
+import { applianceModelInfo, fitModel, fitModelBox, hasModel, requestModel } from './models';
 
 // Real griddle model placement (tunable). Width as a fraction of the cabinet,
 // how far the cooking surface sits PROUD of the cabinet top (the firebox drops
@@ -703,6 +703,37 @@ export function gearAbove(cat: CatalogItem): number {
 export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats): THREE.Group {
   const g = new THREE.Group();
   const { w, d, h, hinge, style, endL, endR, finL, finR, backPanel } = dims;
+
+  // Range hood: the item IS the appliance — the real GLB stretched to exactly
+  // W×H×D (back against the wall), with a simple steel canopy while it loads.
+  if (cat.front === 'hood') {
+    requestModel('hood');
+    const model = fitModelBox('hood', w, h, d);
+    if (model) {
+      model.position.set(0, 0, d / 2);
+      applyModelAlign(model, dims.modelAlign);
+      g.add(model);
+    } else {
+      // procedural canopy: full-width capture band + tapering chimney
+      const bandH = Math.min(h * 0.45, 10);
+      const band = box(w, bandH, d, mats.steel);
+      band.position.set(0, bandH / 2, d / 2);
+      g.add(band);
+      const s = new THREE.Shape();
+      s.moveTo(-w / 2, 0);
+      s.lineTo(w / 2, 0);
+      s.lineTo(Math.min(w / 2 - 6, w * 0.28), h - bandH);
+      s.lineTo(Math.max(-w / 2 + 6, -w * 0.28), h - bandH);
+      s.closePath();
+      const geo = new THREE.ExtrudeGeometry(s, { depth: Math.max(6, d * 0.6), bevelEnabled: false });
+      const taper = new THREE.Mesh(geo, mats.steel);
+      taper.castShadow = taper.receiveShadow = true;
+      taper.position.set(0, bandH, 0.5);
+      g.add(taper);
+    }
+    return g;
+  }
+
   const isAppliance = cat.category === 'appliance';
   const isFridge = cat.front === 'fridge' || cat.front === 'fridge2' || cat.front === 'fridgep' || cat.front === 'fridgep2';
   const fridgeDrawers = cat.front === 'fridge2' || cat.front === 'fridgep2';

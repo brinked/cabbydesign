@@ -30,7 +30,12 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
   // shorter unit shows a gap under the counter.
   const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
   // brand-accurate 3D head for the selected grill/griddle appliance
-  const mref = cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' ? appliance3dModel(it.appliance, appliances) : null;
+  const mref =
+    cat.applianceCat === 'grill' || cat.applianceCat === 'griddle'
+      ? appliance3dModel(it.appliance, appliances)
+      : cat.front === 'hood'
+        ? { key: 'hood', w: it.w }
+        : null;
   const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, cornerSide, applianceH, counterT, modelKey: mref?.key, modelW: mref?.w };
   const url = useMemo(
     () => cabinetSprite(cat, dims, fin, 'front'),

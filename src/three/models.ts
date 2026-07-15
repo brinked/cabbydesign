@@ -52,6 +52,7 @@ const APPLIANCE_MODEL_URLS: Record<string, string> = {
   'xo-xlt-40': '/models/grills/xo-xlt-40.glb',
   'legriddle-commercial-75': '/models/grills/legriddle-commercial-75.glb',
   'legriddle-commercial-105': '/models/grills/legriddle-commercial-105.glb',
+  hood: '/models/hood.glb', // Proline 48" wall-canopy range hood
 };
 
 const requested = new Set<string>();
@@ -193,5 +194,26 @@ export function fitModel(key: string, targetWidthIn: number): THREE.Object3D | n
     }
   });
   clone.scale.setScalar(targetWidthIn / t.size.x);
+  return clone;
+}
+
+/**
+ * A clone of a model scaled per-axis to exactly W×H×D inches (base at y=0,
+ * centered in X/Z). Used by items that ARE the model (e.g. range hoods),
+ * where the user's size steppers stretch the unit itself.
+ */
+export function fitModelBox(key: string, w: number, h: number, d: number): THREE.Object3D | null {
+  const t = templates.get(key);
+  if (!t || t.size.x <= 0 || t.size.y <= 0 || t.size.z <= 0) return null;
+  const clone = t.obj.clone(true);
+  clone.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) {
+      const m = o as THREE.Mesh;
+      m.geometry = m.geometry.clone();
+      m.castShadow = true;
+      m.receiveShadow = true;
+    }
+  });
+  clone.scale.set(w / t.size.x, h / t.size.y, d / t.size.z);
   return clone;
 }

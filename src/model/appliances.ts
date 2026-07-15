@@ -13,6 +13,7 @@ export const APPLIANCE_CAT_LABELS: Record<ApplianceCat, string> = {
   kamado: 'Kamado',
   fridge: 'Refrigeration',
   icemaker: 'Ice Maker',
+  hood: 'Vent Hood',
   liner: 'Insulated Liner',
 };
 
@@ -25,11 +26,13 @@ export const APPLIANCE_CATS: ApplianceCat[] = [
   'kamado',
   'fridge',
   'icemaker',
+  'hood',
   'liner',
 ];
 
-/** Categories whose models carry physical W×D×H dimensions (drive the gap). */
-export const SIZED_CATS: ApplianceCat[] = ['fridge', 'icemaker', 'liner'];
+/** Categories whose models carry physical W×D×H dimensions (drive the gap,
+ *  or — for hoods — the unit's own size). */
+export const SIZED_CATS: ApplianceCat[] = ['fridge', 'icemaker', 'hood', 'liner'];
 
 /**
  * The dealer's discount off MSRP, as a fraction (0..1). The admin enters the
@@ -212,6 +215,7 @@ function normCat(raw: string): ApplianceCat | null {
   if (s.includes('burner')) return 'sideburner';
   if (s.includes('grill')) return 'grill';
   if (s.includes('kamado')) return 'kamado';
+  if (s.includes('hood') || s.includes('vent')) return 'hood';
   if (s.includes('ice')) return 'icemaker';
   if (s.includes('fridge') || s.includes('refrig')) return 'fridge';
   if (s.includes('liner') || s.includes('jacket')) return 'liner';

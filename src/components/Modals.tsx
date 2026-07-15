@@ -332,7 +332,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   const liner = selected?.linerId ? appliances.find((a) => a.id === selected.linerId) : undefined;
   const reqW = usesLinerRule(want)
     ? requiredCabinetWidth(sel, appliances, linerClearance)
-    : want === 'fridge' || want === 'icemaker'
+    : want === 'fridge' || want === 'icemaker' || want === 'hood'
       ? selectedApplianceWidth(sel, appliances) ?? 0
       : 0;
 
@@ -340,9 +340,10 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   // is picked, auto-size the opening's width, depth AND height to the unit's
   // dimensions. The countertop is always drawn at counter height (BASE_H), so a
   // unit shorter than the counter shows the gap underneath automatically. Width
-  // is clamped to the free space on the wall.
+  // is clamped to the free space on the wall. A hood IS the unit, so picking a
+  // hood model sizes the hood itself the same way.
   const fitDims = (next: ApplianceSelection | undefined): Partial<PlacedItem> => {
-    if (want !== 'fridge' && want !== 'icemaker') return {};
+    if (want !== 'fridge' && want !== 'icemaker' && want !== 'hood') return {};
     if (!next || next.mode !== 'inventory' || !next.applianceId) return {};
     const item = appliances.find((a) => a.id === next.applianceId);
     if (!item) return {};

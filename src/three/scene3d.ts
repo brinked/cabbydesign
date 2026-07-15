@@ -317,7 +317,12 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const geomSide: 1 | -1 = it.x + footprintW(it) / 2 > f.wall.length / 2 ? -1 : 1;
       const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
       // brand-accurate 3D head for the selected grill/griddle appliance
-      const mref = cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' ? appliance3dModel(it.appliance, appliances) : null;
+      const mref =
+        cat.applianceCat === 'grill' || cat.applianceCat === 'griddle'
+          ? appliance3dModel(it.appliance, appliances)
+          : cat.front === 'hood'
+            ? { key: 'hood', w: it.w }
+            : null;
       const cab = buildCabinetLocal(
         cat,
         { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined },

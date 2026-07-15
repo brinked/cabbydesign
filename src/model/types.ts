@@ -60,6 +60,7 @@ export type FrontKind =
   | 'cartgrill'
   | 'dishwasher'
   | 'icemaker'
+  | 'hood'
   | 'endcap'
   | 'filler'
   | 'flipup';
@@ -75,6 +76,7 @@ export type ApplianceCat =
   | 'kamado'
   | 'fridge'
   | 'icemaker'
+  | 'hood'
   | 'liner';
 
 /** One sellable appliance in the admin-managed inventory (model + MSRP). */

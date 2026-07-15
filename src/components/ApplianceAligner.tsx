@@ -15,7 +15,7 @@ import { Modal, SaveGlobalFooter } from './Modals';
 interface AlignerModel {
   key: string;
   label: string;
-  cat: 'grill' | 'griddle';
+  cat: 'grill' | 'griddle' | 'hood';
   brand: string;
   model: string;
   name: string;
@@ -35,6 +35,7 @@ const ALIGNER_MODELS: AlignerModel[] = [
   { key: 'xo-xlt-40', label: 'XO XLT 40″', cat: 'grill', brand: 'XO', model: 'XLT40', name: 'XLT 40"', cabW: 48 },
   { key: 'legriddle-commercial-75', label: 'Le Griddle Commercial 75', cat: 'griddle', brand: 'Le Griddle', model: 'OML75', name: 'Commercial OML75', cabW: 40 },
   { key: 'legriddle-commercial-105', label: 'Le Griddle Commercial 105', cat: 'griddle', brand: 'Le Griddle', model: 'OML105', name: 'Commercial OML105', cabW: 50 },
+  { key: 'hood', label: 'Range Hood (Proline 48″)', cat: 'hood', brand: 'Proline', model: '48WC', name: 'Wall Canopy Hood', cabW: 48 },
 ];
 
 function previewAppliance(m: AlignerModel): ApplianceItem {
@@ -45,7 +46,11 @@ function previewDesign(m: AlignerModel): Design {
   return {
     name: '', client: '', layout: 'linear', finishId: 'indigo', doorStyle: 'shaker', counterThickness: 1.5, counterId: 'classic-white', backsplashHeight: 0,
     walls: [{ id: 'w1', name: 'W', length: m.cabW + 24, height: 60, x: 0, y: 0, angle: 0, thickness: 5, ghost: false }],
-    items: [{ id: 'g', wallId: 'w1', catalogId: m.cat === 'griddle' ? 'out-griddle' : 'out-grill', x: 12, w: m.cabW, d: 30, h: 34.5, outset: 0, mount: 0, hinge: 'left', endL: false, endR: false, trays: 0, appliance: { mode: 'inventory', applianceId: 'preview', withLiner: true } }],
+    items: [
+      m.cat === 'hood'
+        ? { id: 'g', wallId: 'w1', catalogId: 'out-hood', x: 12, w: m.cabW, d: 24, h: 24, outset: 0, mount: 26, hinge: 'left', endL: false, endR: false, trays: 0 }
+        : { id: 'g', wallId: 'w1', catalogId: m.cat === 'griddle' ? 'out-griddle' : 'out-grill', x: 12, w: m.cabW, d: 30, h: 34.5, outset: 0, mount: 0, hinge: 'left', endL: false, endR: false, trays: 0, appliance: { mode: 'inventory', applianceId: 'preview', withLiner: true } },
+    ],
     roughIns: [], openings: [], measurements: [],
   };
 }
