@@ -176,36 +176,89 @@ function susanCounter(w: number, d: number, side: 1 | -1, mat: THREE.Material, c
  * Countertop slab (centred on x, 0..depth from the wall) with rectangular
  * cut-outs for dropped-in sinks. Coords are in the wall's local frame.
  */
-function counterSlabHoles(
-  runW: number,
-  depth: number,
+/** One front-depth segment of a counter run: the counter reaches `z` (inches
+ *  from the wall) across [x1, x2] (run-local x). */
+interface FrontSeg {
+  x1: number;
+  x2: number;
+  z: number;
+}
+
+/**
+ * Build the stepped front profile of a counter run across [xL, xR] (run-local
+ * x). Each real cabinet sets the counter's front to its own depth + overhang;
+ * gaps and shallow fillers inherit the deeper neighbouring depth; drop-in grill
+ * notches cut the front back to a thin strip behind the appliance.
+ */
+function buildFrontProfile(
+  xL: number,
+  xR: number,
+  depthCabs: FrontSeg[],
+  notches: Array<{ x1: number; x2: number; back: number }>,
+  fallbackZ: number
+): FrontSeg[] {
+  // Elementary boundaries: run ends + every cabinet/notch edge (clamped).
+  const clamp = (x: number) => Math.max(xL, Math.min(xR, x));
+  const bounds = new Set<number>([xL, xR]);
+  for (const c of depthCabs) {
+    bounds.add(clamp(c.x1));
+    bounds.add(clamp(c.x2));
+  }
+  for (const n of notches) {
+    bounds.add(clamp(n.x1));
+    bounds.add(clamp(n.x2));
+  }
+  const xs = [...bounds].sort((a, b) => a - b);
+  const zAt = (m: number): number => {
+    // A grill notch wins — the counter is cut back to its strip here.
+    for (const n of notches) if (m >= n.x1 && m <= n.x2) return n.back;
+    // Inside a real cabinet → that cabinet's front depth.
+    for (const c of depthCabs) if (m >= c.x1 && m <= c.x2) return c.z;
+    // A gap / overhang / filler → the deeper of the nearest cabinets each side.
+    let left = -Infinity, leftZ = 0, right = Infinity, rightZ = 0;
+    for (const c of depthCabs) {
+      if (c.x2 <= m && c.x2 > left) { left = c.x2; leftZ = c.z; }
+      if (c.x1 >= m && c.x1 < right) { right = c.x1; rightZ = c.z; }
+    }
+    const zs = [leftZ, rightZ].filter((z) => z > 0);
+    return zs.length ? Math.max(...zs) : fallbackZ;
+  };
+  const segs: FrontSeg[] = [];
+  for (let i = 0; i < xs.length - 1; i++) {
+    const a = xs[i], b = xs[i + 1];
+    if (b - a < 0.01) continue;
+    const z = zAt((a + b) / 2);
+    const last = segs[segs.length - 1];
+    if (last && Math.abs(last.z - z) < 0.01) last.x2 = b; // merge equal-depth runs
+    else segs.push({ x1: a, x2: b, z });
+  }
+  return segs;
+}
+
+/**
+ * Countertop slab for a run: a stepped front profile (each cabinet at its own
+ * depth + overhang, grills notched back) with rectangular cut-outs for dropped
+ * sinks. Coords are in the wall's local frame, x centred on the run.
+ */
+function counterRunSlab(
+  segs: FrontSeg[],
   holes: Array<{ x1: number; x2: number; z1: number; z2: number }>,
   mat: THREE.Material,
   cT: number,
   restH: number = BASE_H
 ): THREE.Mesh {
-  // Cut-outs that reach the counter's front edge become NOTCHES in the outer
-  // contour (a Shape hole may not touch the outline) — e.g. a drop-in grill
-  // whose control panel hangs in front of the counter nose.
-  const inner = holes.filter((h) => h.z2 < depth - 0.05);
-  const notches = holes
-    .filter((h) => h.z2 >= depth - 0.05)
-    .map((h) => ({ x1: Math.max(h.x1, -runW / 2), x2: Math.min(h.x2, runW / 2), z1: Math.max(h.z1, 0.05) }))
-    .filter((h) => h.x2 > h.x1)
-    .sort((a, b) => b.x1 - a.x1); // front edge is walked right → left
+  const xL = segs[0].x1;
   const s = new THREE.Shape();
-  s.moveTo(-runW / 2, 0);
-  s.lineTo(runW / 2, 0);
-  s.lineTo(runW / 2, depth);
-  for (const n of notches) {
-    s.lineTo(n.x2, depth);
-    s.lineTo(n.x2, n.z1);
-    s.lineTo(n.x1, n.z1);
-    s.lineTo(n.x1, depth);
+  s.moveTo(xL, 0);
+  s.lineTo(segs[segs.length - 1].x2, 0); // back edge (wall)
+  // Up the right side, then walk the stepped front right → left.
+  s.lineTo(segs[segs.length - 1].x2, segs[segs.length - 1].z);
+  for (let i = segs.length - 1; i >= 0; i--) {
+    s.lineTo(segs[i].x1, segs[i].z); // across this segment's front
+    if (i > 0) s.lineTo(segs[i].x1, segs[i - 1].z); // step to the left neighbour's depth
   }
-  s.lineTo(-runW / 2, depth);
-  s.closePath();
-  for (const h of inner) {
+  s.closePath(); // down the left side back to (xL, 0)
+  for (const h of holes) {
     const p = new THREE.Path();
     p.moveTo(h.x1, h.z1);
     p.lineTo(h.x2, h.z1);
@@ -429,38 +482,52 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const fillEnd = ext.end && r.x2 >= f.wall.length - wr.end - 1;
       const x1 = fillStart ? 0 : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
       const x2 = fillEnd ? f.wall.length : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
-      const depth = r.d + COUNTER_OVERHANG;
       const slabMat = mats.counter.clone();
       slabMat.map = mats.counterTex.clone();
+      slabMat.map.repeat.set(1 / 48, 1 / 48);
       const runCenter = (x1 + x2) / 2;
-      // Sink basins and drop-in grills in this run → cut holes so the appliance
-      // shows through and the counter frames it.
       const modelWFor = (it: PlacedItem) => appliance3dModel(it.appliance, appliances)?.w;
-      const holes = floorItems
-        .filter((it) => {
-          const cx = it.x + footprintW(it) / 2;
-          if (cx < r.x1 - 0.1 || cx > r.x2 + 0.1) return false;
-          const f = catalogById(it.catalogId).front;
-          return isSinkFront(f) || grillCutout(catalogById(it.catalogId), it.w, it.d, modelWFor(it)) !== null;
-        })
-        .map((it) => {
-          const cat = catalogById(it.catalogId);
-          const cx = it.x + footprintW(it) / 2 - runCenter;
-          const cut = isSinkFront(cat.front) ? sinkBasin(it.w, it.d) : grillCutout(cat, it.w, it.d, modelWFor(it))!;
-          return { x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: cut.zc - cut.bd / 2, z2: cut.zc + cut.bd / 2 };
-        });
-      if (holes.length) {
-        slabMat.map.repeat.set(1 / 48, 1 / 48);
-        const slab = counterSlabHoles(x2 - x1, depth, holes, slabMat, cT, r.h);
-        slab.position.copy(origin).addScaledVector(dir, runCenter);
-        slab.position.y = 0;
-        slab.rotation.y = yaw;
-        group.add(slab);
-      } else {
-        slabMat.map.repeat.set(Math.max(1, (x2 - x1) / 48), Math.max(1, depth / 48));
-        const slab = box(x2 - x1, cT, depth, slabMat);
-        place(slab, runCenter, depth / 2, r.h + cT / 2);
+
+      // Cabinets in this run (the corner/susan units carry their own tops).
+      const runCabs = floorItems.filter((it) => {
+        const cx = it.x + footprintW(it) / 2;
+        if (cx < r.x1 - 0.1 || cx > r.x2 + 0.1) return false;
+        const c = catalogById(it.catalogId);
+        return bridgesCounter(c) && c.front !== 'corner' && c.front !== 'susan';
+      });
+      // Front depth per real cabinet: its own depth + 1" overhang (run-local x).
+      // Shallow fillers are excluded so they inherit the neighbouring depth.
+      const depthCabs: FrontSeg[] = runCabs
+        .filter((it) => catalogById(it.catalogId).front !== 'filler')
+        .map((it) => ({ x1: it.x - runCenter, x2: it.x + footprintW(it) - runCenter, z: it.d + it.outset + COUNTER_OVERHANG }))
+        .sort((a, b) => a.x1 - b.x1);
+      const fallbackZ = r.d + COUNTER_OVERHANG;
+
+      // Drop-in appliances: grills/griddles/burners notch the front back to a
+      // strip behind the unit; sinks (and kamado inserts) are inner holes.
+      const notches: Array<{ x1: number; x2: number; back: number }> = [];
+      const holes: Array<{ x1: number; x2: number; z1: number; z2: number }> = [];
+      for (const it of runCabs) {
+        const cat = catalogById(it.catalogId);
+        const cx = it.x + footprintW(it) / 2 - runCenter;
+        if (isSinkFront(cat.front)) {
+          const cut = sinkBasin(it.w, it.d);
+          holes.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: cut.zc - cut.bd / 2, z2: cut.zc + cut.bd / 2 });
+          continue;
+        }
+        const cut = grillCutout(cat, it.w, it.d, modelWFor(it));
+        if (!cut) continue;
+        const front = it.d + it.outset + COUNTER_OVERHANG;
+        if (cut.zc + cut.bd / 2 >= front - 0.05) notches.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, back: cut.zc - cut.bd / 2 });
+        else holes.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: cut.zc - cut.bd / 2, z2: cut.zc + cut.bd / 2 });
       }
+
+      const profile = buildFrontProfile(x1 - runCenter, x2 - runCenter, depthCabs, notches, fallbackZ);
+      const slab = counterRunSlab(profile, holes, slabMat, cT, r.h);
+      slab.position.copy(origin).addScaledVector(dir, runCenter);
+      slab.position.y = 0;
+      slab.rotation.y = yaw;
+      group.add(slab);
     }
 
     // Stone backsplash — vertical slabs of the counter stone up the wall behind
