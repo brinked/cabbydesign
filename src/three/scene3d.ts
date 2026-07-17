@@ -187,31 +187,18 @@ interface FrontSeg {
 /**
  * Build the stepped front profile of a counter run across [xL, xR] (run-local
  * x). Each real cabinet sets the counter's front to its own depth + overhang;
- * gaps and shallow fillers inherit the deeper neighbouring depth; drop-in grill
- * notches cut the front back to a thin strip behind the appliance.
+ * gaps and shallow fillers inherit the deeper neighbouring depth.
  */
-function buildFrontProfile(
-  xL: number,
-  xR: number,
-  depthCabs: FrontSeg[],
-  notches: Array<{ x1: number; x2: number; back: number }>,
-  fallbackZ: number
-): FrontSeg[] {
-  // Elementary boundaries: run ends + every cabinet/notch edge (clamped).
+function buildFrontProfile(xL: number, xR: number, depthCabs: FrontSeg[], fallbackZ: number): FrontSeg[] {
+  // Elementary boundaries: run ends + every cabinet edge (clamped).
   const clamp = (x: number) => Math.max(xL, Math.min(xR, x));
   const bounds = new Set<number>([xL, xR]);
   for (const c of depthCabs) {
     bounds.add(clamp(c.x1));
     bounds.add(clamp(c.x2));
   }
-  for (const n of notches) {
-    bounds.add(clamp(n.x1));
-    bounds.add(clamp(n.x2));
-  }
   const xs = [...bounds].sort((a, b) => a - b);
   const zAt = (m: number): number => {
-    // A grill notch wins — the counter is cut back to its strip here.
-    for (const n of notches) if (m >= n.x1 && m <= n.x2) return n.back;
     // Inside a real cabinet → that cabinet's front depth.
     for (const c of depthCabs) if (m >= c.x1 && m <= c.x2) return c.z;
     // A gap / overhang / filler → the deeper of the nearest cabinets each side.
@@ -503,9 +490,11 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         .sort((a, b) => a.x1 - b.x1);
       const fallbackZ = r.d + COUNTER_OVERHANG;
 
-      // Drop-in appliances: grills/griddles/burners notch the front back to a
-      // strip behind the unit; sinks (and kamado inserts) are inner holes.
-      const notches: Array<{ x1: number; x2: number; back: number }> = [];
+      // Drop-in grills/griddles/burners: the counter is cut FULL DEPTH around the
+      // liner-jacket opening (a notch), so no stone runs over or behind the liner
+      // — it splits the run into separate stone pieces. Sinks (and kamado
+      // inserts) stay inner holes the stone frames.
+      const cuts: Array<{ x1: number; x2: number }> = [];
       const holes: Array<{ x1: number; x2: number; z1: number; z2: number }> = [];
       for (const it of runCabs) {
         const cat = catalogById(it.catalogId);
@@ -518,16 +507,31 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         const cut = grillCutout(cat, it.w, it.d, modelWFor(it));
         if (!cut) continue;
         const front = it.d + it.outset + COUNTER_OVERHANG;
-        if (cut.zc + cut.bd / 2 >= front - 0.05) notches.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, back: cut.zc - cut.bd / 2 });
+        if (cut.zc + cut.bd / 2 >= front - 0.05) cuts.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2 });
         else holes.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: cut.zc - cut.bd / 2, z2: cut.zc + cut.bd / 2 });
       }
 
-      const profile = buildFrontProfile(x1 - runCenter, x2 - runCenter, depthCabs, notches, fallbackZ);
-      const slab = counterRunSlab(profile, holes, slabMat, cT, r.h);
-      slab.position.copy(origin).addScaledVector(dir, runCenter);
-      slab.position.y = 0;
-      slab.rotation.y = yaw;
-      group.add(slab);
+      // Break the run into stone pieces on either side of each grill/liner cut.
+      const L = x1 - runCenter, R = x2 - runCenter;
+      cuts.sort((a, b) => a.x1 - b.x1);
+      const pieces: Array<{ a: number; b: number }> = [];
+      let cursor = L;
+      for (const c of cuts) {
+        const a = cursor, b = Math.min(Math.max(c.x1, L), R);
+        if (b - a > 0.1) pieces.push({ a, b });
+        cursor = Math.min(Math.max(c.x2, cursor), R);
+      }
+      if (R - cursor > 0.1) pieces.push({ a: cursor, b: R });
+
+      for (const pc of pieces) {
+        const profile = buildFrontProfile(pc.a, pc.b, depthCabs, fallbackZ);
+        const pcHoles = holes.filter((h) => (h.x1 + h.x2) / 2 >= pc.a - 0.01 && (h.x1 + h.x2) / 2 <= pc.b + 0.01);
+        const slab = counterRunSlab(profile, pcHoles, slabMat, cT, r.h);
+        slab.position.copy(origin).addScaledVector(dir, runCenter);
+        slab.position.y = 0;
+        slab.rotation.y = yaw;
+        group.add(slab);
+      }
     }
 
     // Stone backsplash — vertical slabs of the counter stone up the wall behind
