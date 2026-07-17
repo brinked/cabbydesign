@@ -758,18 +758,26 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     mainStone.castShadow = mainStone.receiveShadow = true;
     mainStone.position.set(0, h + cT / 2, BAR_DEPTH + mainD / 2);
     g.add(mainStone);
-    // raised bar body (finished color) at the back, floor → bar top
+    // raised bar body — the raw carcass gray, matching the cabinet's own sides
     const barTopY = h + BAR_RISE;
-    const barBody = box(w, barTopY, BAR_DEPTH, mats.body);
+    const barBody = box(w, barTopY, BAR_DEPTH, mats.carcass);
     barBody.castShadow = barBody.receiveShadow = true;
     barBody.position.set(0, barTopY / 2, BAR_DEPTH / 2);
     g.add(barBody);
-    // stone bar top, noses 1" over the riser front (above the main counter)
-    const barD = BAR_DEPTH + COUNTER_OVERHANG;
+    // stone bar top, noses BAR_NOSE over the riser front (over the main counter)
+    const BAR_NOSE = 1.5;
+    const barD = BAR_DEPTH + BAR_NOSE;
     const barStone = box(w, cT, barD, stone(barD));
     barStone.castShadow = barStone.receiveShadow = true;
     barStone.position.set(0, barTopY + cT / 2, barD / 2);
     g.add(barStone);
+    // granite backsplash up the back (wall side) of the bar tier
+    const BS_T = 0.75;
+    const BS_H = 4;
+    const barSplash = box(w, BS_H, BS_T, stone(BS_T));
+    barSplash.castShadow = barSplash.receiveShadow = true;
+    barSplash.position.set(0, barTopY + cT + BS_H / 2, BS_T / 2);
+    g.add(barSplash);
     return g;
   }
 
