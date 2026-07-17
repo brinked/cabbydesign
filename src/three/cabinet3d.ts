@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BASE_H, COUNTER_T, TOEKICK_H } from '../model/catalog';
+import { BAR_DEPTH, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide, ModelAlign } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
 import { applianceModelInfo, fitModel, fitModelBox, hasModel, requestModel } from './models';
@@ -731,6 +731,45 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       taper.position.set(0, bandH, 0.5);
       g.add(taper);
     }
+    return g;
+  }
+
+  // Bar-height cabinet: a normal working body at the FRONT with its stone counter
+  // at standard height, plus a raised "bar" tier at the BACK (wall side) that
+  // steps up BAR_RISE and occupies the extra BAR_DEPTH, with its own stone bar
+  // top. Local z: 0 = wall/back, d = room/front. Both tiers' stone are built here
+  // (scene3d skips bar cabinets), so a bar cabinet is self-contained.
+  if (cat.barHeight && cat.lane === 'floor') {
+    const frontD = Math.max(6, d - BAR_DEPTH);
+    const cT = dims.counterT ?? COUNTER_T;
+    const stone = (bd: number) => {
+      const m = mats.counter.clone();
+      m.map = mats.counterTex.clone();
+      m.map.repeat.set(Math.max(1, w / 48), Math.max(1, bd / 48));
+      return m;
+    };
+    // working body, shifted forward so the bar occupies the back BAR_DEPTH
+    const front = buildCabinetLocal({ ...cat, barHeight: false }, { ...dims, d: frontD }, mats);
+    front.position.z += BAR_DEPTH;
+    g.add(front);
+    // main counter at standard height: from the bar-riser front to a 1" front nose
+    const mainD = frontD + COUNTER_OVERHANG;
+    const mainStone = box(w, cT, mainD, stone(mainD));
+    mainStone.castShadow = mainStone.receiveShadow = true;
+    mainStone.position.set(0, h + cT / 2, BAR_DEPTH + mainD / 2);
+    g.add(mainStone);
+    // raised bar body (finished color) at the back, floor → bar top
+    const barTopY = h + BAR_RISE;
+    const barBody = box(w, barTopY, BAR_DEPTH, mats.body);
+    barBody.castShadow = barBody.receiveShadow = true;
+    barBody.position.set(0, barTopY / 2, BAR_DEPTH / 2);
+    g.add(barBody);
+    // stone bar top, noses 1" over the riser front (above the main counter)
+    const barD = BAR_DEPTH + COUNTER_OVERHANG;
+    const barStone = box(w, cT, barD, stone(barD));
+    barStone.castShadow = barStone.receiveShadow = true;
+    barStone.position.set(0, barTopY + cT / 2, barD / 2);
+    g.add(barStone);
     return g;
   }
 

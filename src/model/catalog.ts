@@ -2,6 +2,10 @@ import type { ApplianceCat, CatalogItem, DoorStyle, FinishOption, KitchenType, P
 import { NEWAGE_CATALOG, NEWAGE_FINISHES } from './newage';
 
 export const BASE_H = 34.5;
+/** Bar-height feature: the raised back tier steps up this many inches above the
+ *  main body and adds this much depth (its own stone bar top). */
+export const BAR_RISE = 6;
+export const BAR_DEPTH = 4.5;
 /** Default countertop slab thickness (inches) — 3cm. Per-job override lives on
  *  Design.counterThickness; this is the fallback for older saves & 2D defaults. */
 export const COUNTER_T = 1.25;
@@ -95,6 +99,7 @@ export const CATALOG: CatalogItem[] = [
   // ---------- Standard base cabinets ----------
   { id: 'base-1door', name: '1-Door Base', category: 'base', front: 'door1', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 9, maxW: 24, stepW: 3, counter: true, formula: BOX, maxTrays: 2 },
   { id: 'base-2door', name: '2-Door Base', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, maxTrays: 2 },
+  { id: 'base-2door-bar', name: '2-Door Base — Bar Height', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 28.5, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, maxTrays: 2, barHeight: true, note: 'Raised bar back: +6″ tall, +4.5″ deep, with its own stone bar top.' },
   { id: 'base-1door1drawer', name: '1-Door 1-Drawer Base', category: 'base', front: 'doordrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 24, stepW: 3, counter: true, formula: DRAWER1, maxTrays: 2 },
   { id: 'base-2door1drawer', name: '2-Door 1-Drawer Base', category: 'base', front: 'door2drawer', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: DRAWER1, maxTrays: 2 },
   { id: 'base-drawer3', name: '3-Drawer Base', category: 'base', front: 'drawers3', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 36, stepW: 3, counter: true, formula: DRAWER3 },
@@ -224,6 +229,12 @@ export function catalogById(id: string): CatalogItem {
 /** Appliance openings — fridges and ice makers are appliances (spaces sized to
  *  the unit), not cabinets, so they can't take applied end panels. */
 const APPLIANCE_OPENING_CATS: ApplianceCat[] = ['fridge', 'icemaker', 'hood'];
+
+/** True when a continuous countertop covers this unit: counter cabinets, plus
+ *  under-counter appliances (a dishwasher) the counter bridges over. */
+export function bridgesCounter(cat: CatalogItem): boolean {
+  return cat.counter || cat.underCounter === true;
+}
 
 /** Whether an item can take applied end panels. Appliances (e.g. freestanding
  *  grill, dishwasher) and appliance openings (fridges, ice makers) cannot;

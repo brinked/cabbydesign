@@ -183,6 +183,13 @@ export interface CatalogItem {
   maxH?: number;
   /** Whether a countertop runs over this unit */
   counter: boolean;
+  /** An under-counter appliance (e.g. a dishwasher) that carries no counter of
+   *  its own but tucks under a continuous run, so the counter bridges over it. */
+  underCounter?: boolean;
+  /** Bar-height cabinet: the standard body plus a raised back "bar" that steps
+   *  up BAR_RISE″ and adds BAR_DEPTH″ of depth, each tier getting its own stone
+   *  top. `d` is the TOTAL depth (front body + bar). */
+  barHeight?: boolean;
   /** Appliance drawn above the counter line (grill head, burner lid...) */
   topGearH?: number;
   /** Default pricing formula for the box. Variables: W, D, H (inches). */

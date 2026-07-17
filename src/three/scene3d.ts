@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ALL_FINISHES, BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
+import { ALL_FINISHES, BASE_H, COUNTER_OVERHANG, COUNTER_T, bridgesCounter, catalogById } from '../model/catalog';
 import { cornerCounterExtend, frameForWall, planBounds } from '../model/geometry';
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
@@ -9,11 +9,13 @@ import { backsplashSpans, counterHeightFor, footprintW, laneItems, reservesFor }
 import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
 
 function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: number; h: number }> {
-  // corner cabinets get their own shaped counter, so exclude them from runs
+  // corner cabinets get their own shaped counter, so exclude them from runs.
+  // Bar-height cabinets carry BOTH their stone tiers in the cabinet build, so
+  // they're excluded from the per-run counter too.
   const tops = items
     .filter((it) => {
-      const f = catalogById(it.catalogId).front;
-      return catalogById(it.catalogId).counter && f !== 'corner' && f !== 'susan';
+      const c = catalogById(it.catalogId);
+      return bridgesCounter(c) && !c.barHeight && c.front !== 'corner' && c.front !== 'susan';
     })
     .sort((a, b) => a.x - b.x);
   const runs: Array<{ x1: number; x2: number; d: number; h: number }> = [];
@@ -480,7 +482,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         const cx = it.x + footprintW(it) / 2;
         if (cx < r.x1 - 0.1 || cx > r.x2 + 0.1) return false;
         const c = catalogById(it.catalogId);
-        return bridgesCounter(c) && c.front !== 'corner' && c.front !== 'susan';
+        return bridgesCounter(c) && !c.barHeight && c.front !== 'corner' && c.front !== 'susan';
       });
       // Front depth per real cabinet: its own depth + 1" overhang (run-local x).
       // Shallow fillers are excluded so they inherit the neighbouring depth.
