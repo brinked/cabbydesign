@@ -857,8 +857,10 @@ function autoEnds(design: Design): void {
   for (const m of marks) {
     if (!m) continue;
     const { it, left, right } = m;
-    if (!left) { it.endL = false; it.finL = false; it.waterfallL = false; }
-    if (!right) { it.endR = false; it.finR = false; it.waterfallR = false; }
+    // Applied ends + waterfalls need an exposed side; clear them where a
+    // neighbour abuts. Finished ends are always allowed, so leave them be.
+    if (!left) { it.endL = false; it.waterfallL = false; }
+    if (!right) { it.endR = false; it.waterfallR = false; }
     if (it.endsAuto !== false) {
       if (left && !it.finL && !it.waterfallL) it.endL = true;
       if (right && !it.finR && !it.waterfallR) it.endR = true;

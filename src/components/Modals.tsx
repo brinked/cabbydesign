@@ -560,9 +560,9 @@ export function EditItemModal() {
   // One end treatment per side: none / applied panel / finished end / waterfall.
   const endRow = (side: 'left' | 'right') => {
     const L = side === 'left';
-    // A side that abuts a neighbour (or the wall corner) has no useful end
-    // treatment — hide it. `endsAuto: false` locks in the user's hand pick.
-    if (!sideExposed(design, it, side)) return null;
+    // Applied ends + waterfalls only make sense on an EXPOSED side (a run end).
+    // A finished end (finished side, no added width) is always available.
+    const exposed = sideExposed(design, it, side);
     const applied = L ? it.endL : it.endR;
     const fin = L ? it.finL : it.finR;
     const wf = L ? it.waterfallL : it.waterfallR;
@@ -583,8 +583,8 @@ export function EditItemModal() {
           <button className={!applied && !fin && !wf ? 'seg-btn active' : 'seg-btn'} onClick={() => set('none')}>
             None
           </button>
-          {takesAppliedEnds(cat) && (
-            <button className={applied ? 'seg-btn active' : 'seg-btn'} title="Applied end panel (+0.75″ width)" onClick={() => set('applied')}>
+          {takesAppliedEnds(cat) && exposed && (
+            <button className={applied ? 'seg-btn active' : 'seg-btn'} title="Applied end panel (+0.75″ width) — exposed run ends" onClick={() => set('applied')}>
               Applied
             </button>
           )}
@@ -597,7 +597,7 @@ export function EditItemModal() {
               Finished
             </button>
           )}
-          {takesWaterfall(cat) && (
+          {takesWaterfall(cat) && exposed && (
             <button className={wf ? 'seg-btn active' : 'seg-btn'} title="Waterfall — countertop wraps to the floor (run ends)" onClick={() => set('waterfall')}>
               Waterfall
             </button>
