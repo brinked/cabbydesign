@@ -14,7 +14,7 @@ import {
   selectedApplianceWidth,
 } from '../model/appliances';
 import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleItem, KitchenType, PlacedItem, ProductLine } from '../model/types';
-import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, spaceLeft, uid, useStore } from '../state/store';
+import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, sideExposed, spaceLeft, uid, useStore } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { useSession } from '../state/session';
 import { CatalogThumb } from './CabinetImage';
@@ -560,6 +560,9 @@ export function EditItemModal() {
   // One end treatment per side: none / applied panel / finished end / waterfall.
   const endRow = (side: 'left' | 'right') => {
     const L = side === 'left';
+    // A side that abuts a neighbour (or the wall corner) has no useful end
+    // treatment — hide it. `endsAuto: false` locks in the user's hand pick.
+    if (!sideExposed(design, it, side)) return null;
     const applied = L ? it.endL : it.endR;
     const fin = L ? it.finL : it.finR;
     const wf = L ? it.waterfallL : it.waterfallR;
@@ -567,8 +570,8 @@ export function EditItemModal() {
       updateItem(
         it.id,
         L
-          ? { endL: mode === 'applied', finL: mode === 'finished', waterfallL: mode === 'waterfall' }
-          : { endR: mode === 'applied', finR: mode === 'finished', waterfallR: mode === 'waterfall' }
+          ? { endL: mode === 'applied', finL: mode === 'finished', waterfallL: mode === 'waterfall', endsAuto: false }
+          : { endR: mode === 'applied', finR: mode === 'finished', waterfallR: mode === 'waterfall', endsAuto: false }
       );
     return (
       <div className="stepper-row">

@@ -286,7 +286,8 @@ export function takesAppliedEnds(cat: CatalogItem): boolean {
  *  cabinets, excluding appliance openings (fridges, ice makers) — a waterfall
  *  needs a real cabinet side to wrap. */
 export function takesWaterfall(cat: CatalogItem): boolean {
-  return cat.counter && cat.lane === 'floor' && takesAppliedEnds(cat);
+  // Bar-height cabinets step up at the back, so a waterfall edge doesn't apply.
+  return cat.counter && cat.lane === 'floor' && !cat.barHeight && takesAppliedEnds(cat);
 }
 
 /** How many door/drawer pulls (handles) a cabinet front needs. Open shelving,

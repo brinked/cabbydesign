@@ -280,6 +280,10 @@ export interface PlacedItem {
   /** Countertop waterfall edge down the left/right side (run ends only). */
   waterfallL?: boolean;
   waterfallR?: boolean;
+  /** When true/undefined, applied ends are auto-managed (applied on exposed run
+   *  ends, cleared on sides that abut a neighbour). Set false once the user picks
+   *  an end treatment by hand, so their choice sticks. */
+  endsAuto?: boolean;
   /** Auto-placed dead-corner filler — re-derived on every layout change and
    *  not hand-editable (managed by the app, not the user). */
   auto?: boolean;

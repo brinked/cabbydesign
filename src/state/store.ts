@@ -821,10 +821,57 @@ function autoCornerFillers(design: Design): void {
   design.items.push(...add);
 }
 
+/** True when a cabinet's given side is exposed (open) — no neighbouring floor
+ *  item abuts it, and (on a real wall) it isn't tucked into the wall's corner. */
+export function sideExposed(design: Design, it: PlacedItem, side: 'left' | 'right'): boolean {
+  const cat = catalogById(it.catalogId);
+  if (!takesAppliedEnds(cat)) return false;
+  const wall = design.walls.find((w) => w.id === it.wallId);
+  if (!wall) return false;
+  const edge = side === 'left' ? it.x : it.x + footprintW(it);
+  const attached = design.items.some((o) => {
+    if (o.id === it.id || o.wallId !== it.wallId) return false;
+    if (catalogById(o.catalogId).lane !== 'floor') return false;
+    const oEdge = side === 'left' ? o.x + footprintW(o) : o.x;
+    return Math.abs(oEdge - edge) < 0.75;
+  });
+  if (attached) return false;
+  // On a real wall, an end flush in the wall's corner is hidden, not exposed.
+  if (!wall.ghost) {
+    if (side === 'left' && it.x < 1) return false;
+    if (side === 'right' && it.x + footprintW(it) > wall.length - 1) return false;
+  }
+  return true;
+}
+
+/** Auto-manage applied ends: a finished end auto-applies on exposed run-end
+ *  sides; any end treatment is cleared on sides that abut a neighbour (useless
+ *  there). Items the user hand-set (endsAuto === false) keep their exposed-side
+ *  choice. Run on the packed layout, then re-pack so the ends seat correctly. */
+function autoEnds(design: Design): void {
+  const marks = design.items.map((it) => {
+    if (it.auto) return null;
+    if (!takesAppliedEnds(catalogById(it.catalogId))) return null;
+    return { it, left: sideExposed(design, it, 'left'), right: sideExposed(design, it, 'right') };
+  });
+  for (const m of marks) {
+    if (!m) continue;
+    const { it, left, right } = m;
+    if (!left) { it.endL = false; it.finL = false; it.waterfallL = false; }
+    if (!right) { it.endR = false; it.finR = false; it.waterfallR = false; }
+    if (it.endsAuto !== false) {
+      if (left && !it.finL && !it.waterfallL) it.endL = true;
+      if (right && !it.finR && !it.waterfallR) it.endR = true;
+    }
+  }
+}
+
 function withPack(design: Design): Design {
   // pack real items first (auto-fillers are exempt trim and re-derived after)
   const next = { ...design, items: design.items.filter((it) => !it.auto).map((it) => ({ ...it })) };
   packAll(next);
+  autoEnds(next); // apply/clear ends from the packed layout…
+  packAll(next); // …then re-pack so applied ends seat correctly
   autoCornerFillers(next);
   alignFillers(next);
   return next;

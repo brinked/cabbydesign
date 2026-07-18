@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H } from '../model/catalog';
+import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, takesAppliedEnds } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide, ModelAlign } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
 import { applianceModelInfo, fitModel, fitModelBox, hasModel, requestModel } from './models';
@@ -773,6 +773,19 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     barKick.castShadow = barKick.receiveShadow = true;
     barKick.position.set(0, kick / 2, TK_RECESS + (BAR_DEPTH - TK_RECESS) / 2);
     g.add(barKick);
+    // Applied end panels on the RISER: the recursive front build panels the lower
+    // box, and this caps the raised bar column, so the finished end wraps the full
+    // L-shaped side (box + riser).
+    if (takesAppliedEnds(cat)) {
+      for (const side of [-1, 1] as const) {
+        if ((side === -1 && !endL) || (side === 1 && !endR)) continue;
+        const pg = new THREE.Group();
+        pg.add(box(BAR_DEPTH, barColH, END_PANEL_T, mats.panel));
+        pg.rotation.y = side * (Math.PI / 2);
+        pg.position.set(side * (w / 2 + END_PANEL_T / 2), kick + barColH / 2, BAR_DEPTH / 2);
+        g.add(pg);
+      }
+    }
     // granite backsplash on the STEP where the cabinet rises (working-counter
     // side): from the main counter top up to the bar top.
     const BS_T = 0.75;
