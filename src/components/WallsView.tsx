@@ -454,9 +454,12 @@ export function WallElevationSvg({
           const w = footprintW(it);
           const riserTop = floorY - (it.h + BAR_RISE);
           const barTopY = riserTop - cT;
+          // The step face shows the granite backsplash (front side, like the 3D),
+          // capped by the stone bar top.
           return (
             <g key={`bar-${it.id}`}>
-              <rect x={it.x} y={riserTop} width={w} height={BAR_RISE - cT} fill="#e4e6e9" stroke="rgba(0,0,0,0.16)" strokeWidth={0.2} />
+              <rect x={it.x} y={riserTop} width={w} height={BAR_RISE - cT} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+              <rect x={it.x} y={riserTop} width={w} height={BAR_RISE - cT} fill="url(#g-counter)" />
               <rect x={it.x} y={barTopY} width={w} height={cT} rx={0.35} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
               <rect x={it.x} y={barTopY} width={w} height={cT} rx={0.35} fill="url(#g-counter)" />
             </g>

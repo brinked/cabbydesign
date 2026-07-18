@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
-import { BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, catalogById, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
+import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
@@ -673,7 +673,7 @@ export function counterAreaSqft(design: Design): number {
     const tops = floor
       .filter((it) => {
         const c = catalogById(it.catalogId);
-        return c.counter && c.front !== 'corner' && c.front !== 'susan';
+        return bridgesCounter(c) && !c.barHeight && c.front !== 'corner' && c.front !== 'susan';
       })
       .sort((a, b) => a.x - b.x);
     const runs: Array<{ x1: number; x2: number; d: number }> = [];
@@ -689,6 +689,18 @@ export function counterAreaSqft(design: Design): number {
       const x1 = ext.start && r.x1 <= wr.start + 1 ? 0 : r.x1;
       const x2 = ext.end && r.x2 >= wall.length - wr.end - 1 ? wall.length : r.x2;
       sqin += (x2 - x1) * (r.d + COUNTER_OVERHANG);
+    }
+    // bar-height cabinets carry their stone as three pieces (built in 3D, so
+    // excluded from the runs above): the main working counter, the raised bar
+    // top with its big seating overhang, and the vertical bar backsplash.
+    for (const it of floor) {
+      const c = catalogById(it.catalogId);
+      if (!c.barHeight) continue;
+      const w = footprintW(it);
+      const frontD = Math.max(6, it.d - BAR_DEPTH);
+      sqin += w * (frontD + COUNTER_OVERHANG); // main counter (front body + nose)
+      sqin += w * (BAR_DEPTH + BAR_OVERHANG + BAR_NOSE); // bar top + seating overhang
+      sqin += w * BAR_RISE; // vertical backsplash band
     }
     // stone backsplash band above the counters (real walls only) — same stone,
     // so it counts toward the countertop square footage.

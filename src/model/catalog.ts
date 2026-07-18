@@ -8,6 +8,8 @@ export const BASE_H = 34.5;
 export const BAR_RISE = 6;
 export const BAR_DEPTH = 4.5;
 export const BAR_OVERHANG = 10;
+/** Bar top nose past the step, toward the working counter. */
+export const BAR_NOSE = 1;
 /** Default countertop slab thickness (inches) — 3cm. Per-job override lives on
  *  Design.counterThickness; this is the fallback for older saves & 2D defaults. */
 export const COUNTER_T = 1.25;
