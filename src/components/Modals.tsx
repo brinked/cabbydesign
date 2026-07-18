@@ -135,10 +135,14 @@ export function AddItemModal() {
   // variants (4-door grills…) and legacy carts are hidden from the picker, and
   // items may list under a different tab than their behavioral category
   // (fridges live under Appliances). Cabinet-company accounts can hide more.
+  // Bar-height cabinets are island-only, so the "Bar Height" tab shows only on
+  // ghost (island/peninsula) walls.
   const hiddenCabinets = new Set(catalogPrefs?.hiddenCabinets ?? []);
   const available = catalogForDesign(design.line, design.kitchenType).filter((c) => !c.hideFromAdd && !hiddenCabinets.has(c.id));
   const labels = categoryLabelsForLine(design.line);
-  const tabEntries = Object.entries(labels).filter(([id]) => available.some((c) => (c.displayCategory ?? c.category) === id));
+  const tabEntries = Object.entries(labels)
+    .filter(([id]) => available.some((c) => (c.displayCategory ?? c.category) === id))
+    .filter(([id]) => wall.ghost || id !== 'bar');
   const activeTab = tabEntries.some(([id]) => id === tab) ? tab : tabEntries[0]?.[0] ?? 'base';
 
   const cats = available.filter((c) => (c.displayCategory ?? c.category) === activeTab);

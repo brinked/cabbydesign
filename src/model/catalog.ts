@@ -97,11 +97,10 @@ const WALLBOX = '((W*D*1) + 900) * (H/34)';
 /** Shown on every sink cabinet so the box is sized correctly for the basin. */
 const SINK_NOTE = 'Sink cabinet should be 3" wider than the sink.';
 
-export const CATALOG: CatalogItem[] = [
+const BASE_CATALOG: CatalogItem[] = [
   // ---------- Standard base cabinets ----------
   { id: 'base-1door', name: '1-Door Base', category: 'base', front: 'door1', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 9, maxW: 24, stepW: 3, counter: true, formula: BOX, maxTrays: 2 },
   { id: 'base-2door', name: '2-Door Base', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, maxTrays: 2 },
-  { id: 'base-2door-bar', name: '2-Door Base — Bar Height', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 28.5, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, maxTrays: 2, barHeight: true, note: 'Raised bar back: +6″ tall, +4.5″ deep, with its own stone bar top.' },
   { id: 'base-1door1drawer', name: '1-Door 1-Drawer Base', category: 'base', front: 'doordrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 24, stepW: 3, counter: true, formula: DRAWER1, maxTrays: 2 },
   { id: 'base-2door1drawer', name: '2-Door 1-Drawer Base', category: 'base', front: 'door2drawer', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: DRAWER1, maxTrays: 2 },
   { id: 'base-drawer3', name: '3-Drawer Base', category: 'base', front: 'drawers3', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 36, stepW: 3, counter: true, formula: DRAWER3 },
@@ -177,11 +176,44 @@ export const CATALOG: CatalogItem[] = [
   ...NEWAGE_CATALOG,
 ];
 
+// Fronts that get an auto-generated bar-height variant: plain floor cabinets
+// (doors/drawers/sink/trash/open). Corners, blinds, lazy-susans, fillers and the
+// drop-in appliance cabinets (grill/griddle/burner/kamado/fridge) are excluded —
+// their carcass or counter geometry doesn't fit the simple raised-bar tier.
+const BAR_FRONTS = new Set([
+  'door1', 'door2', 'doordrawer', 'door2drawer', 'drawers3', 'drawers4',
+  'sink', 'sink2', 'sink1', 'sink1f', 'open', 'trash', 'trashdrawer',
+  'propane', 'propanedrawer',
+]);
+
+/** A bar-height twin of a floor cabinet: +BAR_DEPTH deep, its own 'bar' section. */
+function barVariant(c: CatalogItem): CatalogItem {
+  return {
+    ...c,
+    id: `${c.id}-bar`,
+    name: `${c.name} — Bar`,
+    displayCategory: 'bar',
+    d: c.d + BAR_DEPTH,
+    barHeight: true,
+    hideFromAdd: false,
+    note: 'Bar height: raised bar back (+6″) with a 10″ seating overhang. Islands only.',
+  };
+}
+
+export const CATALOG: CatalogItem[] = [
+  ...BASE_CATALOG,
+  ...BASE_CATALOG.filter(
+    // No bar twins for NewAge modular units — factory-fixed sizes can't grow the bar tier.
+    (c) => c.lane === 'floor' && (c.category === 'base' || c.category === 'outdoor') && !c.hideFromAdd && !c.barHeight && !c.line && !c.fixed && BAR_FRONTS.has(c.front),
+  ).map(barVariant),
+];
+
 export const CATEGORY_LABELS: Record<string, string> = {
   base: 'Base Cabinets',
   wall: 'Wall Cabinets',
   tall: 'Tall Cabinets',
   outdoor: 'Outdoor Kitchen',
+  bar: 'Bar Height',
   trim: 'Fillers & Trim',
   appliance: 'Appliances',
 };

@@ -65,7 +65,7 @@ export type FrontKind =
   | 'filler'
   | 'flipup';
 
-export type Category = 'base' | 'wall' | 'tall' | 'outdoor' | 'appliance' | 'trim';
+export type Category = 'base' | 'wall' | 'tall' | 'outdoor' | 'appliance' | 'trim' | 'bar';
 
 /** Appliance categories that fit into a housing cabinet. */
 export type ApplianceCat =

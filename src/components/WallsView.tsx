@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { FinishOption, OpeningKind, PlacedItem, RoughInKind, Wall } from '../model/types';
-import { ALL_FINISHES, BASE_H, COUNTER_OVERHANG, COUNTER_T, catalogById } from '../model/catalog';
+import { ALL_FINISHES, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, bridgesCounter, catalogById } from '../model/catalog';
 import { companyFinishById } from '../model/companyCatalog';
 import { useSession } from '../state/session';
 import { resolveItemFinish } from '../model/newage';
@@ -445,6 +445,23 @@ export function WallElevationSvg({
           </g>
         );
       })}
+
+      {/* bar-height cabinets: the raised bar tier (+BAR_RISE) stepping up behind
+          the main counter, with its own stone top */}
+      {floorItems
+        .filter((it) => catalogById(it.catalogId).barHeight)
+        .map((it) => {
+          const w = footprintW(it);
+          const riserTop = floorY - (it.h + BAR_RISE);
+          const barTopY = riserTop - cT;
+          return (
+            <g key={`bar-${it.id}`}>
+              <rect x={it.x} y={riserTop} width={w} height={BAR_RISE - cT} fill="#e4e6e9" stroke="rgba(0,0,0,0.16)" strokeWidth={0.2} />
+              <rect x={it.x} y={barTopY} width={w} height={cT} rx={0.35} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+              <rect x={it.x} y={barTopY} width={w} height={cT} rx={0.35} fill="url(#g-counter)" />
+            </g>
+          );
+        })}
 
       {/* waterfall edges — countertop wrapping down a run-end side. Stops at the
           top of an adjoining cabinet (matching 3D) so it doesn't run over it. */}

@@ -990,6 +990,8 @@ export const useStore = create<AppState>()(
         const cat = catalogById(catalogId);
         const wall = s.design.walls.find((w) => w.id === wallId);
         if (!wall) return false;
+        // Bar-height cabinets need the open seating overhang, so they're island only.
+        if (cat.barHeight && !wall.ghost) return false;
         const { minW } = effectiveDims(catalogId, s.dims);
         // find the largest opening (handles gaps next to pinned corner cabinets)
         const slot = openingFor(s.design, wallId, cat);
