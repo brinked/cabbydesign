@@ -288,6 +288,35 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   const BS_THICK = 0.75; // backsplash slab thickness off the wall
   const reserves = bsH > 0 ? reservesFor(design) : null; // corner zones for backsplash spans
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1eee7, roughness: 0.92 });
+  const fenceMat = new THREE.MeshStandardMaterial({ color: 0x9c7a4d, roughness: 0.85 });
+  // A picket fence centered at the origin (x=length, y=height, z=thickness), so it
+  // drops into the same place() call the solid wall box uses.
+  const buildFence = (L: number, H: number, th: number): THREE.Group => {
+    const g = new THREE.Group();
+    const postW = Math.min(3.5, Math.max(2, th));
+    const posts = Math.max(2, Math.round(L / 72) + 1);
+    for (let i = 0; i < posts; i++) {
+      const post = box(postW, H, postW, fenceMat);
+      post.position.set(-L / 2 + (L * i) / (posts - 1), 0, 0);
+      post.castShadow = true;
+      g.add(post);
+    }
+    for (const ry of [H * 0.32, -H * 0.32]) {
+      const rail = box(L, 3.5, 1.0, fenceMat);
+      rail.position.set(0, ry, 0);
+      g.add(rail);
+    }
+    const pitch = 5.5; // picket + gap
+    const n = Math.max(1, Math.floor(L / pitch));
+    const picketH = H * 0.9;
+    for (let i = 0; i < n; i++) {
+      const pk = box(3.5, picketH, 0.75, fenceMat);
+      pk.position.set(-L / 2 + ((i + 0.5) * L) / n, -(H - picketH) / 2, th / 2 - 0.4);
+      pk.castShadow = true;
+      g.add(pk);
+    }
+    return g;
+  };
   // window / door materials (built once, disposed with the scene)
   const frameMat = new THREE.MeshStandardMaterial({ color: 0xeeece6, roughness: 0.65, metalness: 0.05 });
   const glassMat = new THREE.MeshPhysicalMaterial({ color: 0xbcd4e6, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.4, transmission: 0.5, clearcoat: 0.6 });
@@ -344,9 +373,13 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
 
     if (!f.wall.ghost) {
       const th = f.wall.thickness ?? 5;
-      const wallMesh = box(f.wall.length, f.wall.height, th, wallMat);
-      wallMesh.castShadow = false;
-      place(wallMesh, f.wall.length / 2, -th / 2, f.wall.height / 2);
+      if (f.wall.fence) {
+        place(buildFence(f.wall.length, f.wall.height, th), f.wall.length / 2, -th / 2, f.wall.height / 2);
+      } else {
+        const wallMesh = box(f.wall.length, f.wall.height, th, wallMat);
+        wallMesh.castShadow = false;
+        place(wallMesh, f.wall.length / 2, -th / 2, f.wall.height / 2);
+      }
     }
 
     const wallItems = design.items.filter((it) => it.wallId === f.wall.id);
@@ -567,6 +600,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     disposeMats(mats);
     for (const m of matsByFinish.values()) disposeMats(m);
     wallMat.dispose();
+    fenceMat.dispose();
     frameMat.dispose();
     glassMat.dispose();
     doorMat.dispose();

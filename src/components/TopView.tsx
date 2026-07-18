@@ -459,6 +459,15 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
                 strokeDasharray="3 2.5"
                 {...wallHandlers}
               />
+            ) : f.wall.fence ? (
+              // fence — brown rail with evenly spaced picket ticks along its length
+              <g {...wallHandlers} style={{ cursor: interactive && tool === 'select' ? 'grab' : 'default' }}>
+                <polygon points={slabPts} fill={isSel ? '#5b5bd6' : '#8a6d3b'} />
+                {Array.from({ length: Math.max(1, Math.floor(f.wall.length / 5)) }, (_, i) => {
+                  const px = (i + 0.5) * (f.wall.length / Math.max(1, Math.floor(f.wall.length / 5)));
+                  return <line key={i} x1={px} y1={0} x2={px} y2={-(f.wall.thickness ?? WALL_T)} stroke="rgba(255,255,255,0.55)" strokeWidth={0.6} />;
+                })}
+              </g>
             ) : (
               <polygon points={slabPts} fill={isSel ? '#5b5bd6' : '#3f4754'} {...wallHandlers} />
             )}
@@ -765,6 +774,15 @@ export default function TopView() {
                 onChange={(e) => updateWall(selectedWall.id, { ghost: e.target.checked })}
               />
               Island
+            </label>
+            <label className="wall-dim-field wall-island" title="Draw this run as a fence (posts + pickets) instead of a solid wall">
+              <input
+                type="checkbox"
+                checked={!!selectedWall.fence}
+                disabled={selectedWall.ghost}
+                onChange={(e) => updateWall(selectedWall.id, { fence: e.target.checked })}
+              />
+              Fence
             </label>
             {wallOverrides.map((end) => {
               const o = cornerOverrides![`${selectedWall.id}:${end}`];

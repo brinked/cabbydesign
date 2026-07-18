@@ -249,6 +249,8 @@ export interface Wall {
   thickness: number;
   /** Invisible wall — an island/peninsula run with no physical wall drawn. */
   ghost: boolean;
+  /** Render this run as a fence (posts + pickets) instead of a solid wall. */
+  fence?: boolean;
 }
 
 export interface PlacedItem {
