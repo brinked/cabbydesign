@@ -752,7 +752,7 @@ export default function TopView() {
             </label>
             <label className="wall-dim-field">
               Height
-              <NumberField value={selectedWall.height} min={36} max={144} disabled={selectedWall.ghost} onCommit={(height) => updateWall(selectedWall.id, { height })} />
+              <NumberField value={selectedWall.height} min={1} max={144} disabled={selectedWall.ghost} onCommit={(height) => updateWall(selectedWall.id, { height })} />
             </label>
             <label className="wall-dim-field">
               Thick.
