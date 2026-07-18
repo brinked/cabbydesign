@@ -3,9 +3,11 @@ import { NEWAGE_CATALOG, NEWAGE_FINISHES } from './newage';
 
 export const BASE_H = 34.5;
 /** Bar-height feature: the raised back tier steps up this many inches above the
- *  main body and adds this much depth (its own stone bar top). */
+ *  main body and adds this much depth (its own stone bar top). The bar top
+ *  overhangs the back (seating) side by BAR_OVERHANG — an island feature. */
 export const BAR_RISE = 6;
 export const BAR_DEPTH = 4.5;
+export const BAR_OVERHANG = 10;
 /** Default countertop slab thickness (inches) — 3cm. Per-job override lives on
  *  Design.counterThickness; this is the fallback for older saves & 2D defaults. */
 export const COUNTER_T = 1.25;

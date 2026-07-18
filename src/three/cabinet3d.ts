@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BAR_DEPTH, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H } from '../model/catalog';
+import { BAR_DEPTH, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide, ModelAlign } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
 import { applianceModelInfo, fitModel, fitModelBox, hasModel, requestModel } from './models';
@@ -764,20 +764,21 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     barBody.castShadow = barBody.receiveShadow = true;
     barBody.position.set(0, barTopY / 2, BAR_DEPTH / 2);
     g.add(barBody);
-    // stone bar top, noses BAR_NOSE over the riser front (over the main counter)
-    const BAR_NOSE = 1.5;
-    const barD = BAR_DEPTH + BAR_NOSE;
+    // granite backsplash on the STEP where the cabinet rises (working-counter
+    // side): from the main counter top up to the bar top.
+    const BS_T = 0.75;
+    const barSplash = box(w, BAR_RISE, BS_T, stone(BS_T));
+    barSplash.castShadow = barSplash.receiveShadow = true;
+    barSplash.position.set(0, h + cT + BAR_RISE / 2, BAR_DEPTH + BS_T / 2);
+    g.add(barSplash);
+    // stone bar top: noses BAR_NOSE past the step, and overhangs BAR_OVERHANG
+    // off the BACK (seating) side — an island feature so guests have legroom.
+    const BAR_NOSE = 1;
+    const barD = BAR_OVERHANG + BAR_DEPTH + BAR_NOSE;
     const barStone = box(w, cT, barD, stone(barD));
     barStone.castShadow = barStone.receiveShadow = true;
-    barStone.position.set(0, barTopY + cT / 2, barD / 2);
+    barStone.position.set(0, barTopY + cT / 2, BAR_DEPTH + BAR_NOSE - barD / 2);
     g.add(barStone);
-    // granite backsplash up the back (wall side) of the bar tier
-    const BS_T = 0.75;
-    const BS_H = 4;
-    const barSplash = box(w, BS_H, BS_T, stone(BS_T));
-    barSplash.castShadow = barSplash.receiveShadow = true;
-    barSplash.position.set(0, barTopY + cT + BS_H / 2, BS_T / 2);
-    g.add(barSplash);
     return g;
   }
 
