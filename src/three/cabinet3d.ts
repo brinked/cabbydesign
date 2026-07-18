@@ -752,12 +752,38 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     const front = buildCabinetLocal({ ...cat, barHeight: false }, { ...dims, d: frontD }, mats);
     front.position.z += BAR_DEPTH;
     g.add(front);
-    // main counter at standard height: from the bar-riser front to a 1" front nose
+    // main counter at standard height: from the bar-riser front to a 1" front nose.
+    // A sink cabinet gets its basin cut through (scene3d skips bar cabinets, so
+    // the cut is done here) — otherwise the counter buries the bowl.
     const mainD = frontD + COUNTER_OVERHANG;
-    const mainStone = box(w, cT, mainD, stone(mainD));
-    mainStone.castShadow = mainStone.receiveShadow = true;
-    mainStone.position.set(0, h + cT / 2, BAR_DEPTH + mainD / 2);
-    g.add(mainStone);
+    if (isSinkFront(cat.front)) {
+      const { bw, bd, zc } = sinkBasin(w, frontD);
+      const holeZc = BAR_DEPTH + zc; // basin centre z in the cabinet frame
+      const s = new THREE.Shape();
+      s.moveTo(-w / 2, BAR_DEPTH);
+      s.lineTo(w / 2, BAR_DEPTH);
+      s.lineTo(w / 2, BAR_DEPTH + mainD);
+      s.lineTo(-w / 2, BAR_DEPTH + mainD);
+      s.closePath();
+      const hole = new THREE.Path();
+      hole.moveTo(-bw / 2, holeZc - bd / 2);
+      hole.lineTo(bw / 2, holeZc - bd / 2);
+      hole.lineTo(bw / 2, holeZc + bd / 2);
+      hole.lineTo(-bw / 2, holeZc + bd / 2);
+      hole.closePath();
+      s.holes.push(hole);
+      const geo = new THREE.ExtrudeGeometry(s, { depth: cT, bevelEnabled: false });
+      geo.rotateX(Math.PI / 2); // shape Y → +z (depth), extrude → −y
+      geo.translate(0, h + cT, 0); // top surface at counter height
+      const slab = new THREE.Mesh(geo, stone(mainD));
+      slab.castShadow = slab.receiveShadow = true;
+      g.add(slab);
+    } else {
+      const mainStone = box(w, cT, mainD, stone(mainD));
+      mainStone.castShadow = mainStone.receiveShadow = true;
+      mainStone.position.set(0, h + cT / 2, BAR_DEPTH + mainD / 2);
+      g.add(mainStone);
+    }
     // raised bar body — the raw carcass gray, matching the cabinet's own sides.
     // It sits on a recessed toe kick (doesn't run to the floor) like the cabinet.
     const barTopY = h + BAR_RISE;
@@ -1860,31 +1886,40 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     band.rotation.x = Math.PI / 2;
     g.add(band);
   } else if (isSinkFront(cat.front)) {
-    // dropped-in stainless basin (the counter is cut out over it in scene3d)
+    // dropped-in stainless basin (the counter is cut out over it in scene3d).
+    // The interior is a darker, less-reflective steel so the recess reads from
+    // the top view; the rim stays bright stainless for contrast.
     const { bw, bd, zc, bowlH } = sinkBasin(w, d);
     const stl = mats.steel;
+    const basinWall = new THREE.MeshStandardMaterial({ color: 0x6c7176, roughness: 0.75, metalness: 0.25 });
+    const basinFloor = new THREE.MeshStandardMaterial({ color: 0x3c4044, roughness: 0.82, metalness: 0.2 });
     const T = 0.4;
     const botY = counterTop - bowlH;
     const midY = counterTop - bowlH / 2;
-    const addB = (bw2: number, bh2: number, bd2: number, x: number, y: number, z: number) => {
-      const m = box(bw2, bh2, bd2, stl);
+    const addB = (bw2: number, bh2: number, bd2: number, x: number, y: number, z: number, mat: THREE.Material = stl) => {
+      const m = box(bw2, bh2, bd2, mat);
       m.position.set(x, y, z);
       m.castShadow = m.receiveShadow = true;
       g.add(m);
     };
-    addB(bw, T, bd, 0, botY, zc); // bottom
-    addB(bw, bowlH, T, 0, midY, zc - bd / 2 + T / 2); // back wall
-    addB(bw, bowlH, T, 0, midY, zc + bd / 2 - T / 2); // front wall
-    addB(T, bowlH, bd, -bw / 2 + T / 2, midY, zc); // left wall
-    addB(T, bowlH, bd, bw / 2 - T / 2, midY, zc); // right wall
-    // thin rim around the opening to finish the cut edge
-    addB(bw + 0.8, 0.25, T, 0, counterTop + 0.1, zc - bd / 2 - 0.2);
-    addB(bw + 0.8, 0.25, T, 0, counterTop + 0.1, zc + bd / 2 + 0.2);
-    addB(T, 0.25, bd + 1.2, -bw / 2 - 0.2, counterTop + 0.1, zc);
-    addB(T, 0.25, bd + 1.2, bw / 2 + 0.2, counterTop + 0.1, zc);
-    // drain
-    const drain = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.2, 14), mats.dark);
-    drain.position.set(0, botY + 0.25, zc);
+    addB(bw, T, bd, 0, botY, zc, basinFloor); // bottom (darkest — reads as depth)
+    addB(bw, bowlH, T, 0, midY, zc - bd / 2 + T / 2, basinWall); // back wall
+    addB(bw, bowlH, T, 0, midY, zc + bd / 2 - T / 2, basinWall); // front wall
+    addB(T, bowlH, bd, -bw / 2 + T / 2, midY, zc, basinWall); // left wall
+    addB(T, bowlH, bd, bw / 2 - T / 2, midY, zc, basinWall); // right wall
+    // a subtly sloped floor toward the drain + a soft base shadow for depth
+    addB(bw - T * 2, 0.5, bd - T * 2, 0, botY + 0.35, zc, basinFloor);
+    // polished rim around the opening (bright stainless) to finish the cut edge
+    addB(bw + 0.8, 0.3, T, 0, counterTop + 0.12, zc - bd / 2 - 0.2);
+    addB(bw + 0.8, 0.3, T, 0, counterTop + 0.12, zc + bd / 2 + 0.2);
+    addB(T, 0.3, bd + 1.2, -bw / 2 - 0.2, counterTop + 0.12, zc);
+    addB(T, 0.3, bd + 1.2, bw / 2 + 0.2, counterTop + 0.12, zc);
+    // drain — a strainer ring with a dark center
+    const strainer = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.22, 18), stl);
+    strainer.position.set(0, botY + 0.6, zc);
+    g.add(strainer);
+    const drain = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.26, 16), mats.dark);
+    drain.position.set(0, botY + 0.65, zc);
     g.add(drain);
     // gooseneck faucet behind the basin
     const zF = Math.max(2.2, zc - bd / 2 - 1.6);

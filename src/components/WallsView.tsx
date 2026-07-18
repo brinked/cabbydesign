@@ -353,6 +353,26 @@ export function WallElevationSvg({
         />
       ))}
 
+      {/* bar-height cabinets: the raised bar tier (+BAR_RISE) with its stone top,
+          drawn BEHIND the cabinets so a sink faucet/top gear shows in front of
+          the bar backsplash (like the 3D). */}
+      {floorItems
+        .filter((it) => catalogById(it.catalogId).barHeight)
+        .map((it) => {
+          const w = footprintW(it);
+          const riserTop = floorY - (it.h + BAR_RISE);
+          const barTopY = riserTop - cT;
+          // The step face shows the granite backsplash, capped by the stone bar top.
+          return (
+            <g key={`bar-${it.id}`}>
+              <rect x={it.x} y={riserTop} width={w} height={BAR_RISE - cT} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+              <rect x={it.x} y={riserTop} width={w} height={BAR_RISE - cT} fill="url(#g-counter)" />
+              <rect x={it.x} y={barTopY} width={w} height={cT} rx={0.35} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
+              <rect x={it.x} y={barTopY} width={w} height={cT} rx={0.35} fill="url(#g-counter)" />
+            </g>
+          );
+        })}
+
       {/* items */}
       {wallItems.map((it) => {
         const cat = catalogById(it.catalogId);
@@ -445,26 +465,6 @@ export function WallElevationSvg({
           </g>
         );
       })}
-
-      {/* bar-height cabinets: the raised bar tier (+BAR_RISE) stepping up behind
-          the main counter, with its own stone top */}
-      {floorItems
-        .filter((it) => catalogById(it.catalogId).barHeight)
-        .map((it) => {
-          const w = footprintW(it);
-          const riserTop = floorY - (it.h + BAR_RISE);
-          const barTopY = riserTop - cT;
-          // The step face shows the granite backsplash (front side, like the 3D),
-          // capped by the stone bar top.
-          return (
-            <g key={`bar-${it.id}`}>
-              <rect x={it.x} y={riserTop} width={w} height={BAR_RISE - cT} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
-              <rect x={it.x} y={riserTop} width={w} height={BAR_RISE - cT} fill="url(#g-counter)" />
-              <rect x={it.x} y={barTopY} width={w} height={cT} rx={0.35} fill={counterColor} stroke="rgba(0,0,0,0.22)" strokeWidth={0.2} />
-              <rect x={it.x} y={barTopY} width={w} height={cT} rx={0.35} fill="url(#g-counter)" />
-            </g>
-          );
-        })}
 
       {/* waterfall edges — countertop wrapping down a run-end side. Stops at the
           top of an adjoining cabinet (matching 3D) so it doesn't run over it. */}
