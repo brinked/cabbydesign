@@ -536,8 +536,11 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
               const fillEnd = ext.end && r.x2 >= f.wall.length - wr.end - 1;
               const x1 = fillStart ? 0 : Math.max(r.x1 - COUNTER_OVERHANG, 0);
               const x2 = fillEnd ? f.wall.length : Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
+              // island seating overhang: the counter extends past the back by
+              // half the cabinet depth
+              const backExt = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
               return (
-                <rect key={i} x={x1} y={0} width={x2 - x1} height={r.d + COUNTER_OVERHANG} fill={fin.counter} stroke="rgba(0,0,0,0.3)" strokeWidth={0.4} />
+                <rect key={i} x={x1} y={-backExt} width={x2 - x1} height={r.d + COUNTER_OVERHANG + backExt} fill={fin.counter} stroke="rgba(0,0,0,0.3)" strokeWidth={0.4} />
               );
             })}
             {/* L-shaped countertops for lazy-susan cabinets */}
@@ -862,6 +865,16 @@ export default function TopView() {
               />
               Fence
             </label>
+            {selectedWall.ghost && (
+              <label className="wall-dim-field wall-island" title="Counter overhangs the back of the island by half the cabinet depth (24″ deep → 12″) for seating">
+                <input
+                  type="checkbox"
+                  checked={!!selectedWall.seatingOverhang}
+                  onChange={(e) => updateWall(selectedWall.id, { seatingOverhang: e.target.checked })}
+                />
+                Seating overhang
+              </label>
+            )}
             {wallOverrides.map((end) => {
               const o = cornerOverrides![`${selectedWall.id}:${end}`];
               return (

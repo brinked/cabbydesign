@@ -692,6 +692,11 @@ export function counterAreaSqft(design: Design): number {
       const x2 = ext.end && r.x2 >= wall.length - wr.end - 1 ? wall.length : r.x2;
       sqin += (x2 - x1) * (r.d + COUNTER_OVERHANG);
     }
+    // island seating overhang: the counter extends past the back by half the
+    // cabinet depth, so that stone counts too.
+    if (wall.ghost && wall.seatingOverhang) {
+      for (const r of runs) sqin += (r.x2 - r.x1) * (r.d / 2);
+    }
     // bar-height cabinets carry their stone as three pieces (built in 3D, so
     // excluded from the runs above): the main working counter, the raised bar
     // top with its big seating overhang, and the vertical bar backsplash.

@@ -263,6 +263,9 @@ export interface Wall {
   ghost: boolean;
   /** Render this run as a fence (posts + pickets) instead of a solid wall. */
   fence?: boolean;
+  /** Island only: the counter overhangs the BACK by half the cabinet depth
+   *  (24″ cabinets → 12″) for bar-stool seating. */
+  seatingOverhang?: boolean;
 }
 
 export interface PlacedItem {

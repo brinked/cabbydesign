@@ -595,6 +595,16 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
           />
           Island
         </label>
+        {wall.ghost && (
+          <label className="wall-dim-field wall-island" title="Counter overhangs the back of the island by half the cabinet depth (24″ deep → 12″) for seating">
+            <input
+              type="checkbox"
+              checked={!!wall.seatingOverhang}
+              onChange={(e) => updateWall(wall.id, { seatingOverhang: e.target.checked })}
+            />
+            Seating overhang
+          </label>
+        )}
         <div className="zoom-ctl zoom-ctl-inline">
           <button title="Zoom out" onClick={() => setZoom((z) => Math.max(1, Math.round((z / 1.25) * 100) / 100))} disabled={zoom <= 1}>
             −

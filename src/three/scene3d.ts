@@ -244,12 +244,13 @@ function counterRunSlab(
   holes: Array<{ x1: number; x2: number; z1: number; z2: number }>,
   mat: THREE.Material,
   cT: number,
-  restH: number = BASE_H
+  restH: number = BASE_H,
+  backZ = 0 // negative = seating overhang past the island's back
 ): THREE.Mesh {
   const xL = segs[0].x1;
   const s = new THREE.Shape();
-  s.moveTo(xL, 0);
-  s.lineTo(segs[segs.length - 1].x2, 0); // back edge (wall)
+  s.moveTo(xL, backZ);
+  s.lineTo(segs[segs.length - 1].x2, backZ); // back edge (wall, or overhang)
   // Up the right side, then walk the stepped front right → left.
   s.lineTo(segs[segs.length - 1].x2, segs[segs.length - 1].z);
   for (let i = segs.length - 1; i >= 0; i--) {
@@ -606,7 +607,10 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       for (const pc of pieces) {
         const profile = buildFrontProfile(pc.a, pc.b, depthCabs, fallbackZ);
         const pcHoles = holes.filter((h) => (h.x1 + h.x2) / 2 >= pc.a - 0.01 && (h.x1 + h.x2) / 2 <= pc.b + 0.01);
-        const slab = counterRunSlab(profile, pcHoles, slabMat, cT, r.h);
+        // island seating overhang: extend the slab past the back by half
+        // the cabinet depth (24″ deep → 12″)
+        const backExt = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
+        const slab = counterRunSlab(profile, pcHoles, slabMat, cT, r.h, -backExt);
         slab.position.copy(origin).addScaledVector(dir, runCenter);
         slab.position.y = 0;
         slab.rotation.y = yaw;
