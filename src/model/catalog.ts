@@ -64,12 +64,19 @@ export function finishesForLine(line: ProductLine | undefined, kitchenType?: Kit
   return NEWAGE_FINISHES.filter((f) => f.line === l);
 }
 
-/** Door styles offered per kitchen type, with display labels. The routed
- *  groove "shaker" is the outdoor HDPE construction; indoor wood cabinets get
- *  real 5-piece styles. */
+/** Door styles offered per kitchen type, with display labels. Outdoor kitchens
+ *  get the routed one-piece HDPE designs ('shaker' is the legacy id for the
+ *  Vibe groove frame; 'flat' is Euro); indoor wood cabinets get real 5-piece
+ *  styles. */
 export const DOOR_STYLE_LABELS: Record<DoorStyle, string> = {
-  'shaker': 'Shaker (groove)',
-  'flat': 'Slab / Euro Flat',
+  'flat': 'Euro (flat slab)',
+  'shaker': 'Vibe (groove frame)',
+  'metro': 'Metro (slim frame)',
+  'miami': 'Miami (horizontal slats)',
+  'clove': 'Clove (frame + planks)',
+  'cottage': 'Cottage (vertical planks)',
+  'slat': 'Slat (frame + wide planks)',
+  'tampa': 'Tampa (horizontal planks)',
   'shaker-inset': 'Shaker',
   'shaker-skinny': 'Skinny Shaker',
   'raised': 'Raised Panel',
@@ -79,7 +86,7 @@ export const DOOR_STYLE_LABELS: Record<DoorStyle, string> = {
 export function doorStylesFor(kitchenType: KitchenType | undefined): DoorStyle[] {
   return (kitchenType ?? 'outdoor') === 'indoor'
     ? ['shaker-inset', 'shaker-skinny', 'raised', 'beadboard', 'flat']
-    : ['shaker', 'flat'];
+    : ['flat', 'shaker', 'metro', 'miami', 'clove', 'cottage', 'slat', 'tampa'];
 }
 
 // Box formulas: width × depth + a fixed amount. The fixed amount is $500 for a

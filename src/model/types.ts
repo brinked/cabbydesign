@@ -234,7 +234,19 @@ export type HingeSide = 'left' | 'right';
 /** Door construction. 'shaker' is the HDPE routed-groove look (outdoor line);
  *  indoor wood cabinets use real 5-piece styles: inset-panel shaker, skinny
  *  (narrow-rail) shaker, raised panel and beadboard. 'flat' = slab/euro. */
-export type DoorStyle = 'shaker' | 'flat' | 'shaker-inset' | 'shaker-skinny' | 'raised' | 'beadboard';
+export type DoorStyle =
+  | 'shaker' // outdoor HDPE 'Vibe' groove frame
+  | 'flat' // Euro slab
+  | 'metro' // HDPE slim frame
+  | 'miami' // HDPE horizontal slats
+  | 'clove' // HDPE frame + narrow vertical planks
+  | 'cottage' // HDPE full-height vertical planks
+  | 'slat' // HDPE frame + wide vertical planks
+  | 'tampa' // HDPE horizontal planks
+  | 'shaker-inset'
+  | 'shaker-skinny'
+  | 'raised'
+  | 'beadboard';
 
 export interface Wall {
   id: string;

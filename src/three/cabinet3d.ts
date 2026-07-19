@@ -380,9 +380,9 @@ function grillHood(gw: number, dh: number, hh: number, mat: THREE.Material): THR
  * Routed groove ring (HDPE shaker look): four dark strips sitting just proud
  * of a face that spans w×h in the local XY plane, face at z=+faceZ.
  */
-function grooveRing(w: number, h: number, faceZ: number, mats: CabMats): THREE.Group {
+function grooveRing(w: number, h: number, faceZ: number, mats: CabMats, R = 2.4): THREE.Group {
   const g = new THREE.Group();
-  const R = 2.4; // groove centerline inset from the door edge
+  // R = groove centerline inset from the door edge
   const sw = 0.42; // groove width
   const t = 0.05;
   const z = faceZ + t / 2 - 0.01;
@@ -639,8 +639,64 @@ function doorFace(w: number, h: number, style: DoorStyle, mats: CabMats): THREE.
     return g;
   }
   g.add(box(w, h, 0.7, mats.panel));
-  if (style === 'shaker' && w >= 8 && h >= 8) {
-    g.add(grooveRing(w, h, 0.35, mats));
+  g.add(facePattern(w, h, style, 0.35, mats));
+  return g;
+}
+
+/**
+ * Routed groove pattern for an HDPE door/panel face — the outdoor door designs.
+ * The face spans w×h in the local XY plane at z=+faceZ. 'flat' (Euro), the
+ * indoor 5-piece styles and faces too small to route add nothing.
+ */
+function facePattern(w: number, h: number, style: DoorStyle, faceZ: number, mats: CabMats): THREE.Group {
+  const g = new THREE.Group();
+  if (w < 8 || h < 8) return g;
+  const sw = 0.42; // groove width
+  const t = 0.05;
+  const z = faceZ + t / 2 - 0.01;
+  const R = 2.4; // frame groove inset (matches grooveRing)
+  // evenly spaced vertical grooves across [x0, x0+span], each `gh` tall
+  const vGrooves = (x0: number, span: number, gh: number, spacing: number) => {
+    const n = Math.max(1, Math.round(span / spacing) - 1);
+    for (let i = 1; i <= n; i++) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(sw, gh, t), mats.groove);
+      m.position.set(x0 + (span * i) / (n + 1), 0, z);
+      g.add(m);
+    }
+  };
+  // evenly spaced horizontal grooves across [y0, y0+span], each `gw` wide
+  const hGrooves = (y0: number, span: number, gw: number, spacing: number) => {
+    const n = Math.max(1, Math.round(span / spacing) - 1);
+    for (let i = 1; i <= n; i++) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(gw, sw, t), mats.groove);
+      m.position.set(0, y0 + (span * i) / (n + 1), z);
+      g.add(m);
+    }
+  };
+  switch (style) {
+    case 'shaker': // Vibe — the classic groove ring
+      g.add(grooveRing(w, h, faceZ, mats));
+      break;
+    case 'metro': // slim frame close to the edge
+      g.add(grooveRing(w, h, faceZ, mats, 1.3));
+      break;
+    case 'clove': // frame + narrow vertical planks in the panel
+      g.add(grooveRing(w, h, faceZ, mats));
+      vGrooves(-w / 2 + R, w - 2 * R, h - 2 * R - sw, 3.2);
+      break;
+    case 'slat': // frame + wide vertical planks in the panel
+      g.add(grooveRing(w, h, faceZ, mats));
+      vGrooves(-w / 2 + R, w - 2 * R, h - 2 * R - sw, 5.8);
+      break;
+    case 'cottage': // full-height vertical planks
+      vGrooves(-w / 2, w, h - 0.8, 3.2);
+      break;
+    case 'miami': // wide horizontal slats
+      hGrooves(-h / 2, h, w - 0.8, 6.5);
+      break;
+    case 'tampa': // narrow horizontal planks
+      hGrooves(-h / 2, h, w - 0.8, 3.8);
+      break;
   }
   return g;
 }
@@ -1372,9 +1428,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     const addPanel = (faceW: number, px: number, pz: number, rotY: number) => {
       const pg = new THREE.Group();
       pg.add(box(faceW, carcassH, END_PANEL_T, mats.panel));
-      if (style === 'shaker' && carcassH >= 8 && faceW >= 8) {
-        pg.add(grooveRing(faceW, carcassH, END_PANEL_T / 2, mats));
-      }
+      pg.add(facePattern(faceW, carcassH, style, END_PANEL_T / 2, mats));
       pg.rotation.y = rotY; // local +z (panel face) rotated to point outward
       pg.position.set(px, kick + carcassH / 2, pz);
       g.add(pg);
@@ -1407,7 +1461,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         const fw = w - c;
         const fpg = new THREE.Group();
         fpg.add(box(fw, carcassH, END_PANEL_T, mats.panel));
-        if (style === 'shaker' && carcassH >= 8 && fw >= 8) fpg.add(grooveRing(fw, carcassH, END_PANEL_T / 2, mats));
+        fpg.add(facePattern(fw, carcassH, style, END_PANEL_T / 2, mats));
         fpg.position.set(chamferOnRight ? -c / 2 : c / 2, kick + carcassH / 2, d);
         g.add(fpg);
       };
@@ -1447,9 +1501,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     for (let i = 0; i < n; i++) {
       const pg = new THREE.Group();
       pg.add(box(panelW, carcassH, END_PANEL_T, mats.panel));
-      if (style === 'shaker' && carcassH >= 8 && panelW >= 8) {
-        pg.add(grooveRing(panelW, carcassH, END_PANEL_T / 2, mats));
-      }
+      pg.add(facePattern(panelW, carcassH, style, END_PANEL_T / 2, mats));
       pg.rotation.y = Math.PI; // groove face points out the back (-z)
       pg.position.set(-w / 2 + panelW / 2 + i * (panelW + GAP), kick + carcassH / 2, -END_PANEL_T / 2);
       g.add(pg);

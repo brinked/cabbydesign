@@ -100,7 +100,8 @@ export default function Report() {
 
   // Panel style name on the report: EXT product names for the outdoor HDPE
   // styles, the door-style label itself for indoor wood styles.
-  const designName = design.doorStyle === 'shaker' ? 'Vibe' : design.doorStyle === 'flat' ? 'Euro' : DOOR_STYLE_LABELS[design.doorStyle] ?? design.doorStyle;
+  // marketing name only — "Vibe (groove frame)" → "Vibe"
+  const designName = (DOOR_STYLE_LABELS[design.doorStyle] ?? design.doorStyle).split(' (')[0];
   const { applied: rate, finished: finRate } = useStore((s) => s.panelRates);
 
   // NewAge designs: item names carry the SKU for the selected finish; the
