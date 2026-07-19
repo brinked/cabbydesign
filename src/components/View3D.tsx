@@ -47,7 +47,7 @@ export default function View3D() {
     controls.maxPolarAngle = Math.PI / 2 - 0.02;
     camRef.current = { camera, controls };
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xcfc8bc, 0.35));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xb9c7a4, 0.35)); // lawn bounce
     const sun = new THREE.DirectionalLight(0xfff1dd, 2.0);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);

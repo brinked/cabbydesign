@@ -35,13 +35,22 @@ function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: 
 }
 
 export function groundTexture(): THREE.CanvasTexture {
+  // Lawn: the whole yard reads as grass; the kitchen sits on its own concrete
+  // pad (see the slab in buildDesignGroup) so the space feels defined.
   return canvasTexture(1024, (ctx, s) => {
     const g = ctx.createRadialGradient(s / 2, s / 2, s * 0.05, s / 2, s / 2, s * 0.55);
-    g.addColorStop(0, '#dadcdf');
-    g.addColorStop(0.6, '#cdd0d4');
-    g.addColorStop(1, '#b9bdc2');
+    g.addColorStop(0, '#8fb872');
+    g.addColorStop(0.6, '#7ca961');
+    g.addColorStop(1, '#699553');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, s, s);
+    // sparse mottling so the lawn isn't a flat wash
+    for (let i = 0; i < 2600; i++) {
+      const x = Math.random() * s;
+      const y = Math.random() * s;
+      ctx.fillStyle = Math.random() < 0.5 ? 'rgba(56,99,42,0.16)' : 'rgba(173,208,138,0.15)';
+      ctx.fillRect(x, y, 2, Math.random() < 0.3 ? 4 : 2);
+    }
   });
 }
 
@@ -67,7 +76,7 @@ export function equirectSkyHDR(): THREE.DataTexture {
   const data = new Float32Array(w * h * 4);
   const zen = [0.42, 0.6, 0.86];
   const hor = [0.95, 0.96, 0.99];
-  const gnd = [0.46, 0.46, 0.47];
+  const gnd = [0.36, 0.44, 0.3]; // grass bounce light
   // sun position: a bit east and fairly high
   const sunX = w * 0.3;
   const sunY = h * 0.22;
@@ -593,10 +602,26 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     }
   }
 
+  // Concrete patio pad under the kitchen: the walls/cabinets footprint plus a
+  // 24" apron. The rest of the yard is lawn (see groundTexture), so the space
+  // reads as a defined patio instead of an endless open plane.
+  const slabMat = new THREE.MeshStandardMaterial({ color: 0xd8d6cf, roughness: 0.95 });
+  // fences sit on the lawn — they don't stretch the pad
+  const slabFrames = frames.filter((f) => !f.wall.fence);
+  if (slabFrames.length) {
+    const sb = planBounds(slabFrames, 24);
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(sb.w, 1.2, sb.h), slabMat);
+    // top face sits a hair above the lawn so the pad never z-fights it
+    slab.position.set(sb.x + sb.w / 2, -0.55, sb.y + sb.h / 2);
+    slab.receiveShadow = true;
+    group.add(slab);
+  }
+
   const b = planBounds(frames, 10);
   const center = new THREE.Vector3(b.x + b.w / 2, 20, b.y + b.h / 2);
   const radius = Math.max(b.w, b.h) / 2 + 30;
   const dispose = () => {
+    slabMat.dispose();
     disposeMats(mats);
     for (const m of matsByFinish.values()) disposeMats(m);
     wallMat.dispose();
