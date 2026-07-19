@@ -493,7 +493,8 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
   const { price, error } = tryFormula(formula, { W: it.w, D: it.d, H: it.h });
   if (error) return { ...ZERO_PRICE, error };
   const hasKick = cat.lane === 'floor';
-  const panelH = Math.max(0, it.h - (hasKick ? TOEKICK_H : 0));
+  // bar-height cabinets: end/back panels wrap the raised bar column too
+  const panelH = Math.max(0, it.h + (cat.barHeight ? BAR_RISE : 0) - (hasKick ? TOEKICK_H : 0));
   const sqft = (wIn: number) => (wIn * panelH) / 144;
   const trays = (it.trays ?? 0) * DEFAULT_RATES.tray;
   const rates = panelRates();

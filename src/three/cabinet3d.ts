@@ -804,8 +804,10 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       m.map.repeat.set(Math.max(1, w / 48), Math.max(1, bd / 48));
       return m;
     };
-    // working body, shifted forward so the bar occupies the back BAR_DEPTH
-    const front = buildCabinetLocal({ ...cat, barHeight: false }, { ...dims, d: frontD }, mats);
+    // working body, shifted forward so the bar occupies the back BAR_DEPTH.
+    // Its own island back panel would end up buried inside the bar column, so
+    // it's suppressed — the full-height finished back is added below instead.
+    const front = buildCabinetLocal({ ...cat, barHeight: false }, { ...dims, d: frontD, backPanel: false }, mats);
     front.position.z += BAR_DEPTH;
     g.add(front);
     // main counter at standard height: from the bar-riser front to a 1" front nose.
@@ -865,6 +867,20 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         pg.add(box(BAR_DEPTH, barColH, END_PANEL_T, mats.panel));
         pg.rotation.y = side * (Math.PI / 2);
         pg.position.set(side * (w / 2 + END_PANEL_T / 2), kick + barColH / 2, BAR_DEPTH / 2);
+        g.add(pg);
+      }
+    }
+    // island finished back: one run of panels covering box + riser (toe kick to
+    // bar top), so the seating side reads finished instead of raw carcass.
+    if (backPanel && takesAppliedEnds(cat)) {
+      const n = Math.max(1, Math.ceil(w / MAX_PANEL_W));
+      const panelW = (w - GAP * (n - 1)) / n;
+      for (let i = 0; i < n; i++) {
+        const pg = new THREE.Group();
+        pg.add(box(panelW, barColH, END_PANEL_T, mats.panel));
+        pg.add(facePattern(panelW, barColH, style, END_PANEL_T / 2, mats));
+        pg.rotation.y = Math.PI; // face points out the back (-z)
+        pg.position.set(-w / 2 + panelW / 2 + i * (panelW + GAP), kick + barColH / 2, -END_PANEL_T / 2);
         g.add(pg);
       }
     }

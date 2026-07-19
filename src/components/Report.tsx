@@ -3,7 +3,7 @@ import type { OrderLine } from '../api/client';
 import type { CatalogItem } from '../model/types';
 import SubmitOrderModal from './SubmitOrderModal';
 import RequestQuoteModal from './RequestQuoteModal';
-import { ALL_FINISHES, DOOR_STYLE_LABELS, TOEKICK_H, catalogById, handleCount } from '../model/catalog';
+import { ALL_FINISHES, BAR_RISE, DOOR_STYLE_LABELS, TOEKICK_H, catalogById, handleCount } from '../model/catalog';
 import { LINE_LABELS, NA_COUNTER_RATE_PER_SQFT, itemFinishId, naVariantFor } from '../model/newage';
 import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
@@ -139,7 +139,8 @@ export default function Report() {
   // Applied end panels — grouped by size (depth × panel height), with quantity.
   const panelH = (it: (typeof design.items)[number]) => {
     const cat = catalogById(it.catalogId);
-    return Math.max(0, it.h - (cat.lane === 'floor' ? TOEKICK_H : 0));
+    // bar-height cabinets: end/back panels wrap the raised bar column too
+    return Math.max(0, it.h + (cat.barHeight ? BAR_RISE : 0) - (cat.lane === 'floor' ? TOEKICK_H : 0));
   };
   const endGroups = new Map<string, { kind: 'applied' | 'finished'; w: number; h: number; qty: number; unit: number; nums: Set<number> }>();
   for (const it of design.items) {

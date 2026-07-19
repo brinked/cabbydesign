@@ -85,6 +85,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
   const updateWall = useStore((s) => s.updateWall);
   const addWallAt = useStore((s) => s.addWallAt);
   const addMeasurement = useStore((s) => s.addMeasurement);
+  const updateMeasurement = useStore((s) => s.updateMeasurement);
   const removeMeasurement = useStore((s) => s.removeMeasurement);
   const fin = useFinish(design.finishId);
   const measurements = design.measurements ?? [];
@@ -293,8 +294,57 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
     const B = resolveEnd(measureDraft.b);
     if (Math.hypot(B.x - A.x, B.y - A.y) >= 2) {
       addMeasurement({ id: uid('m'), a: measureDraft.a, b: measureDraft.b, target: measureTarget && measureTarget > 0 ? measureTarget : undefined });
+    } else if (measureTarget && measureTarget > 0) {
+      // Click (no drag) with a Target set: drop a fixed-length tape of exactly
+      // that distance — free ends, so it can be dragged around and rotated.
+      addMeasurement({ id: uid('m'), a: { x: A.x, y: A.y }, b: { x: A.x + measureTarget, y: A.y }, target: measureTarget });
     }
     setMeasureDraft(null);
+  }
+
+  // ----- moving / rotating an existing tape -----
+  const tapeDrag = useRef<{ id: string; sx: number; sy: number; A: { x: number; y: number }; B: { x: number; y: number }; moved: boolean } | null>(null);
+  function tapeDown(e: React.PointerEvent, m: Measurement) {
+    if (!interactive || (tool !== 'select' && tool !== 'measure')) return;
+    e.stopPropagation();
+    const svg = (e.currentTarget as SVGGElement).ownerSVGElement;
+    if (!svg) return;
+    const p = svgPoint(svg, e.clientX, e.clientY);
+    tapeDrag.current = { id: m.id, sx: p.x, sy: p.y, A: resolveEnd(m.a), B: resolveEnd(m.b), moved: false };
+    try {
+      (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* no active pointer (synthetic events) — drag still works */
+    }
+  }
+  function tapeMove(e: React.PointerEvent, m: Measurement) {
+    const d = tapeDrag.current;
+    if (!d || d.id !== m.id) return;
+    const svg = (e.currentTarget as SVGGElement).ownerSVGElement;
+    if (!svg) return;
+    const p = svgPoint(svg, e.clientX, e.clientY);
+    const dx = p.x - d.sx;
+    const dy = p.y - d.sy;
+    if (Math.abs(dx) + Math.abs(dy) > 0.5) d.moved = true;
+    if (!d.moved) return;
+    // moving frees both ends (drops wall anchors) — the tape keeps its length
+    const q = (n: number) => Math.round(n * 4) / 4;
+    updateMeasurement(m.id, { a: { x: q(d.A.x + dx), y: q(d.A.y + dy) }, b: { x: q(d.B.x + dx), y: q(d.B.y + dy) } });
+  }
+  function tapeUp() {
+    tapeDrag.current = null;
+  }
+  function rotateTape(m: Measurement) {
+    // 45° around the midpoint; ends become free points so the tape stays put
+    const A = resolveEnd(m.a);
+    const B = resolveEnd(m.b);
+    const mx = (A.x + B.x) / 2;
+    const my = (A.y + B.y) / 2;
+    const cos = Math.SQRT1_2;
+    const sin = Math.SQRT1_2;
+    const q = (n: number) => Math.round(n * 4) / 4;
+    const r = (P: { x: number; y: number }) => ({ x: q(mx + (P.x - mx) * cos - (P.y - my) * sin), y: q(my + (P.x - mx) * sin + (P.y - my) * cos) });
+    updateMeasurement(m.id, { a: r(A), b: r(B) });
   }
 
   // ----- wall moving -----
@@ -645,12 +695,33 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
         for (const m of measurements) {
           const A = resolveEnd(m.a);
           const B = resolveEnd(m.b);
-          out.push(line(A, B, m.target, m.id, false));
-          if (interactive && tool === 'select') {
+          const canEdit = interactive && (tool === 'select' || tool === 'measure');
+          out.push(
+            <g
+              key={`${m.id}-tape`}
+              style={canEdit ? { cursor: 'move' } : undefined}
+              onPointerDown={canEdit ? (e) => tapeDown(e, m) : undefined}
+              onPointerMove={canEdit ? (e) => tapeMove(e, m) : undefined}
+              onPointerUp={canEdit ? () => tapeUp() : undefined}
+            >
+              {line(A, B, m.target, m.id, false)}
+            </g>
+          );
+          if (canEdit) {
             const mx = (A.x + B.x) / 2;
             const my = (A.y + B.y) / 2;
             out.push(
+              <g key={`${m.id}-rot`} style={{ cursor: 'pointer' }} onPointerDown={(e) => { e.stopPropagation(); rotateTape(m); }}>
+                <title>Rotate 45°</title>
+                <circle cx={mx + fs * 1.7} cy={my - fs * 2.8} r={fs * 0.72} fill="#5b5bd6" />
+                <text x={mx + fs * 1.7} y={my - fs * 2.8 + fs * 0.34} textAnchor="middle" fontSize={fs * 0.85} fill="#fff" fontWeight={700}>
+                  ⟳
+                </text>
+              </g>
+            );
+            out.push(
               <g key={`${m.id}-del`} style={{ cursor: 'pointer' }} onPointerDown={(e) => { e.stopPropagation(); removeMeasurement(m.id); }}>
+                <title>Remove</title>
                 <circle cx={mx + fs * 1.7} cy={my - fs * 1.2} r={fs * 0.72} fill="#d23b3b" />
                 <text x={mx + fs * 1.7} y={my - fs * 1.2 + fs * 0.34} textAnchor="middle" fontSize={fs * 0.95} fill="#fff" fontWeight={700}>
                   ×
@@ -714,7 +785,7 @@ export default function TopView() {
             <button className={tool === 'draw' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('draw')}>
               ✏ Draw wall
             </button>
-            <button className={tool === 'measure' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('measure')} title="Drag between two points (snaps to walls & cabinets) to drop a measurement">
+            <button className={tool === 'measure' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('measure')} title="Drag between two points (snaps to walls & cabinets) to drop a measurement. With a Target set, a single click drops a fixed-length tape you can drag and rotate.">
               📏 Measure
             </button>
             {tool === 'measure' && (
