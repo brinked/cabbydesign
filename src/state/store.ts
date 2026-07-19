@@ -829,11 +829,14 @@ export function sideExposed(design: Design, it: PlacedItem, side: 'left' | 'righ
   const wall = design.walls.find((w) => w.id === it.wallId);
   if (!wall) return false;
   const edge = side === 'left' ? it.x : it.x + footprintW(it);
+  // A neighbour within 6" hides this side: a panel makes no sense across a
+  // small gap, and while dragging it keeps the footprint stable so cabinets
+  // snap flush instead of fighting an auto-added 0.75" panel.
   const attached = design.items.some((o) => {
     if (o.id === it.id || o.wallId !== it.wallId) return false;
     if (catalogById(o.catalogId).lane !== 'floor') return false;
     const oEdge = side === 'left' ? o.x + footprintW(o) : o.x;
-    return Math.abs(oEdge - edge) < 0.75;
+    return Math.abs(oEdge - edge) < 6;
   });
   if (attached) return false;
   // On a real wall, an end flush in the wall's corner is hidden, not exposed.
