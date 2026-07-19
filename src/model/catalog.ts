@@ -241,7 +241,8 @@ export function catalogForDesign(line: ProductLine | undefined, kitchenType: Kit
   if (l !== 'ext') return CATALOG.filter((c) => c.line === l);
   const items = CATALOG.filter((c) => !c.line);
   if ((kitchenType ?? 'outdoor') === 'indoor') {
-    return items.filter((c) => c.category !== 'outdoor' && !OUTDOOR_ONLY_APPLIANCES.has(c.id));
+    // The vent hood is the one 'outdoor' item indoor kitchens also need (over a range/cooktop).
+    return items.filter((c) => (c.category !== 'outdoor' || c.id === 'out-hood') && !OUTDOOR_ONLY_APPLIANCES.has(c.id));
   }
   return items.filter((c) => !INDOOR_ONLY.has(c.id));
 }
