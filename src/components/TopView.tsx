@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ALL_FINISHES, COUNTER_OVERHANG, catalogById } from '../model/catalog';
+import { ALL_FINISHES, COUNTER_OVERHANG, catalogById, frontExtraD } from '../model/catalog';
 import { resolveItemFinish } from '../model/newage';
 import { WALL_T, cornerCounterExtend, cornerNeedsFlip, frameForWall, isCornerFront, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints } from '../model/geometry';
 import type { MeasureEnd, Measurement, PlacedItem, Wall } from '../model/types';
@@ -52,12 +52,13 @@ function planCounterRuns(items: PlacedItem[]): Array<{ x1: number; x2: number; d
   const tops = items.filter((it) => catalogById(it.catalogId).counter && catalogById(it.catalogId).front !== 'susan').sort((a, b) => a.x - b.x);
   const runs: Array<{ x1: number; x2: number; d: number }> = [];
   for (const it of tops) {
+    const fd = it.d + it.outset + frontExtraD(catalogById(it.catalogId));
     const last = runs[runs.length - 1];
     if (last && it.x <= last.x2 + 0.2) {
       last.x2 = Math.max(last.x2, it.x + footprintW(it));
-      last.d = Math.max(last.d, it.d + it.outset);
+      last.d = Math.max(last.d, fd);
     } else {
-      runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset });
+      runs.push({ x1: it.x, x2: it.x + footprintW(it), d: fd });
     }
   }
   return runs;

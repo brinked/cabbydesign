@@ -1358,7 +1358,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         fg.add(bar);
       }
       // Door slab centered so its outer face ends flush at the nominal depth.
-      fg.position.set(fr.dx, kick + carcassH / 2 + fr.dy, d - 0.35);
+      // Panel-ready fridge fronts sit PROUD of the unit: the cabinet-matched
+      // panels add 3/4″ past the listed depth.
+      fg.position.set(fr.dx, kick + carcassH / 2 + fr.dy, d - 0.35 + (fridgePanel ? 0.75 : 0));
       g.add(fg);
     }
 

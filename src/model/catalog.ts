@@ -274,6 +274,13 @@ export function catalogById(id: string): CatalogItem {
  *  the unit), not cabinets, so they can't take applied end panels. */
 const APPLIANCE_OPENING_CATS: ApplianceCat[] = ['fridge', 'icemaker', 'hood'];
 
+/** Panel-ready fridges/ice makers: the cabinet-matched door panels sit proud
+ *  of the unit, adding 3/4″ to the overall depth (the listed depth is the
+ *  unit only). Used for face alignment and counter fronts. */
+export function frontExtraD(cat: CatalogItem): number {
+  return cat.front === 'fridgep' || cat.front === 'fridgep2' ? 0.75 : 0;
+}
+
 /** True when a continuous countertop covers this unit: counter cabinets, plus
  *  under-counter appliances (a dishwasher) the counter bridges over. */
 export function bridgesCounter(cat: CatalogItem): boolean {

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
-import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
+import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
@@ -679,11 +679,12 @@ export function counterAreaSqft(design: Design): number {
       .sort((a, b) => a.x - b.x);
     const runs: Array<{ x1: number; x2: number; d: number }> = [];
     for (const it of tops) {
+      const fd = it.d + it.outset + frontExtraD(catalogById(it.catalogId));
       const last = runs[runs.length - 1];
       if (last && it.x <= last.x2 + 0.2) {
         last.x2 = Math.max(last.x2, it.x + footprintW(it));
-        last.d = Math.max(last.d, it.d + it.outset);
-      } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset });
+        last.d = Math.max(last.d, fd);
+      } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: fd });
     }
     for (const r of runs) {
       // owned dead corners: the run extends to the wall corner (matches 3D)
@@ -913,9 +914,37 @@ function withPack(design: Design): Design {
   packAll(next);
   autoEnds(next); // apply/clear ends from the packed layout…
   packAll(next); // …then re-pack so applied ends seat correctly
+  autoFridgeOutset(next);
   autoCornerFillers(next);
   alignFillers(next);
   return next;
+}
+
+/** Auto-outset fridges/ice makers so their FACE (unit + panel-ready panels)
+ *  lines up with the front face of the cabinets they abut — e.g. a 24″ fridge
+ *  beside 28.5″-deep bar cabinets gets a 4.5″ outset automatically. Only
+ *  applies when a cabinet sits flush beside it; standalone fridges keep the
+ *  outset the user set. */
+function autoFridgeOutset(design: Design): void {
+  for (const it of design.items) {
+    const cat = catalogById(it.catalogId);
+    if (cat.lane !== 'floor' || (cat.applianceCat !== 'fridge' && cat.applianceCat !== 'icemaker')) continue;
+    const fpw = footprintW(it);
+    let front = 0;
+    let found = false;
+    for (const o of design.items) {
+      if (o.id === it.id || o.wallId !== it.wallId || o.auto) continue;
+      const oc = catalogById(o.catalogId);
+      if (oc.lane !== 'floor' || oc.front === 'filler') continue;
+      const flushL = Math.abs(o.x + footprintW(o) - it.x) < 0.75;
+      const flushR = Math.abs(o.x - (it.x + fpw)) < 0.75;
+      if (!flushL && !flushR) continue;
+      front = Math.max(front, o.d + o.outset + frontExtraD(oc));
+      found = true;
+    }
+    if (!found) continue;
+    it.outset = Math.max(0, Math.round((front - it.d - frontExtraD(cat)) * 100) / 100);
+  }
 }
 
 export const useStore = create<AppState>()(

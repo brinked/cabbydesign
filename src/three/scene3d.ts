@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ALL_FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, bridgesCounter, catalogById } from '../model/catalog';
+import { ALL_FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, bridgesCounter, catalogById, frontExtraD } from '../model/catalog';
 import { cornerCounterExtend, frameForWall, planBounds } from '../model/geometry';
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
@@ -23,13 +23,14 @@ function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: 
     // Undercounter appliances (fridges/ice makers) keep the counter at the
     // standard height passing over them — the gap shows underneath.
     const h = counterHeightFor(it);
+    const fd = it.d + it.outset + frontExtraD(catalogById(it.catalogId));
     const last = runs[runs.length - 1];
     // Merge only with an adjacent cabinet of the same height — a height change
     // starts a new run so the counter steps down to follow each cabinet.
     if (last && it.x <= last.x2 + 0.2 && Math.abs(last.h - h) < 0.01) {
       last.x2 = Math.max(last.x2, it.x + footprintW(it));
-      last.d = Math.max(last.d, it.d + it.outset);
-    } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: it.d + it.outset, h });
+      last.d = Math.max(last.d, fd);
+    } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: fd, h });
   }
   return runs;
 }
@@ -565,7 +566,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // Shallow fillers are excluded so they inherit the neighbouring depth.
       const depthCabs: FrontSeg[] = runCabs
         .filter((it) => catalogById(it.catalogId).front !== 'filler')
-        .map((it) => ({ x1: it.x - runCenter, x2: it.x + footprintW(it) - runCenter, z: it.d + it.outset + COUNTER_OVERHANG }))
+        .map((it) => ({ x1: it.x - runCenter, x2: it.x + footprintW(it) - runCenter, z: it.d + it.outset + frontExtraD(catalogById(it.catalogId)) + COUNTER_OVERHANG }))
         .sort((a, b) => a.x1 - b.x1);
       const fallbackZ = r.d + COUNTER_OVERHANG;
 
