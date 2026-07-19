@@ -135,6 +135,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
   function bgPanDown(e: React.PointerEvent<SVGSVGElement>) {
     if (!interactive || tool !== 'select') return;
     if (e.target !== e.currentTarget) return; // only empty background
+    setSelectedMeasureId(null);
     const rect = e.currentTarget.getBoundingClientRect();
     const cur = viewRef.current ?? boundsRef.current;
     panRef.current = { clientX: e.clientX, clientY: e.clientY, view: { ...cur }, scale: cur.w / rect.width };
@@ -277,6 +278,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
 
   function measureDown(e: React.PointerEvent<SVGSVGElement>) {
     if (tool !== 'measure') return;
+    setSelectedMeasureId(null);
     const a = snapMeasure(svgPoint(e.currentTarget, e.clientX, e.clientY));
     setMeasureDraft({ a, b: a });
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -303,6 +305,9 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
   }
 
   // ----- moving / rotating an existing tape -----
+  // Clicking a tape selects it (shows its rotate/remove buttons); clicking
+  // empty space or starting a new measurement deselects.
+  const [selectedMeasureId, setSelectedMeasureId] = useState<string | null>(null);
   const tapeDrag = useRef<{ id: string; sx: number; sy: number; A: { x: number; y: number }; B: { x: number; y: number }; moved: boolean } | null>(null);
   function tapeDown(e: React.PointerEvent, m: Measurement) {
     if (!interactive || (tool !== 'select' && tool !== 'measure')) return;
@@ -310,6 +315,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
     const svg = (e.currentTarget as SVGGElement).ownerSVGElement;
     if (!svg) return;
     const p = svgPoint(svg, e.clientX, e.clientY);
+    setSelectedMeasureId(m.id);
     tapeDrag.current = { id: m.id, sx: p.x, sy: p.y, A: resolveEnd(m.a), B: resolveEnd(m.b), moved: false };
     try {
       (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
@@ -707,7 +713,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
               {line(A, B, m.target, m.id, false)}
             </g>
           );
-          if (canEdit) {
+          if (canEdit && selectedMeasureId === m.id) {
             const mx = (A.x + B.x) / 2;
             const my = (A.y + B.y) / 2;
             out.push(
