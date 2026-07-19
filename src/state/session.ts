@@ -3,6 +3,7 @@
 // the admin-controlled global cabinet dims + base pricing formulas into the
 // designer store so every dealer designs against the same catalog rules.
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { api, ApiError, type AccountType, type ApiUser, type CatalogPrefs, type CertInfo, type DealerPrefs } from '../api/client';
 import { deleteLocalJob, listLocalJobs } from './localJobs';
 import { NEWAGE_DEFAULT_APPLIANCES } from '../model/newage';
@@ -97,7 +98,9 @@ async function migrateLocalJobs(): Promise<void> {
   }
 }
 
-export const useSession = create<SessionState>()((set, get) => ({
+export const useSession = create<SessionState>()(
+  persist(
+    (set, get) => ({
   status: 'loading',
   user: null,
   prefs: null,
@@ -116,6 +119,13 @@ export const useSession = create<SessionState>()((set, get) => ({
       if (user) {
         await pullGlobals(set);
         set({ status: 'authed', user, prefs: prefs ?? null, cert: cert ?? null, catalogPrefs: catalogPrefs ?? null });
+        // Re-validate the remembered current job (persisted across reloads):
+        // if it was deleted or belongs to another account, drop the link so
+        // Save falls back to creating a new job instead of failing.
+        const jid = get().currentJobId;
+        if (jid != null) {
+          api.getJob(jid).catch(() => set({ currentJobId: null, currentJobName: null }));
+        }
         return;
       }
     } catch {
@@ -133,6 +143,14 @@ export const useSession = create<SessionState>()((set, get) => ({
     const { user, prefs, cert, catalogPrefs } = await api.login(email, password);
     await pullGlobals(set);
     set({ status: 'authed', user, prefs, cert, catalogPrefs: catalogPrefs ?? null, authPrompt: null });
+    // Re-validate the remembered current job (persisted across reloads):
+    // if it was deleted or belongs to another account, drop the link so
+    // Save falls back to creating a new job instead of failing.
+    const jid = get().currentJobId;
+    if (jid != null) {
+      api.getJob(jid).catch(() => set({ currentJobId: null, currentJobName: null }));
+    }
+
     if (isConsumerRole(user.role)) void migrateLocalJobs();
   },
 
@@ -231,6 +249,16 @@ export const useSession = create<SessionState>()((set, get) => ({
       }
     }
   },
-}));
+    }),
+    {
+      name: 'cabbydesign-session-v1',
+      // Only the current-job pointer persists — auth state always re-checks
+      // the server cookie on load. Without this, a page reload restored the
+      // design (store.ts persists it) but forgot WHICH saved job it came
+      // from, so the next Save created a duplicate instead of updating.
+      partialize: (s) => ({ currentJobId: s.currentJobId, currentJobName: s.currentJobName }),
+    }
+  )
+);
 
 export { ApiError };
