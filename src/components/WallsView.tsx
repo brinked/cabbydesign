@@ -6,7 +6,7 @@ import { useSession } from '../state/session';
 import { resolveItemFinish } from '../model/newage';
 import { countertopById } from '../model/countertops';
 import { cornerCounterExtend, isReserveExempt, type CornerReserve } from '../model/geometry';
-import { backsplashSpans, counterHeightFor, footprintW, laneItems, openingClash, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
+import { backsplashSpans, barRiserFor, counterHeightFor, footprintW, laneItems, openingClash, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';
 import { grillCutout } from '../three/cabinet3d';
 import { hasModel } from '../three/models';
 import { ElevationCabinet } from './CabinetImage';
@@ -357,10 +357,11 @@ export function WallElevationSvg({
           drawn BEHIND the cabinets so a sink faucet/top gear shows in front of
           the bar backsplash (like the 3D). */}
       {floorItems
-        .filter((it) => catalogById(it.catalogId).barHeight)
+        .filter((it) => catalogById(it.catalogId).barHeight || barRiserFor(design, it))
         .map((it) => {
           const w = footprintW(it);
-          const riserTop = floorY - (it.h + BAR_RISE);
+          const topH = catalogById(it.catalogId).barHeight ? it.h : (barRiserFor(design, it)?.topH ?? it.h);
+          const riserTop = floorY - (topH + BAR_RISE);
           const barTopY = riserTop - cT;
           // The step face shows the granite backsplash, capped by the stone bar top.
           return (

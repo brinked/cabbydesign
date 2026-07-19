@@ -702,6 +702,14 @@ export function counterAreaSqft(design: Design): number {
       sqin += w * (BAR_DEPTH + BAR_OVERHANG + BAR_NOSE); // bar top + seating overhang
       sqin += w * BAR_RISE; // vertical backsplash band
     }
+    // connecting bar risers: the bar top + step splash also run across a
+    // fridge bridged between two bar cabinets.
+    for (const it of floor) {
+      if (!barRiserFor(design, it)) continue;
+      const w = footprintW(it);
+      sqin += w * (BAR_DEPTH + BAR_OVERHANG + BAR_NOSE); // bar top over the opening
+      sqin += w * BAR_RISE; // step splash band
+    }
     // stone backsplash band above the counters (real walls only) — same stone,
     // so it counts toward the countertop square footage.
     const bsH = design.backsplashHeight ?? 0;
@@ -845,6 +853,33 @@ export function sideExposed(design: Design, it: PlacedItem, side: 'left' | 'righ
     if (side === 'right' && it.x + footprintW(it) > wall.length - 1) return false;
   }
   return true;
+}
+
+/**
+ * Connecting bar riser: a fridge/ice-maker opening sitting flush between two
+ * bar-height cabinets gets the raised bar back bridged across it, so the bar
+ * stone top and step splash run continuously and the back reads as one finished
+ * face. Its stone counts toward the countertop square footage.
+ * Returns the flanking bars' body height, or null when it doesn't apply.
+ */
+export function barRiserFor(design: Design, it: PlacedItem): { topH: number } | null {
+  const cat = catalogById(it.catalogId);
+  if (cat.applianceCat !== 'fridge' && cat.applianceCat !== 'icemaker') return null;
+  const fpw = footprintW(it);
+  const barAt = (edge: number, side: 'L' | 'R'): PlacedItem | null => {
+    for (const o of design.items) {
+      if (o.id === it.id || o.wallId !== it.wallId) continue;
+      const oc = catalogById(o.catalogId);
+      if (!oc.barHeight || oc.lane !== 'floor') continue;
+      const oEdge = side === 'L' ? o.x + footprintW(o) : o.x;
+      if (Math.abs(oEdge - edge) < 0.75) return o;
+    }
+    return null;
+  };
+  const left = barAt(it.x, 'L');
+  const right = barAt(it.x + fpw, 'R');
+  if (!left || !right) return null;
+  return { topH: Math.max(left.h, right.h) };
 }
 
 /** Auto-manage applied ends: a finished end auto-applies on exposed run-end

@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { ALL_FINISHES, BASE_H, COUNTER_OVERHANG, COUNTER_T, bridgesCounter, catalogById } from '../model/catalog';
+import { ALL_FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, bridgesCounter, catalogById } from '../model/catalog';
 import { cornerCounterExtend, frameForWall, planBounds } from '../model/geometry';
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import type { ApplianceItem, Design, FinishOption, ModelAligns, PlacedItem, Wall } from '../model/types';
 import { resolveItemFinish } from '../model/newage';
-import { backsplashSpans, counterHeightFor, footprintW, laneItems, reservesFor } from '../state/store';
-import { CORNER_RETURN, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
+import { backsplashSpans, barRiserFor, counterHeightFor, footprintW, laneItems, reservesFor } from '../state/store';
+import { CORNER_RETURN, END_PANEL_T, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
 
 function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: number; h: number }> {
   // corner cabinets get their own shaped counter, so exclude them from runs.
@@ -417,6 +417,41 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       cab.position.y = it.mount;
       cab.rotation.y = yaw;
       group.add(cab);
+
+      // Connecting bar riser: a fridge flush between two bar-height cabinets
+      // gets the raised bar back bridged across it — carcass column, finished
+      // back on the seating side, and the stone bar top + step splash running
+      // continuously with the flanking bars.
+      const rs = barRiserFor(design, it);
+      if (rs) {
+        const rmats = matsFor(resolveItemFinish(fin.id, it, cat));
+        const rw = footprintW(it);
+        const rcx = it.x + rw / 2;
+        const stone = (bd: number) => {
+          const m = rmats.counter.clone();
+          m.map = rmats.counterTex.clone();
+          m.map.repeat.set(Math.max(1, rw / 48), Math.max(1, bd / 48));
+          return m;
+        };
+        const topY = rs.topH + BAR_RISE;
+        const colH = topY - TOEKICK_H;
+        const rbody = box(rw, colH, BAR_DEPTH - 0.1, rmats.carcass);
+        rbody.castShadow = rbody.receiveShadow = true;
+        place(rbody, rcx, 0.1 + (BAR_DEPTH - 0.1) / 2, TOEKICK_H + colH / 2);
+        // finished back panel on the seating side (like island back panels)
+        const bp = box(rw, colH, END_PANEL_T, rmats.panel);
+        bp.castShadow = bp.receiveShadow = true;
+        place(bp, rcx, -END_PANEL_T / 2, TOEKICK_H + colH / 2);
+        // granite step splash on the working side, matching the flanking bars
+        const splash = box(rw, BAR_RISE, 0.75, stone(0.75));
+        splash.castShadow = splash.receiveShadow = true;
+        place(splash, rcx, BAR_DEPTH + 0.375, rs.topH + cT + BAR_RISE / 2);
+        // stone bar top with the seating overhang, continuous with the bars
+        const barD = BAR_OVERHANG + BAR_DEPTH + BAR_NOSE;
+        const barStone = box(rw, cT, barD, stone(barD));
+        barStone.castShadow = barStone.receiveShadow = true;
+        place(barStone, rcx, BAR_DEPTH + BAR_NOSE - barD / 2, topY + cT / 2);
+      }
 
       // corner / susan cabinets get a shaped countertop matching their top
       if ((cat.front === 'corner' || cat.front === 'susan') && cat.counter) {
