@@ -317,7 +317,9 @@ interface AppState {
   removeItem: (id: string) => void;
   duplicateItem: (id: string) => void;
   moveItem: (id: string, x: number) => void;
-  reflowAll: () => void;
+  /** Re-pack the layout. Pass the just-dragged item's id so IT yields into
+   *  the row (snap/swap) instead of pushing the whole row along. */
+  reflowAll: (activeId?: string) => void;
   /** Adjust or remove an auto corner filler (key `${wallId}:start|end`); null resets to the standard 3″. */
   setCornerOverride: (key: string, o: { w?: number; off?: boolean } | null) => void;
   addRoughIn: (wallId: string, kind: RoughInKind) => void;
@@ -601,9 +603,33 @@ export function openingFor(design: Design, wallId: string, cat: { front: string;
  * stays on the wall, and non-corner cabinets stay out of reserved corner
  * zones. Order is preserved from x.
  */
-function packLane(items: PlacedItem[], wallLength: number, lo: number, hi: number): void {
+function packLane(items: PlacedItem[], wallLength: number, lo: number, hi: number, activeId?: string): void {
   const sorted = [...items].sort((a, b) => a.x + footprintW(a) / 2 - (b.x + footprintW(b) / 2));
   const exempt = (it: PlacedItem) => isReserveExempt(catalogById(it.catalogId));
+  // A dragged cabinet YIELDS to the row instead of bulldozing it: it fits into
+  // the gap at its drop position (snapping flush against either neighbour —
+  // symmetric left/right). Its slot in the row follows its centre, so dragging
+  // past a neighbour's centre swaps places. Only when the drop spot has no
+  // room (inserting between abutting cabinets) do the sweeps below open the
+  // gap by shifting the rest.
+  const active = activeId ? sorted.find((it) => it.id === activeId) : undefined;
+  if (active) {
+    const fpwA = footprintW(active);
+    const k = sorted.indexOf(active);
+    const prev = sorted[k - 1];
+    const next = sorted[k + 1];
+    const itemLo = exempt(active) ? 0 : lo;
+    const itemHi = exempt(active) ? wallLength : hi;
+    const loEdge = Math.max(itemLo, prev ? prev.x + footprintW(prev) : 0);
+    const hiEdge = Math.min(itemHi, next ? next.x : wallLength);
+    if (hiEdge - loEdge >= fpwA - 0.001) {
+      active.x = Math.min(Math.max(active.x, loEdge), hiEdge - fpwA);
+      return; // it fit in the gap — nobody else moves
+    }
+    // no room at the drop spot: seat it against the left neighbour and let the
+    // sweeps below push the rest to make room
+    active.x = loEdge;
+  }
   // Left-to-right sweep
   let cursor = 0;
   for (const it of sorted) {
@@ -622,12 +648,12 @@ function packLane(items: PlacedItem[], wallLength: number, lo: number, hi: numbe
 }
 
 /** Re-pack every wall (corner reserves depend on neighbouring walls, so pack globally). */
-function packAll(design: Design): void {
+function packAll(design: Design, activeId?: string): void {
   const reserves = cornerReserves(design.walls, design.items, catalogById, design.cornerOverrides);
   for (const wall of design.walls) {
     const r = reserves.get(wall.id) ?? { start: 0, end: 0 };
-    packLane(laneItems(design.items, wall.id, 'floor'), wall.length, r.start, wall.length - r.end);
-    packLane(laneItems(design.items, wall.id, 'upper'), wall.length, 0, wall.length);
+    packLane(laneItems(design.items, wall.id, 'floor'), wall.length, r.start, wall.length - r.end, activeId);
+    packLane(laneItems(design.items, wall.id, 'upper'), wall.length, 0, wall.length, activeId);
   }
 }
 
@@ -913,10 +939,10 @@ function autoEnds(design: Design): void {
   }
 }
 
-function withPack(design: Design): Design {
+function withPack(design: Design, activeId?: string): Design {
   // pack real items first (auto-fillers are exempt trim and re-derived after)
   const next = { ...design, items: design.items.filter((it) => !it.auto).map((it) => ({ ...it })) };
-  packAll(next);
+  packAll(next, activeId);
   autoEnds(next); // apply/clear ends from the packed layout…
   packAll(next); // …then re-pack so applied ends seat correctly
   autoFridgeOutset(next);
@@ -1189,7 +1215,7 @@ export const useStore = create<AppState>()(
           },
         })),
 
-      reflowAll: () => set((s) => ({ design: withPack(s.design) })),
+      reflowAll: (activeId) => set((s) => ({ design: withPack(s.design, activeId) })),
 
       setCornerOverride: (key, o) =>
         set((s) => {

@@ -145,7 +145,7 @@ export function WallElevationSvg({
     const d = drag.current;
     if (!d || d.id !== it.id) return;
     drag.current = null;
-    if (d.moved) reflowAll();
+    if (d.moved) reflowAll(it.id);
     else openEditor(it.id);
   }
 

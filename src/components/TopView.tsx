@@ -467,7 +467,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
     const d = itemDrag.current;
     if (!d || d.id !== it.id) return;
     itemDrag.current = null;
-    if (d.moved) reflowAll();
+    if (d.moved) reflowAll(it.id);
     else openEditor(it.id);
   }
 
