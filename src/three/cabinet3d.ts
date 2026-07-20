@@ -375,6 +375,8 @@ export interface CabDims {
   endR: boolean;
   /** Finished applied panel(s) on the back (islands) — auto, split at ≤48". */
   backPanel?: boolean;
+  /** Applied end panels stay plain slabs (no routed design) — bar cabinets. */
+  plainEnds?: boolean;
   /** Corner/susan footprint orientation, derived from placement so it stays
    *  fixed in its corner; when set, `hinge` is free to pick the handle side. */
   cornerSide?: 1 | -1;
@@ -740,7 +742,7 @@ function doorFace(w: number, h: number, style: DoorStyle, mats: CabMats): THREE.
  * The face spans w×h in the local XY plane at z=+faceZ. 'flat' (Euro), the
  * indoor 5-piece styles and faces too small to route add nothing.
  */
-function facePattern(w: number, h: number, style: DoorStyle, faceZ: number, mats: CabMats): THREE.Group {
+export function facePattern(w: number, h: number, style: DoorStyle, faceZ: number, mats: CabMats): THREE.Group {
   const g = new THREE.Group();
   if (w < 8 || h < 8) return g;
   const sw = 0.42; // groove width
@@ -812,9 +814,18 @@ function facePattern(w: number, h: number, style: DoorStyle, faceZ: number, mats
       hGrooves(-h / 2 + r, h - 2 * r, w - 2 * inset - sw, 5.5);
       break;
     }
-    case 'tampa': // narrow horizontal planks
-      hGrooves(-h / 2, h, w - 0.8, 3.8);
+    case 'tampa': {
+      // full-height stiles with horizontal planks spanning between them —
+      // the planks run edge-to-edge vertically (no top/bottom rails)
+      const inset = 2;
+      for (const sx of [-1, 1]) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(sw, h - 0.4, t), mats.groove);
+        m.position.set(sx * (w / 2 - inset), 0, z);
+        g.add(m);
+      }
+      hGrooves(-h / 2, h, w - 2 * inset - sw, 4.8);
       break;
+    }
   }
   return g;
 }
@@ -876,7 +887,7 @@ export function gearAbove(cat: CatalogItem): number {
  */
 export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats): THREE.Group {
   const g = new THREE.Group();
-  const { w, d, h, hinge, style, endL, endR, finL, finR, backPanel } = dims;
+  const { w, d, h, hinge, style, endL, endR, finL, finR, backPanel, plainEnds } = dims;
 
   // Range hood: the item IS the appliance — the real GLB stretched to exactly
   // W×H×D (back against the wall), with a simple steel canopy while it loads.
@@ -925,7 +936,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     // working body, shifted forward so the bar occupies the back BAR_DEPTH.
     // Its own island back panel would end up buried inside the bar column, so
     // it's suppressed — the full-height finished back is added below instead.
-    const front = buildCabinetLocal({ ...cat, barHeight: false }, { ...dims, d: frontD, backPanel: false }, mats);
+    const front = buildCabinetLocal({ ...cat, barHeight: false }, { ...dims, d: frontD, backPanel: false, plainEnds: true }, mats);
     front.position.z += BAR_DEPTH;
     g.add(front);
     // main counter at standard height: from the bar-riser front to a 1" front nose.
@@ -1564,7 +1575,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     const addPanel = (faceW: number, px: number, pz: number, rotY: number) => {
       const pg = new THREE.Group();
       pg.add(box(faceW, carcassH, END_PANEL_T, mats.panel));
-      pg.add(facePattern(faceW, carcassH, style, END_PANEL_T / 2, mats));
+      if (!plainEnds) pg.add(facePattern(faceW, carcassH, style, END_PANEL_T / 2, mats));
       pg.rotation.y = rotY; // local +z (panel face) rotated to point outward
       pg.position.set(px, kick + carcassH / 2, pz);
       g.add(pg);

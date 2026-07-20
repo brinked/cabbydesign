@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { ALL_FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, bridgesCounter, catalogById, frontExtraD } from '../model/catalog';
+import { ALL_FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, takesAppliedEnds } from '../model/catalog';
 import { cornerCounterExtend, frameForWall, planBounds } from '../model/geometry';
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import type { ApplianceItem, Design, FinishOption, ModelAligns, PlacedItem, Wall } from '../model/types';
 import { resolveItemFinish } from '../model/newage';
 import { backsplashSpans, barRiserFor, counterHeightFor, footprintW, laneItems, reservesFor } from '../state/store';
-import { CORNER_RETURN, END_PANEL_T, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
+import { CORNER_RETURN, END_PANEL_T, MAX_PANEL_W, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, facePattern, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
 
 function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: number; h: number }> {
   // corner cabinets get their own shaped counter, so exclude them from runs.
@@ -411,7 +411,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
             : null;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, backPanel: f.wall.ghost, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined },
+        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined },
         matsFor(resolveItemFinish(fin.id, it, cat))
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;
@@ -532,6 +532,42 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         } else {
           if (it.waterfallL) sideSlab(it.x - cT / 2, it.d + O, neighborTop('L'));
           if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, it.d + O, neighborTop('R'));
+        }
+      }
+    }
+
+    // Island finished backs — built across the whole RUN (not per cabinet) so
+    // the routed design lands in evenly sized, evenly spaced panels along the
+    // entire back. Contiguous cabinets of the same back height form one group;
+    // the group's width splits into equal panels of MAX_PANEL_W max.
+    if (f.wall.ghost) {
+      const RUN_GAP = 0.125;
+      type BackGroup = { x1: number; x2: number; topY: number };
+      const groups: BackGroup[] = [];
+      for (const it of [...floorItems].sort((a, b) => a.x - b.x)) {
+        const c = catalogById(it.catalogId);
+        if (!takesAppliedEnds(c) || c.lane !== 'floor') continue;
+        const topY = it.h + (c.barHeight ? BAR_RISE : 0);
+        const x1 = it.x;
+        const x2 = it.x + footprintW(it);
+        const last = groups[groups.length - 1];
+        if (last && x1 <= last.x2 + 0.75 && Math.abs(last.topY - topY) < 0.01) last.x2 = Math.max(last.x2, x2);
+        else groups.push({ x1, x2, topY });
+      }
+      for (const grp of groups) {
+        const W = grp.x2 - grp.x1;
+        if (W < 2) continue;
+        const colH = Math.max(1, grp.topY - TOEKICK_H);
+        const n = Math.max(1, Math.ceil(W / MAX_PANEL_W));
+        const panelW = (W - RUN_GAP * (n - 1)) / n;
+        for (let i = 0; i < n; i++) {
+          const inner = new THREE.Group();
+          inner.add(box(panelW, colH, END_PANEL_T, mats.panel));
+          inner.add(facePattern(panelW, colH, design.doorStyle, END_PANEL_T / 2, mats));
+          inner.rotation.y = Math.PI; // design faces out the back (-z)
+          const wrap = new THREE.Group();
+          wrap.add(inner);
+          place(wrap, grp.x1 + panelW / 2 + i * (panelW + RUN_GAP), -END_PANEL_T / 2, TOEKICK_H + colH / 2);
         }
       }
     }
