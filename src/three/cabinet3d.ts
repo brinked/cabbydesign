@@ -765,27 +765,53 @@ function facePattern(w: number, h: number, style: DoorStyle, faceZ: number, mats
       g.add(m);
     }
   };
+  // Five-piece construction lines: stile grooves run the FULL height at each
+  // edge, and rail grooves span between them at the top/bottom — like a real
+  // rail-and-stile door (the corners read as joints, not a routed ring).
+  const railStile = (inset: number, rail: number) => {
+    const r = Math.min(rail, h * 0.24);
+    for (const sx of [-1, 1]) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(sw, h - 0.4, t), mats.groove);
+      m.position.set(sx * (w / 2 - inset), 0, z);
+      g.add(m);
+    }
+    for (const sy of [-1, 1]) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w - 2 * inset - sw, sw, t), mats.groove);
+      m.position.set(0, sy * (h / 2 - r), z);
+      g.add(m);
+    }
+    return r;
+  };
   switch (style) {
     case 'shaker': // Vibe — the classic groove ring
       g.add(grooveRing(w, h, faceZ, mats));
       break;
-    case 'metro': // slim frame close to the edge
-      g.add(grooveRing(w, h, faceZ, mats, 1.3));
+    case 'metro': {
+      // rail-and-stile shaker: full-height stiles + top/bottom rails, big flat panel
+      railStile(2.4, 3.4);
       break;
+    }
     case 'clove': // frame + narrow vertical planks in the panel
       g.add(grooveRing(w, h, faceZ, mats));
       vGrooves(-w / 2 + R, w - 2 * R, h - 2 * R - sw, 3.2);
       break;
-    case 'slat': // frame + wide vertical planks in the panel
-      g.add(grooveRing(w, h, faceZ, mats));
-      vGrooves(-w / 2 + R, w - 2 * R, h - 2 * R - sw, 5.8);
+    case 'slat': {
+      // rail-and-stile frame + wide vertical planks filling the panel
+      const inset = 2.4;
+      const r = railStile(inset, 3.4);
+      vGrooves(-w / 2 + inset, w - 2 * inset, h - 2 * r - sw, 5);
       break;
+    }
     case 'cottage': // full-height vertical planks
       vGrooves(-w / 2, w, h - 0.8, 3.2);
       break;
-    case 'miami': // wide horizontal slats
-      hGrooves(-h / 2, h, w - 0.8, 6.5);
+    case 'miami': {
+      // framed door with wide horizontal planks inside the panel
+      const inset = 2;
+      const r = railStile(inset, 3);
+      hGrooves(-h / 2 + r, h - 2 * r, w - 2 * inset - sw, 5.5);
       break;
+    }
     case 'tampa': // narrow horizontal planks
       hGrooves(-h / 2, h, w - 0.8, 3.8);
       break;
