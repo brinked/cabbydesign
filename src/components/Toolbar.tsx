@@ -360,7 +360,7 @@ function SettingsMenu({
           <label className="settings-menu-row">
             <span>Countertop</span>
             <select className="select" value={design.counterId} onChange={(e) => setDesignMeta({ counterId: e.target.value })}>
-              {(['solid', 'granite', 'quartzite', 'concrete', 'metal'] as CounterCategory[]).map((cat) => (
+              {(['dekton', 'solid', 'granite', 'quartzite', 'concrete', 'metal'] as CounterCategory[]).map((cat) => (
                 <optgroup key={cat} label={COUNTER_CATEGORY_LABELS[cat]}>
                   {COUNTERTOPS.filter((c) => c.category === cat).map((c) => (
                     <option key={c.id} value={c.id}>

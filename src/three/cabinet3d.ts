@@ -121,7 +121,99 @@ export function countertopTexture(ct: Countertop): THREE.CanvasTexture {
         ctx.fillRect(x - r, y - r, r * 2, r * 2);
       }
     };
-    if (ct.category === 'granite') {
+    // Dekton ultracompact designs — richer painter per pattern style.
+    if (ct.category === 'dekton') {
+      const style = ct.style ?? 'marble';
+      // one flowing vein across the slab with a soft halo (marble looks)
+      const paintVein = (color: string, width: number, alpha: number, wander: number, blur: number) => {
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = alpha;
+        ctx.lineWidth = width;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = blur;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        // veins run loosely diagonal, entering on a random edge
+        let x = Math.random() * s;
+        let y = -20;
+        ctx.moveTo(x, y);
+        while (y < s + 20) {
+          const nx = x + (Math.random() - 0.5) * wander;
+          const ny = y + 30 + Math.random() * 55;
+          ctx.quadraticCurveTo(x + (Math.random() - 0.5) * wander * 0.7, (y + ny) / 2, nx, ny);
+          x = nx;
+          y = ny;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      };
+      if (style === 'speckle') {
+        mottle(true, 30, 70, 0.035);
+        const flecks = ct.flecks ?? ['#777777'];
+        for (let i = 0; i < 7000; i++) {
+          ctx.fillStyle = flecks[(Math.random() * flecks.length) | 0];
+          ctx.globalAlpha = 0.4 + Math.random() * 0.5;
+          const x = Math.random() * s, y = Math.random() * s, r = 0.4 + Math.random() * 1.6;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      } else if (style === 'cement') {
+        mottle(false, 60, 130, 0.05);
+        mottle(true, 50, 120, 0.045);
+        for (let i = 0; i < 3200; i++) {
+          ctx.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+          ctx.fillRect(Math.random() * s, Math.random() * s, 1, 1);
+        }
+        // subtle trowel drift lines (Soke's realistic veining)
+        if (ct.vein) for (let i = 0; i < 4; i++) paintVein(ct.vein, 6 + Math.random() * 10, 0.06, 120, 26);
+      } else if (style === 'volcanic') {
+        // irregular basalt patches over the dark base
+        const pats = ct.accents ?? ['#2e2b28', '#6b6259'];
+        for (let i = 0; i < 46; i++) {
+          const x = Math.random() * s, y = Math.random() * s, r = 18 + Math.random() * 60;
+          const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+          const c = pats[(Math.random() * pats.length) | 0];
+          g.addColorStop(0, c);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.28 + Math.random() * 0.3;
+          ctx.fillStyle = g;
+          ctx.fillRect(x - r, y - r, r * 2, r * 2);
+        }
+        ctx.globalAlpha = 1;
+        for (let i = 0; i < 2000; i++) {
+          ctx.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.04)';
+          ctx.fillRect(Math.random() * s, Math.random() * s, 1, 1);
+        }
+      } else if (style === 'limestone') {
+        // even honed grain + faint clouds and the odd fossil-soft vein
+        mottle(true, 60, 90, 0.03);
+        mottle(false, 30, 110, 0.02);
+        for (let i = 0; i < 5200; i++) {
+          ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+          ctx.fillRect(Math.random() * s, Math.random() * s, 1, 1);
+        }
+        if (ct.vein) for (let i = 0; i < 3; i++) paintVein(ct.vein, 3 + Math.random() * 5, 0.1, 90, 18);
+      } else if (style === 'soft') {
+        // diffuse, veiled veins that add depth without hard edges (Inuk/Nara)
+        mottle(true, 50, 90, 0.035);
+        const v = ct.vein ?? '#cccccc';
+        for (let i = 0; i < 6; i++) paintVein(v, 10 + Math.random() * 16, 0.1, 150, 34);
+        for (let i = 0; i < 4; i++) paintVein(v, 3 + Math.random() * 4, 0.12, 130, 14);
+      } else {
+        // marble: bold main veins + secondary web + accent mineral streaks
+        mottle(true, 40, 80, 0.03);
+        const main = ct.vein ?? '#a0a0a0';
+        const nMain = ct.boldVeins ? 4 : 3;
+        for (let i = 0; i < nMain; i++) paintVein(main, ct.boldVeins ? 5 + Math.random() * 7 : 2.5 + Math.random() * 3, 0.4, 130, ct.boldVeins ? 10 : 6);
+        if (ct.vein2) for (let i = 0; i < 6; i++) paintVein(ct.vein2, 1 + Math.random() * 1.8, 0.28, 110, 4);
+        for (const a of ct.accents ?? []) {
+          for (let i = 0; i < 2; i++) paintVein(a, 1.6 + Math.random() * 2.6, 0.3, 120, 6);
+        }
+      }
+    } else if (ct.category === 'granite') {
       mottle(true, 40, 80, 0.04);
       const flecks = ct.flecks ?? ['#888888'];
       for (let i = 0; i < 6500; i++) {
