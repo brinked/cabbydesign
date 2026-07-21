@@ -752,9 +752,12 @@ export function counterAreaSqft(design: Design): number {
     // waterfall edges: a side slab dropping from the counter top to the floor
     const cT = design.counterThickness ?? COUNTER_T;
     for (const it of floor) {
-      if (!catalogById(it.catalogId).counter) continue;
+      const c = catalogById(it.catalogId);
+      if (!c.counter) continue;
       const drop = counterHeightFor(it) + cT;
-      const depth = it.d + it.outset + COUNTER_OVERHANG;
+      // seating-overhang islands: the waterfall wraps the back overhang too
+      const wfBack = wall.ghost && wall.seatingOverhang && !c.barHeight ? (it.d + it.outset) / 2 : 0;
+      const depth = it.d + it.outset + COUNTER_OVERHANG + wfBack;
       if (it.waterfallL) sqin += drop * depth;
       if (it.waterfallR) sqin += drop * depth;
     }

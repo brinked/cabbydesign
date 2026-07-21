@@ -499,10 +499,12 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         };
         // a side waterfall: thin along the wall, running `depth` into the room.
         // `bottom` lifts the slab's foot to a neighbour's top so it stops there.
-        const sideSlab = (along: number, depth: number, bottom = 0) => {
+        // backZ extends the slab BEHIND the wall line — the island seating
+        // overhang — so the waterfall wraps the full counter depth.
+        const sideSlab = (along: number, depth: number, bottom = 0, backZ = 0) => {
           const h = wfH - bottom;
           if (h <= 0.05) return; // fully hidden behind a taller neighbour
-          place(box(cT, h, depth, wfMat()), along, depth / 2, bottom + h / 2);
+          place(box(cT, h, depth + backZ, wfMat()), along, (depth - backZ) / 2, bottom + h / 2);
         };
         // a forward-facing waterfall at the cabinet front (thin in depth)
         const frontSlab = (along: number, widthX: number) => place(box(widthX, wfH, cT, wfMat()), along, it.d + O, wfH / 2);
@@ -530,8 +532,10 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
             if (it.waterfallR) frontSlab(it.x + fpw - fwid / 2, fwid);
           }
         } else {
-          if (it.waterfallL) sideSlab(it.x - cT / 2, it.d + O, neighborTop('L'));
-          if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, it.d + O, neighborTop('R'));
+          // seating-overhang islands: the waterfall runs under the overhang too
+          const wfBack = f.wall.ghost && f.wall.seatingOverhang && !cat.barHeight ? (it.d + it.outset) / 2 : 0;
+          if (it.waterfallL) sideSlab(it.x - cT / 2, it.d + O, neighborTop('L'), wfBack);
+          if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, it.d + O, neighborTop('R'), wfBack);
         }
       }
     }
