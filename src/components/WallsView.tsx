@@ -18,7 +18,7 @@ const SNAP = 1.25; // inches
 
 /** Contiguous runs of counter-topped floor items at the same height. A height
  *  change starts a new run so the counter steps to follow each cabinet. */
-function counterRuns(items: PlacedItem[]): Array<{ x1: number; x2: number; h: number }> {
+function counterRuns(items: PlacedItem[], bridge: boolean): Array<{ x1: number; x2: number; h: number }> {
   const tops = items
     .filter((it) => catalogById(it.catalogId).counter)
     .sort((a, b) => a.x - b.x);
@@ -27,7 +27,7 @@ function counterRuns(items: PlacedItem[]): Array<{ x1: number; x2: number; h: nu
     // undercounter appliances keep the counter at standard height over them
     const h = counterHeightFor(it);
     const last = runs[runs.length - 1];
-    if (last && it.x <= last.x2 + 0.2 && Math.abs(last.h - h) < 0.01) last.x2 = Math.max(last.x2, it.x + footprintW(it));
+    if (last && it.x <= last.x2 + (bridge ? 60 : 0.2) && Math.abs(last.h - h) < 0.01) last.x2 = Math.max(last.x2, it.x + footprintW(it));
     else runs.push({ x1: it.x, x2: it.x + footprintW(it), h });
   }
   return runs;
@@ -82,7 +82,7 @@ export function WallElevationSvg({
   const viewH = wall.height + topPad + dimSpace;
 
   const floorItems = laneItems(wallItems, wall.id, 'floor');
-  const runs = counterRuns(floorItems);
+  const runs = counterRuns(floorItems, design.bridgeCounters !== false);
   const cT = design.counterThickness ?? COUNTER_T;
   const bsH = design.backsplashHeight ?? 0;
   const counterColor = countertopById(design.counterId).base;

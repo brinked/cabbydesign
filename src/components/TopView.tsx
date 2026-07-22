@@ -47,14 +47,14 @@ function cornerCabinetProjections(wall: Wall, walls: Wall[], items: PlacedItem[]
   return out;
 }
 
-function planCounterRuns(items: PlacedItem[]): Array<{ x1: number; x2: number; d: number }> {
+function planCounterRuns(items: PlacedItem[], bridge: boolean): Array<{ x1: number; x2: number; d: number }> {
   // lazy-susan cabinets get their own L-shaped counter, so exclude them from runs
   const tops = items.filter((it) => catalogById(it.catalogId).counter && catalogById(it.catalogId).front !== 'susan').sort((a, b) => a.x - b.x);
   const runs: Array<{ x1: number; x2: number; d: number }> = [];
   for (const it of tops) {
     const fd = it.d + it.outset + frontExtraD(catalogById(it.catalogId));
     const last = runs[runs.length - 1];
-    if (last && it.x <= last.x2 + 0.2) {
+    if (last && it.x <= last.x2 + (bridge ? 60 : 0.2)) {
       last.x2 = Math.max(last.x2, it.x + footprintW(it));
       last.d = Math.max(last.d, fd);
     } else {
@@ -484,7 +484,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
       {frames.map((f) => {
         const wallItems = design.items.filter((it) => it.wallId === f.wall.id);
         const floor = laneItems(wallItems, f.wall.id, 'floor');
-        const runs = planCounterRuns(floor);
+        const runs = planCounterRuns(floor, design.bridgeCounters !== false);
         // a lazy susan's L orientation follows the wall end it sits at (so it
         // stays put when the hinge toggle moves its single handle)
         const susanHinge = (it: PlacedItem): 'left' | 'right' => (it.x + footprintW(it) / 2 > f.wall.length / 2 ? 'right' : 'left');

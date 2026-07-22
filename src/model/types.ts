@@ -411,6 +411,8 @@ export interface Design {
   /** Stone backsplash height up the wall in inches (0 = no backsplash). Uses
    *  the same stone as the countertop. */
   backsplashHeight: number;
+  /** Countertops run over gaps between counter cabinets (default on). */
+  bridgeCounters?: boolean;
   /** Measure horizontal positions from the left or right wall end. */
   dimFrom?: DimFrom;
   /** Selected cabinet handle/pull for the job (id into the handle inventory). */

@@ -8,7 +8,7 @@ import { resolveItemFinish } from '../model/newage';
 import { backsplashSpans, barRiserFor, counterHeightFor, footprintW, laneItems, reservesFor } from '../state/store';
 import { CORNER_RETURN, END_PANEL_T, MAX_PANEL_W, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, facePattern, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
 
-function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: number; h: number }> {
+function counterRuns3d(items: PlacedItem[], bridge: boolean): Array<{ x1: number; x2: number; d: number; h: number }> {
   // corner cabinets get their own shaped counter, so exclude them from runs.
   // Bar-height cabinets carry BOTH their stone tiers in the cabinet build, so
   // they're excluded from the per-run counter too.
@@ -27,7 +27,7 @@ function counterRuns3d(items: PlacedItem[]): Array<{ x1: number; x2: number; d: 
     const last = runs[runs.length - 1];
     // Merge only with an adjacent cabinet of the same height — a height change
     // starts a new run so the counter steps down to follow each cabinet.
-    if (last && it.x <= last.x2 + 0.2 && Math.abs(last.h - h) < 0.01) {
+    if (last && it.x <= last.x2 + (bridge ? 60 : 0.2) && Math.abs(last.h - h) < 0.01) {
       last.x2 = Math.max(last.x2, it.x + footprintW(it));
       last.d = Math.max(last.d, fd);
     } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: fd, h });
@@ -578,7 +578,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
 
     const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
     const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
-    for (const r of counterRuns3d(floorItems)) {
+    for (const r of counterRuns3d(floorItems, design.bridgeCounters !== false)) {
       // Overhang only exposed run ends. Where another cabinet abuts (e.g. a
       // shorter neighbour in its own run), keep the counter flush so it doesn't
       // cut over the adjoining cabinet.

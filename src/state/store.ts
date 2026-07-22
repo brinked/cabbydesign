@@ -304,7 +304,7 @@ interface AppState {
   setAlignerOpen: (open: boolean) => void;
   setModelAligns: (modelAligns: ModelAligns) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
-  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight' | 'dimFrom' | 'handleId'>>) => void;
+  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight' | 'bridgeCounters' | 'dimFrom' | 'handleId'>>) => void;
   applyPreset: (layout: LayoutKind) => void;
   addWall: () => void;
   addWallAt: (placement: { x: number; y: number; angle: number; length: number }) => void;
@@ -623,7 +623,13 @@ function packLane(items: PlacedItem[], wallLength: number, lo: number, hi: numbe
     const loEdge = Math.max(itemLo, prev ? prev.x + footprintW(prev) : 0);
     const hiEdge = Math.min(itemHi, next ? next.x : wallLength);
     if (hiEdge - loEdge >= fpwA - 0.001) {
-      active.x = Math.min(Math.max(active.x, loEdge), hiEdge - fpwA);
+      let ax = Math.min(Math.max(active.x, loEdge), hiEdge - fpwA);
+      // Auto applied ends are stripped AFTER the first pack pass, which used
+      // to leave their 3/4″ ghost as a gap on a fast drop — snap flush to a
+      // neighbour when the drop lands within 2″ of it.
+      if (prev && ax - loEdge < 2) ax = loEdge;
+      else if (next && hiEdge - (ax + fpwA) < 2) ax = hiEdge - fpwA;
+      active.x = ax;
       return; // it fit in the gap — nobody else moves
     }
     // no room at the drop spot: seat it against the left neighbour and let the
@@ -704,10 +710,12 @@ export function counterAreaSqft(design: Design): number {
       })
       .sort((a, b) => a.x - b.x);
     const runs: Array<{ x1: number; x2: number; d: number }> = [];
+    // counters may bridge gaps between counter cabinets (design setting)
+    const bridge = design.bridgeCounters !== false ? 60 : 0.2;
     for (const it of tops) {
       const fd = it.d + it.outset + frontExtraD(catalogById(it.catalogId));
       const last = runs[runs.length - 1];
-      if (last && it.x <= last.x2 + 0.2) {
+      if (last && it.x <= last.x2 + bridge) {
         last.x2 = Math.max(last.x2, it.x + footprintW(it));
         last.d = Math.max(last.d, fd);
       } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: fd });

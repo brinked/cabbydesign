@@ -383,6 +383,14 @@ function SettingsMenu({
             <span>Countertop</span>
             <CounterThicknessInput value={design.counterThickness} onChange={(v) => setDesignMeta({ counterThickness: v })} />
           </label>
+          <label className="settings-menu-row" title="Run the countertop across gaps between counter cabinets / end caps (up to 60&quot;)">
+            <span>Counters bridge gaps</span>
+            <input
+              type="checkbox"
+              checked={design.bridgeCounters !== false}
+              onChange={(e) => setDesignMeta({ bridgeCounters: e.target.checked })}
+            />
+          </label>
           <label className="settings-menu-row">
             <span>Backsplash</span>
             <BacksplashControl value={design.backsplashHeight ?? 0} onChange={(v) => setDesignMeta({ backsplashHeight: v })} />
