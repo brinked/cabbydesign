@@ -939,6 +939,7 @@ function autoEnds(design: Design): void {
   for (const m of marks) {
     if (!m) continue;
     const { it, left, right } = m;
+    const hadL = !!it.endL;
     // Applied ends + waterfalls need an exposed side; clear them where a
     // neighbour abuts. Finished ends are always allowed, so leave them be.
     if (!left) { it.endL = false; it.waterfallL = false; }
@@ -947,6 +948,11 @@ function autoEnds(design: Design): void {
       if (left && !it.finL && !it.waterfallL) it.endL = true;
       if (right && !it.finR && !it.waterfallR) it.endR = true;
     }
+    // `x` anchors the FOOTPRINT's left edge (panel included), so toggling a
+    // left panel used to slide the box itself 3/4″ — opening a gap against
+    // the right-hand neighbour. Shift x so the box stays put and panels grow
+    // outward instead.
+    if (!!it.endL !== hadL) it.x += hadL ? 0.75 : -0.75;
   }
 }
 
@@ -955,7 +961,9 @@ function withPack(design: Design, activeId?: string): Design {
   const next = { ...design, items: design.items.filter((it) => !it.auto).map((it) => ({ ...it })) };
   packAll(next, activeId);
   autoEnds(next); // apply/clear ends from the packed layout…
-  packAll(next); // …then re-pack so applied ends seat correctly
+  // …then re-pack (still active-aware: stripping stale panels can open small
+  // gaps that the dragged cabinet should snap back over)
+  packAll(next, activeId);
   autoFridgeOutset(next);
   autoCornerFillers(next);
   alignFillers(next);
