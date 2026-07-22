@@ -548,10 +548,32 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const RUN_GAP = 0.125;
       type BackGroup = { x1: number; x2: number; topY: number };
       const groups: BackGroup[] = [];
-      for (const it of [...floorItems].sort((a, b) => a.x - b.x)) {
+      const sortedBack = [...floorItems].sort((a, b) => a.x - b.x);
+      const paneled = (idx: number): number | null => {
+        const o = sortedBack[idx];
+        if (!o) return null;
+        const oc = catalogById(o.catalogId);
+        if (!takesAppliedEnds(oc) || oc.lane !== 'floor') return null;
+        return o.h + (oc.barHeight ? BAR_RISE : 0);
+      };
+      for (let i = 0; i < sortedBack.length; i++) {
+        const it = sortedBack[i];
         const c = catalogById(it.catalogId);
-        if (!takesAppliedEnds(c) || c.lane !== 'floor') continue;
-        const topY = it.h + (c.barHeight ? BAR_RISE : 0);
+        if (c.lane !== 'floor') continue;
+        let topY = paneled(i);
+        // A fridge/ice-maker opening flush between two paneled cabinets of the
+        // same back height gets the finished back bridged across it — matching
+        // the bar-riser behaviour (which covers the bar-height case itself).
+        if (topY == null && (c.applianceCat === 'fridge' || c.applianceCat === 'icemaker') && !barRiserFor(design, it)) {
+          const lTop = paneled(i - 1);
+          const rTop = paneled(i + 1);
+          const prevIt = sortedBack[i - 1];
+          const nextIt = sortedBack[i + 1];
+          const flushL = prevIt && Math.abs(prevIt.x + footprintW(prevIt) - it.x) < 0.75;
+          const flushR = nextIt && Math.abs(nextIt.x - (it.x + footprintW(it))) < 0.75;
+          if (lTop != null && rTop != null && flushL && flushR && Math.abs(lTop - rTop) < 0.01) topY = lTop;
+        }
+        if (topY == null) continue;
         const x1 = it.x;
         const x2 = it.x + footprintW(it);
         const last = groups[groups.length - 1];
