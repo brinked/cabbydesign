@@ -1044,49 +1044,132 @@ export function RoughInGlyph({ kind, w, h, conflict }: { kind: RoughInKind; w: n
 }
 
 /**
- * Window / door glyph, drawn from (0,0) spanning w×h inches. Window = framed
- * glass with mullions; door = framed slab with two recessed panels and a knob.
+ * Window / door / slider glyph for the wall elevation, drawn from (0,0)
+ * spanning w×h inches (y=0 is the head, y=h the sill).
+ *
+ * Drawn the way an elevation is drafted rather than as coloured boxes: real
+ * member sizes in inches (a 2" casing stays 2" whether the opening is 3' or
+ * 10'), thin consistent line weights, a projecting sill, and hardware at its
+ * true 36" height. Percentage-scaled frames were what made a small window
+ * read as a cartoon — a 36" window got a 3.6" frame, a 96" slider a 9" one.
  */
 export function OpeningGlyph({ kind, w, h, clash }: { kind: OpeningKind; w: number; h: number; clash?: boolean }) {
-  // Simple outdoor-style frame: a clean white frame around a single pane/slab.
-  // When a cabinet clashes with the opening, render it red as a warning.
-  const frame = clash ? '#d23b3b' : '#9aa1ad';
-  const frameFill = clash ? '#fbe4e4' : '#f1efe9';
-  const glass = clash ? 'rgba(210,59,59,0.28)' : 'rgba(168,205,228,0.45)';
-  const slab = clash ? 'rgba(210,59,59,0.22)' : 'rgba(0,0,0,0.045)';
-  const sw = Math.max(0.4, Math.min(w, h) * 0.03) * (clash ? 1.6 : 1);
-  const inset = Math.max(1.2, Math.min(w, h) * 0.1); // frame thickness
-  const gx = inset, gy = inset, gw = w - inset * 2, gh = h - inset * 2;
+  // When a cabinet clashes with the opening, the whole glyph turns red.
+  const line = clash ? '#c0392b' : '#7d8794';
+  const lineSoft = clash ? '#d98b82' : '#aeb6c0';
+  const frameFill = clash ? '#fbe9e7' : '#fbfbfa';
+  const glassFill = clash ? '#f2cdc8' : '#dce6ed';
+  const slabFill = clash ? '#f7ddda' : '#f2f1ed';
+  const metal = clash ? '#c0392b' : '#8b939d';
+  const sw = 0.35 * (clash ? 1.8 : 1); // hairline, in inches
+  // Real member sizes, only shrunk if the opening is too small to hold them.
+  const k = Math.min(1, Math.min(w, h) / 24);
+  const CAS = 2.0 * k; // outer casing / jamb face
+  const SASH = 1.1 * k; // sash + meeting rail
+  const gx = CAS, gy = CAS, gw = Math.max(0.5, w - CAS * 2), gh = Math.max(0.5, h - CAS * 2);
+  // Hardware sits at the standard 36" above the floor; the sill is y=h.
+  const handleY = Math.min(h - CAS - 4 * k, Math.max(CAS + 4 * k, h - 36));
+
+  // One pane: flat glass tone plus the diagonal sheen an elevation uses to
+  // say "this is glazed". The sheen is a parallelogram spanning the pane's
+  // full height, its corners expressed as fractions of the pane so it is
+  // always inside the glass — no clip path, and it scales with any pane.
+  const Glazing = ({ x, y, gw: pw, gh: ph }: { x: number; y: number; gw: number; gh: number }) => (
+    <>
+      <rect x={x} y={y} width={pw} height={ph} fill={glassFill} />
+      <polygon
+        points={`${x + pw * 0.08},${y + ph} ${x + pw * 0.46},${y} ${x + pw * 0.66},${y} ${x + pw * 0.28},${y + ph}`}
+        fill="#ffffff"
+        opacity={clash ? 0.18 : 0.38}
+      />
+      <rect x={x} y={y} width={pw} height={ph} fill="none" stroke={lineSoft} strokeWidth={sw * 0.8} />
+    </>
+  );
+
+  const casing = (
+    <>
+      <rect x={0} y={0} width={w} height={h} fill={frameFill} stroke={line} strokeWidth={sw} />
+      <rect x={gx} y={gy} width={gw} height={gh} fill="none" stroke={lineSoft} strokeWidth={sw * 0.8} />
+    </>
+  );
+
   if (kind === 'window') {
+    // Two-panel hung window: a meeting rail across the middle once there's
+    // room for one, and a mullion on anything wider than a single sash.
+    const railed = h >= 30;
+    const railY = gy + gh * 0.46;
+    const mullions = Math.max(1, Math.round(w / 40));
+    const paneW = gw / mullions;
     return (
       <g>
-        <rect x={0} y={0} width={w} height={h} rx={0.6} fill={frameFill} stroke={frame} strokeWidth={sw} />
-        <rect x={gx} y={gy} width={gw} height={gh} fill={glass} stroke={frame} strokeWidth={sw * 0.6} />
+        {casing}
+        {Array.from({ length: mullions }, (_, i) => {
+          const px = gx + paneW * i;
+          return (
+            <g key={i}>
+              {railed ? (
+                <>
+                  <Glazing x={px} y={gy} gw={paneW} gh={railY - gy} />
+                  <Glazing x={px} y={railY + SASH} gw={paneW} gh={gy + gh - railY - SASH} />
+                </>
+              ) : (
+                <Glazing x={px} y={gy} gw={paneW} gh={gh} />
+              )}
+              {i > 0 && <rect x={px - SASH / 2} y={gy} width={SASH} height={gh} fill={frameFill} stroke={lineSoft} strokeWidth={sw * 0.7} />}
+            </g>
+          );
+        })}
+        {railed && <rect x={gx} y={railY} width={gw} height={SASH} fill={frameFill} stroke={lineSoft} strokeWidth={sw * 0.7} />}
+        {/* sill projects past the casing, like the real detail */}
+        <rect x={-1.5 * k} y={h - 1.2 * k} width={w + 3 * k} height={1.2 * k} fill={frameFill} stroke={line} strokeWidth={sw} />
       </g>
     );
   }
+
   if (kind === 'slider') {
-    // sliding door — glazed panels split by meeting stiles, panel count
-    // matching the unit the 3D view picks for this width
+    // Sliding door: the panel count the 3D view will use for this width, one
+    // leaf shown as the operable one with its full-height pull.
     const panes = w >= SLIDER_4PANEL_MIN_W ? 4 : 2;
-    const pw = gw / panes;
+    const paneW = gw / panes;
+    const leadPane = panes === 4 ? 1 : 0; // the leaf carrying the handle
     return (
       <g>
-        <rect x={0} y={0} width={w} height={h} rx={0.6} fill={frameFill} stroke={frame} strokeWidth={sw} />
-        {Array.from({ length: panes }, (_, i) => (
-          <rect key={i} x={gx + pw * i} y={gy} width={pw} height={gh} fill={glass} stroke={frame} strokeWidth={sw * 0.6} />
-        ))}
-        {/* pull on the lead panel */}
-        <rect x={gx + pw - Math.max(0.5, w * 0.012)} y={h * 0.42} width={Math.max(0.5, w * 0.012)} height={h * 0.16} fill={frame} />
+        {casing}
+        {Array.from({ length: panes }, (_, i) => {
+          const px = gx + paneW * i;
+          return (
+            <g key={i}>
+              <Glazing x={px + SASH} y={gy + SASH} gw={paneW - SASH * 2} gh={gh - SASH * 2} />
+              <rect x={px} y={gy} width={paneW} height={gh} fill="none" stroke={lineSoft} strokeWidth={sw * 0.8} />
+            </g>
+          );
+        })}
+        {/* full-height pull on the lead panel, at handle height */}
+        <rect
+          x={gx + paneW * (leadPane + 1) - SASH * 1.6}
+          y={handleY - 5 * k}
+          width={SASH * 0.9}
+          height={10 * k}
+          rx={SASH * 0.45}
+          fill={metal}
+        />
+        <rect x={gx} y={h - CAS} width={gw} height={CAS * 0.5} fill="none" stroke={lineSoft} strokeWidth={sw * 0.7} />
       </g>
     );
   }
-  // door — a simple slab in a frame with a knob
+
+  // Hinged door: slab with a recessed panel, a lever at 36", and the swing
+  // side marked by the hinge stile.
+  const pw = Math.max(0.5, gw - 2 * SASH * 2);
+  const ph = Math.max(0.5, gh - 2 * SASH * 2);
   return (
     <g>
-      <rect x={0} y={0} width={w} height={h} rx={0.6} fill={frameFill} stroke={frame} strokeWidth={sw} />
-      <rect x={gx} y={gy} width={gw} height={gh} rx={Math.min(1, w * 0.04)} fill={slab} stroke={frame} strokeWidth={sw * 0.6} />
-      <circle cx={w - inset - Math.min(2.5, w * 0.12)} cy={h * 0.5} r={Math.max(0.6, w * 0.035)} fill={frame} />
+      {casing}
+      <rect x={gx} y={gy} width={gw} height={gh} fill={slabFill} stroke={lineSoft} strokeWidth={sw * 0.8} />
+      <rect x={gx + SASH * 2} y={gy + SASH * 2} width={pw} height={ph} fill="none" stroke={lineSoft} strokeWidth={sw * 0.7} />
+      {/* lever + rose on the latch side, at the standard 36" height */}
+      <rect x={gx + gw - 6 * k} y={handleY - 0.5 * k} width={4 * k} height={1 * k} rx={0.5 * k} fill={metal} />
+      <circle cx={gx + gw - 6 * k} cy={handleY} r={1.1 * k} fill={metal} />
     </g>
   );
 }
