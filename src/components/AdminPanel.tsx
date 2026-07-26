@@ -3,6 +3,7 @@ import { api, ApiError, type AdminJobSummary, type DealerInput, type DealerWithP
 import { CATALOG } from '../model/catalog';
 import { useStore } from '../state/store';
 import { useSession } from '../state/session';
+import { PergolaAdminModal } from './PergolaSettings';
 
 const BLANK: DealerInput = {
   name: '',
@@ -28,6 +29,7 @@ export default function AdminPanel() {
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState<DealerWithPrefs | 'new' | null>(null);
   const [showDesigns, setShowDesigns] = useState(false);
+  const [showPergola, setShowPergola] = useState(false);
   const setPricingOpen = useStore((s) => s.setPricingOpen);
   const setRetailPricingOpen = useStore((s) => s.setRetailPricingOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
@@ -128,6 +130,9 @@ export default function AdminPanel() {
           <button className="btn-ghost" onClick={() => setShowDesigns(true)}>
             Saved designs
           </button>
+          <button className="btn-ghost" onClick={() => setShowPergola(true)} title="What each pergola model bills at">
+            Pergola pricing
+          </button>
           <button className="btn-primary" onClick={() => setEditing('new')}>
             + Add dealer
           </button>
@@ -226,6 +231,7 @@ export default function AdminPanel() {
       )}
 
       {showDesigns && <DesignsModal onClose={() => setShowDesigns(false)} />}
+      {showPergola && <PergolaAdminModal onClose={() => setShowPergola(false)} />}
     </main>
   );
 }

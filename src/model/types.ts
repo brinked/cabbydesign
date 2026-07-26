@@ -365,6 +365,20 @@ export interface RoughIn {
  *  (brick, shiplap, modern wood planks, acoustic wood slats). */
 export type WallStyle = 'standard' | 'fence' | 'white-fence' | 'brick' | 'shiplap' | 'modern-wood' | 'slat';
 
+export type PergolaAttach = 'none' | 'back' | 'front' | 'left' | 'right';
+
+export interface Pergola {
+  x: number;
+  y: number;
+  w: number;
+  l: number;
+  angle: number;
+  model: string;
+  color: string;
+  postH: number;
+  attach?: PergolaAttach;
+}
+
 /** Patio surface under the kitchen. 'concrete' is the poured pad the design
  *  has always drawn; 'marble-pavers' is a laid tumbled-marble paver field
  *  (Milestone "Ice White" and similar). */
@@ -433,6 +447,8 @@ export interface Design {
   bridgeCounters?: boolean;
   /** Patio surface the kitchen sits on (default poured concrete). */
   flooring?: FlooringKind;
+  /** Optional pergola over the kitchen. */
+  pergola?: Pergola | null;
   /** Measure horizontal positions from the left or right wall end. */
   dimFrom?: DimFrom;
   /** Selected cabinet handle/pull for the job (id into the handle inventory). */

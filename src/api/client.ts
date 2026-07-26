@@ -123,6 +123,9 @@ export interface DimOverridePayload {
 export type CabinetDims = Record<string, DimOverridePayload>;
 
 /** Appliance brand -> account (user) ids allowed to use it. Empty = everyone. */
+/** Pergola rates by model id ($/sq-ft), plus `<model>__col` per column. */
+export type PergolaRates = Record<string, number>;
+
 export type RestrictedBrands = Record<string, number[]>;
 
 export interface DealerInput {
@@ -250,6 +253,9 @@ export const api = {
   setApplianceBrands: (brands: ApplianceBrands) =>
     request<{ brands: ApplianceBrands }>('PUT', '/settings/appliance-brands', { brands }),
   // brand -> allowed account ids (admin-only; empty/absent = visible to everyone)
+  /** Pergola $/sq-ft (and per-column, keyed `<model>__col`) by model id. */
+  getPergola: () => request<{ rates: PergolaRates }>('GET', '/settings/pergola'),
+  setPergolaRates: (rates: PergolaRates) => request<{ rates: PergolaRates }>('PUT', '/settings/pergola-rates', { rates }),
   getRestrictedBrands: () => request<{ restrictedBrands: RestrictedBrands }>('GET', '/settings/restricted-brands'),
   setRestrictedBrands: (restrictedBrands: RestrictedBrands) =>
     request<{ restrictedBrands: RestrictedBrands }>('PUT', '/settings/restricted-brands', { restrictedBrands }),

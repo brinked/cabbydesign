@@ -4,7 +4,8 @@ import { cornerCounterExtend, frameForWall, isFenceStyle, planBounds, wallStyleO
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import { flooringById } from '../model/flooring';
-import type { ApplianceItem, Design, FinishOption, ModelAligns, OpeningKind, PlacedItem, Wall } from '../model/types';
+import { pergolaColorHex, pergolaColumns, pergolaModelInfo } from '../model/pergola';
+import type { ApplianceItem, Design, FinishOption, ModelAligns, OpeningKind, Pergola, PlacedItem, Wall } from '../model/types';
 import { resolveItemFinish } from '../model/newage';
 import { backsplashSpans, barRiserFor, counterHeightFor, footprintW, laneItems, reservesFor, useStore } from '../state/store';
 import { SLIDER_4PANEL_MIN_W, fitModelBox, hasModel, libTexture, namedHandleKey, onModelsLoaded, requestModel, sliderModelKey } from './models';
@@ -35,6 +36,117 @@ function counterRuns3d(items: PlacedItem[], bridge: boolean): Array<{ x1: number
     } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: fd, h });
   }
   return runs;
+}
+
+/**
+ * Aluminum pergola over the kitchen (The Pergola Collection). Local frame:
+ * x = beam span (width), z = projection, y up; centred on x/z at ground level.
+ * Roof style follows the model: aria = open lattice, fresco = translucent
+ * panel, moderno/contempo/classico = solid (with trusses/rafter tails), sole =
+ * angled louvers.
+ */
+function buildPergola(p: Pergola): { group: THREE.Group; dispose: () => void } {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(pergolaColorHex(p.color)), roughness: 0.5, metalness: 0.3 });
+  const paneMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, transparent: true, opacity: 0.42 });
+  const add = (w: number, h: number, d: number, x: number, y: number, z: number, m: THREE.Material = mat) => {
+    const b = box(w, h, d, m);
+    b.position.set(x, y, z);
+    b.castShadow = b.receiveShadow = true;
+    g.add(b);
+  };
+  const { w, l, postH, model } = p;
+  const info = pergolaModelInfo(model);
+  const POST = 7;
+  // Modern sets its posts flush at the corners for a clean line; the others
+  // inset them under the beam.
+  const IN = info.edgeColumns ? POST / 2 : 6;
+  // Columns form a grid — an extra one every maxSpanFt — and the side set
+  // against a wall drops its whole row (the structure hangs off the building).
+  const { nx, ny } = pergolaColumns(p);
+  const spread = (n: number, span: number) =>
+    n <= 1 ? [0] : Array.from({ length: n }, (_, i) => -(span / 2 - IN) + (i * (span - IN * 2)) / (n - 1));
+  const xs = spread(nx, w);
+  const zs = spread(ny, l);
+  for (let ix = 0; ix < xs.length; ix++) {
+    for (let iz = 0; iz < zs.length; iz++) {
+      // skip the row carried by the wall
+      if (p.attach === 'back' && iz === 0) continue;
+      if (p.attach === 'front' && iz === zs.length - 1) continue;
+      if (p.attach === 'left' && ix === 0) continue;
+      if (p.attach === 'right' && ix === xs.length - 1) continue;
+      add(POST, postH, POST, xs[ix], postH / 2, zs[iz]);
+    }
+  }
+  if (model === 'modern') {
+    // Squared modern frame: a flush fascia band sitting directly on the corner
+    // posts (no overhang, no rafters) with a solid recessed ceiling — the
+    // clean rectangular silhouette, not a louvered roof.
+    const fascia = 8;
+    const T = 3.5; // fascia thickness
+    const fy = postH + fascia / 2;
+    add(w, fascia, T, 0, fy, -(l / 2 - T / 2));
+    add(w, fascia, T, 0, fy, l / 2 - T / 2);
+    add(T, fascia, l - T * 2, -(w / 2 - T / 2), fy, 0);
+    add(T, fascia, l - T * 2, w / 2 - T / 2, fy, 0);
+    // solid roof panel, set just below the fascia's top edge
+    add(w - T * 2, 2, l - T * 2, 0, postH + fascia - 2.6, 0);
+    return { group: g, dispose: () => { mat.dispose(); paneMat.dispose(); } };
+  }
+
+  // perimeter beams
+  const beamH = 9;
+  const beamY = postH + beamH / 2;
+  add(w + 8, beamH, 3, 0, beamY, -(l / 2 - IN));
+  add(w + 8, beamH, 3, 0, beamY, l / 2 - IN);
+  add(3, beamH, l, -(w / 2 - IN), beamY, 0);
+  add(3, beamH, l, w / 2 - IN, beamY, 0);
+  const topY = postH + beamH;
+  const rafterN = Math.max(3, Math.round(w / 16));
+  const rafters = (spacingN: number, tall = 7) => {
+    for (let i = 0; i < spacingN; i++) {
+      const x = -w / 2 + ((i + 0.5) * w) / spacingN;
+      add(2, tall, l + 10, x, topY + tall / 2, 0);
+    }
+  };
+  if (model === 'aria') {
+    rafters(rafterN);
+    // adjustable shade lattice: purlins across the rafters
+    const pn = Math.max(3, Math.round(l / 20));
+    for (let i = 0; i < pn; i++) {
+      const z = -l / 2 + ((i + 0.5) * l) / pn;
+      add(w + 4, 1.6, 1.6, 0, topY + 7.8, z);
+    }
+  } else if (model === 'fresco') {
+    rafters(Math.max(3, Math.round(w / 24)));
+    add(w + 6, 0.6, l + 6, 0, topY + 7.6, 0, paneMat);
+  } else if (model === 'sole') {
+    // motorized louvers inside the frame
+    const ln = Math.max(4, Math.round(l / 7));
+    for (let i = 0; i < ln; i++) {
+      const z = -l / 2 + IN + ((i + 0.5) * (l - IN * 2)) / ln;
+      const slat = box(w - IN * 2, 0.8, 6, mat);
+      slat.rotation.x = -0.6;
+      slat.position.set(0, topY + 3, z);
+      slat.castShadow = slat.receiveShadow = true;
+      g.add(slat);
+    }
+  } else {
+    // solid insulated roof (moderno / contempo / classico)
+    add(w + 8, 4, l + 8, 0, topY + 2, 0);
+    if (model === 'contempo') {
+      // decorative truss ends past the beams on both sides
+      for (const pz of [-(l / 2 - IN), l / 2 - IN]) add(w + 20, 5, 2.5, 0, postH + 4, pz);
+    }
+    if (model === 'classico') {
+      // full exposed rafter tails under the roof
+      for (let i = 0; i < rafterN; i++) {
+        const x = -w / 2 + ((i + 0.5) * w) / rafterN;
+        add(2, 5, l + 16, x, postH + beamH - 2.5, 0);
+      }
+    }
+  }
+  return { group: g, dispose: () => { mat.dispose(); paneMat.dispose(); } };
 }
 
 /** Real-world size of one lawn texture tile (inches) — the scan is a ~2 m
@@ -907,6 +1019,15 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     }
   }
 
+  let pergolaDispose: (() => void) | null = null;
+  if (design.pergola) {
+    const built = buildPergola(design.pergola);
+    built.group.position.set(design.pergola.x, 0, design.pergola.y);
+    built.group.rotation.y = (-design.pergola.angle * Math.PI) / 180;
+    group.add(built.group);
+    pergolaDispose = built.dispose;
+  }
+
   // Patio pad under the kitchen: the walls/cabinets footprint plus a 24"
   // apron. The rest of the yard is lawn (see groundMaterial), so the space
   // reads as a defined patio instead of an endless open plane. Its surface is
@@ -954,9 +1075,21 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   }
 
   const b = planBounds(frames, 10);
-  const center = new THREE.Vector3(b.x + b.w / 2, 20, b.y + b.h / 2);
-  const radius = Math.max(b.w, b.h) / 2 + 30;
+  // A pergola is usually larger than the cabinet run it covers, so the camera
+  // has to see it too — framing on the walls alone puts the viewer inside it.
+  let bx0 = b.x, by0 = b.y, bx1 = b.x + b.w, by1 = b.y + b.h;
+  if (design.pergola) {
+    const pg = design.pergola;
+    const he = Math.hypot(pg.w, pg.l) / 2; // half-extent at any rotation
+    bx0 = Math.min(bx0, pg.x - he);
+    by0 = Math.min(by0, pg.y - he);
+    bx1 = Math.max(bx1, pg.x + he);
+    by1 = Math.max(by1, pg.y + he);
+  }
+  const center = new THREE.Vector3((bx0 + bx1) / 2, 20, (by0 + by1) / 2);
+  const radius = Math.max(bx1 - bx0, by1 - by0) / 2 + 30;
   const dispose = () => {
+    pergolaDispose?.();
     slabMat.dispose();
     disposeMats(mats);
     for (const m of matsByFinish.values()) disposeMats(m);

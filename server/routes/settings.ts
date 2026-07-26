@@ -361,3 +361,24 @@ settingsRouter.put('/restricted-brands', requireAdmin, (req, res) => {
   upsertSetting.run(RESTRICTED_BRANDS_KEY, JSON.stringify(clean));
   res.json({ restrictedBrands: clean });
 });
+
+// ---- Pergola: $/sq-ft and per-column rates per model, set by the admin.
+// Unlike the dealer build there is no per-account override or access list —
+// every user builds against one published price list.
+const PERGOLA_RATES_KEY = 'pergolaRates';
+const pergolaRatesSchema = z.record(z.string().max(40), z.number().min(0).max(100000));
+
+// Everyone signed in reads the rates (the designer prices a pergola live).
+settingsRouter.get('/pergola', (_req, res) => {
+  res.json({ rates: readJson(PERGOLA_RATES_KEY) });
+});
+
+settingsRouter.put('/pergola-rates', requireAdmin, (req, res) => {
+  const parsed = pergolaRatesSchema.safeParse(req.body?.rates ?? req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid pergola rates' });
+    return;
+  }
+  upsertSetting.run(PERGOLA_RATES_KEY, JSON.stringify(parsed.data));
+  res.json({ rates: parsed.data });
+});

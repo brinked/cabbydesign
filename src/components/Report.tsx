@@ -9,12 +9,13 @@ import { money } from '../model/pricing';
 import { appliancePrice } from '../model/appliances';
 import { mergedHandles } from '../model/companyCatalog';
 import { countertopById } from '../model/countertops';
+import { pergolaAreaSqft, pergolaColumnRateFor, pergolaColumns, pergolaModelInfo, pergolaRateFor } from '../model/pergola';
 import { appliedEnds, counterAreaSqft, finishedEnds, footprintW, itemNumbers, itemOnIsland, itemPrice, reservesFor, roughInConflict, roughInHost, useStore } from '../state/store';
 import { useSession } from '../state/session';
 import { MAX_PANEL_W } from '../three/cabinet3d';
 import { TopViewSvg } from './TopView';
 import { WallElevationSvg, useFinish } from './WallsView';
-import { DimH, DimV, RoughInGlyph, fmtIn } from './svg';
+import { DimH, DimV, RoughInGlyph, fmtFtIn, fmtIn } from './svg';
 import type { Design, RoughIn, RoughInKind, Wall } from '../model/types';
 
 export default function Report() {
@@ -28,6 +29,7 @@ export default function Report() {
   const appliances = useStore((s) => s.appliances);
   const applianceBrands = useStore((s) => s.applianceBrands);
   const handles = useStore((s) => s.handles);
+  const pergolaRates = useStore((s) => s.pergolaRates);
   const catalogPrefs = useSession((s) => s.catalogPrefs);
   const prefs = useSession((s) => s.prefs);
   const role = useSession((s) => s.user?.role);
@@ -202,7 +204,17 @@ export default function Report() {
   // Marked-up subtotals (percent factor, plus a flat $ on each priced cabinet).
   const cabinetSubtotalMk = cabinetSubtotalDisplayed;
   const panelSubtotalMk = (endSubtotal + backSubtotal) * factor;
-  const subtotalMk = cabinetSubtotalMk + panelSubtotalMk + applianceSubtotal + handleSubtotal + naCounterEstimate;
+  // Pergola: footprint sq ft x the admin's rate for the model, plus a charge
+  // per column (an extra column every maxSpanFt; a side mounted to the house
+  // drops that whole row).
+  const pergolaObj = design.pergola;
+  const pergolaSqft = pergolaObj ? pergolaAreaSqft(pergolaObj) : 0;
+  const pergolaRate = pergolaObj ? pergolaRateFor(pergolaObj.model, pergolaRates) : 0;
+  const pergolaCols = pergolaObj ? pergolaColumns(pergolaObj).total : 0;
+  const pergolaColRate = pergolaObj ? pergolaColumnRateFor(pergolaObj.model, pergolaRates) : 0;
+  const pergolaTotal = Math.round((pergolaSqft * pergolaRate + pergolaCols * pergolaColRate) * 100) / 100;
+
+  const subtotalMk = cabinetSubtotalMk + panelSubtotalMk + applianceSubtotal + handleSubtotal + naCounterEstimate + pergolaTotal;
   const taxAmount = isMarkedUp && !taxExempt ? (subtotalMk * taxRate) / 100 : 0;
   const grandTotal = subtotalMk + taxAmount;
 
@@ -449,6 +461,43 @@ export default function Report() {
                 </tr>
               </tfoot>
             )}
+          </table>
+        )}
+
+        {pergolaObj && (
+          <table className="schedule" style={{ marginTop: 22 }}>
+            <thead>
+              <tr>
+                <th>Pergola</th>
+                <th className="num">Footprint</th>
+                {showPricing && <th className="num">Rate</th>}
+                {showPricing && <th className="num">Total</th>}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  {pergolaModelInfo(pergolaObj.model).name} ({pergolaModelInfo(pergolaObj.model).desc}) — {fmtFtIn(pergolaObj.w)} × {fmtFtIn(pergolaObj.l)}
+                  <span className="report-fineprint">
+                    Engineered plans and permit fees are not included; they are billed at actual cost once determined.
+                  </span>
+                </td>
+                <td className="num">{pergolaSqft} sq ft</td>
+                {showPricing && <td className="num">{money(pergolaRate)}/sq ft</td>}
+                {showPricing && <td className="num">{money(Math.round(pergolaSqft * pergolaRate * 100) / 100)}</td>}
+              </tr>
+              {pergolaCols > 0 && pergolaColRate > 0 && (
+                <tr>
+                  <td>
+                    Columns — {pergolaCols}
+                    {pergolaObj.attach && pergolaObj.attach !== 'none' ? ' (one side mounts to the house)' : ''}
+                  </td>
+                  <td className="num">—</td>
+                  {showPricing && <td className="num">{money(pergolaColRate)} ea</td>}
+                  {showPricing && <td className="num">{money(Math.round(pergolaCols * pergolaColRate * 100) / 100)}</td>}
+                </tr>
+              )}
+            </tbody>
           </table>
         )}
 

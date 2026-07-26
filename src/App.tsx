@@ -25,6 +25,7 @@ export default function App() {
   const tab = useStore((s) => s.tab);
   const status = useSession((s) => s.status);
   const screen = useSession((s) => s.screen);
+  const isAdmin = useSession((s) => s.user?.role === 'admin');
   const init = useSession((s) => s.init);
   const verifyEmail = useSession((s) => s.verifyEmail);
   // Email-verification deep link: ?verify=<token> from the signup email.
@@ -106,7 +107,9 @@ export default function App() {
       {screen === 'admin' && <AdminPanel />}
       {screen === 'jobs' && <JobsScreen />}
       {screen === 'profile' && <ProfileScreen />}
-      {screen === 'catalog' && <CatalogPrefsScreen />}
+      {/* admin-only: the screen persists per browser, so gate the render too
+          rather than relying on the nav item being hidden */}
+      {screen === 'catalog' && isAdmin && <CatalogPrefsScreen />}
       {screen === 'account' && <AccountScreen />}
       {screen === 'design' && (
         <main className={`main main-${tab}`}>

@@ -1192,6 +1192,14 @@ export function OpeningGlyph({ kind, w, h, clash }: { kind: OpeningKind; w: numb
   );
 }
 
+/** Format inches as feet + inches: 336 → 28′, 342.5 → 28′ 6.5″. */
+export function fmtFtIn(n: number): string {
+  const ft = Math.floor(n / 12);
+  const rem = Math.round((n - ft * 12) * 4) / 4;
+  if (rem >= 12) return `${ft + 1}′`;
+  return rem ? `${ft}′ ${rem}″` : `${ft}′`;
+}
+
 export function fmtIn(n: number): string {
   const rounded = Math.round(n * 100) / 100;
   const str = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/\.?0+$/, '');

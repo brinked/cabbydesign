@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
+import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, Pergola, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
 import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
@@ -268,6 +268,12 @@ interface AppState {
   /** Dealer's own appliance-inventory modal. */
   myAppliancesOpen: boolean;
   /** Admin handle/hardware inventory modal. */
+  /** Pergola: admin-set $/sq-ft + per-column rates, pulled at sign-in. */
+  pergolaRates: Record<string, number>;
+  /** Hide the pergola in Top View so items under it stay visible/editable. */
+  pergolaHidden: boolean;
+  /** Pergola is selected in the plan (its toolbar lives in a sibling view). */
+  pergolaSelected: boolean;
   handlesOpen: boolean;
   /** Admin-managed handle (cabinet pull) inventory. */
   handles: HandleItem[];
@@ -303,6 +309,11 @@ interface AppState {
   setLinerClearance: (linerClearance: number) => void;
   setPanelRates: (panelRates: PanelRates) => void;
   setHandlesOpen: (open: boolean) => void;
+  setPergolaRates: (rates: Record<string, number>) => void;
+  setPergolaHidden: (hidden: boolean) => void;
+  setPergolaSelected: (on: boolean) => void;
+  setPergola: (p: Pergola | null) => void;
+  updatePergola: (patch: Partial<Pergola>) => void;
   setHandles: (handles: HandleItem[]) => void;
   setAlignerOpen: (open: boolean) => void;
   setModelAligns: (modelAligns: ModelAligns) => void;
@@ -1016,6 +1027,9 @@ export const useStore = create<AppState>()(
       settingsOpen: false,
       appliancesOpen: false,
       myAppliancesOpen: false,
+      pergolaRates: {},
+      pergolaHidden: false,
+      pergolaSelected: false,
       handlesOpen: false,
       handles: [],
       alignerOpen: false,
@@ -1039,6 +1053,12 @@ export const useStore = create<AppState>()(
       setLinerClearance: (linerClearance) => set({ linerClearance }),
       setPanelRates: (panelRates) => set({ panelRates }),
       setHandlesOpen: (open) => set({ handlesOpen: open }),
+      setPergolaRates: (pergolaRates) => set({ pergolaRates }),
+      setPergolaHidden: (hidden) => set({ pergolaHidden: hidden }),
+      setPergolaSelected: (on) => set({ pergolaSelected: on }),
+      setPergola: (p) => set((s) => ({ design: { ...s.design, pergola: p } })),
+      updatePergola: (patch) =>
+        set((s) => (s.design.pergola ? { design: { ...s.design, pergola: { ...s.design.pergola, ...patch } } } : s)),
       setHandles: (handles) => set({ handles }),
       setAlignerOpen: (open) => set({ alignerOpen: open }),
       setModelAligns: (modelAligns) => set({ modelAligns }),

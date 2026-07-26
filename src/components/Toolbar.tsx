@@ -37,7 +37,8 @@ export default function Toolbar() {
   const navItems: Array<{ id: Screen; label: string; show: boolean }> = [
     { id: 'design', label: 'Designer', show: true },
     { id: 'jobs', label: 'My Jobs', show: !isGuest },
-    { id: 'catalog', label: 'My Catalog', show: isCompany },
+    // Catalogue curation is an admin job, not something a homeowner does.
+    { id: 'catalog', label: 'Catalog', show: !!isAdmin },
     { id: 'profile', label: 'Profile', show: !isGuest && !isConsumerAccount },
     { id: 'account', label: 'Account', show: isConsumerAccount },
     { id: 'admin', label: 'Admin', show: !!isAdmin },
@@ -250,17 +251,12 @@ function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
         </button>
         {open && (
           <div className="settings-menu">
-            {!isAdmin && (
-              <>
-                <div className="settings-menu-label">Inventory</div>
-                <button className="settings-menu-item" onClick={() => openModal(setMyAppliancesOpen)}>
-                  My appliances &amp; brands…
-                </button>
-              </>
-            )}
             {isAdmin && (
               <>
                 <div className="settings-menu-label">Admin</div>
+                <button className="settings-menu-item" onClick={() => openModal(setMyAppliancesOpen)}>
+                  Appliances &amp; brands…
+                </button>
                 <button className="settings-menu-item" onClick={() => openModal(setPricingOpen)}>
                   Base pricing…
                 </button>

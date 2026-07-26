@@ -527,6 +527,12 @@ button:disabled {
   color: #fff;
 }
 
+/* :hover:not(:disabled) outranks .active on specificity, so without this an
+   active tool button goes accent-on-accent — invisible — while hovered. */
+.tool-btn.active:hover:not(:disabled) {
+  color: #fff;
+}
+
 .tool-btn-danger:hover:not(:disabled) {
   border-color: var(--danger);
   color: var(--danger);

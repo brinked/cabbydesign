@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { ALL_FINISHES, COUNTER_OVERHANG, catalogById, frontExtraD } from '../model/catalog';
 import { resolveItemFinish } from '../model/newage';
+import { PERGOLA_COLORS, PERGOLA_MODELS, defaultPergola, pergolaAreaSqft, pergolaColorHex, pergolaColumns, pergolaModelInfo, pergolaRateFor, snapPergolaToWalls } from '../model/pergola';
 import { WALL_T, cornerCounterExtend, cornerNeedsFlip, frameForWall, isCornerFront, isFenceStyle, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints, wallStyleOf } from '../model/geometry';
-import type { MeasureEnd, Measurement, PlacedItem, Wall, WallStyle } from '../model/types';
+import type { MeasureEnd, Measurement, PergolaAttach, PlacedItem, Wall, WallStyle } from '../model/types';
 import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, uid, useStore } from '../state/store';
 import { NumberField } from './NumberField';
 import { useFinish } from './WallsView';
-import { CabinetTop, DimH, fmtIn, susanCounterPts } from './svg';
+import { CabinetTop, DimH, fmtFtIn, fmtIn, susanCounterPts } from './svg';
 
 const WALL_STYLE_LABELS: Record<WallStyle, string> = {
   'standard': 'Standard wall',
@@ -109,8 +110,26 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
   const fin = useFinish(design.finishId);
   const measurements = design.measurements ?? [];
 
+  const setPergola = useStore((st) => st.setPergola);
+  const updatePergola = useStore((st) => st.updatePergola);
+  const setPergolaHidden = useStore((st) => st.setPergolaHidden);
+  const pergolaHidden = useStore((st) => st.pergolaHidden);
+  const pergolaRates = useStore((st) => st.pergolaRates);
+  const pergolaSel = useStore((st) => st.pergolaSelected);
+  const setPergolaSel = useStore((st) => st.setPergolaSelected);
+
   const frames = design.walls.map(frameForWall);
-  const bounds = planBounds(frames, tool === 'draw' ? 80 : 40);
+  let bounds = planBounds(frames, tool === 'draw' ? 80 : 40);
+  if (design.pergola && (!interactive || !pergolaHidden)) {
+    const pg = design.pergola;
+    const he = Math.hypot(pg.w, pg.l) / 2 + 8;
+    bounds = {
+      x: Math.min(bounds.x, pg.x - he),
+      y: Math.min(bounds.y, pg.y - he),
+      w: Math.max(bounds.x + bounds.w, pg.x + he) - Math.min(bounds.x, pg.x - he),
+      h: Math.max(bounds.y + bounds.h, pg.y + he) - Math.min(bounds.y, pg.y - he),
+    };
+  }
   const numbers = itemNumbers(design);
   const reserves = reservesFor(design);
 
@@ -235,6 +254,37 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
       onToolDone?.();
     }
     setDraft(null);
+  }
+
+  // ----- pergola drag (overhead structure; selected via the same object slot) -----
+  const pergDrag = useRef<{ startPt: { x: number; y: number }; origX: number; origY: number } | null>(null);
+  function pergDown(e: React.PointerEvent) {
+    if (!interactive || tool !== 'select' || !design.pergola) return;
+    const svg = (e.currentTarget as SVGElement).ownerSVGElement;
+    if (!svg) return;
+    setPergolaSel(true);
+    pergDrag.current = { startPt: svgPoint(svg, e.clientX, e.clientY), origX: design.pergola.x, origY: design.pergola.y };
+    (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
+    e.stopPropagation();
+  }
+  function pergMove(e: React.PointerEvent) {
+    const d = pergDrag.current;
+    if (!d) return;
+    const svg = (e.currentTarget as SVGElement).ownerSVGElement;
+    if (!svg) return;
+    const pt = svgPoint(svg, e.clientX, e.clientY);
+    const moved = {
+      ...design.pergola!,
+      x: Math.round(d.origX + (pt.x - d.startPt.x)),
+      y: Math.round(d.origY + (pt.y - d.startPt.y)),
+    };
+    // Dragging a side near a wall snaps it flush and marks it attached, which
+    // drops that row of columns (the structure mounts to the building).
+    const snap = snapPergolaToWalls(moved, design.walls.map(wallEndpoints));
+    updatePergola(snap ? { x: snap.x, y: snap.y, attach: snap.attach } : { x: moved.x, y: moved.y, attach: 'none' });
+  }
+  function pergUp() {
+    pergDrag.current = null;
   }
 
   // ----- measuring tape -----
@@ -693,6 +743,47 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
         </g>
       )}
 
+      {/* pergola — an overhead structure drawn above everything; the toolbar's
+          Hide toggle removes it so items under it stay visible/editable. */}
+      {design.pergola && (interactive ? !pergolaHidden : true) && (() => {
+        const pg = design.pergola;
+        const sel = interactive && pergolaSel;
+        const post = 8;
+        const inset = 6;
+        const hex = pergolaColorHex(pg.color);
+        const rafters: React.ReactElement[] = [];
+        const n = Math.max(2, Math.round(pg.w / 16) - 1);
+        for (let i = 1; i <= n; i++) {
+          const rx = -pg.w / 2 + (pg.w * i) / (n + 1);
+          rafters.push(<line key={i} x1={rx} y1={-pg.l / 2 + 2} x2={rx} y2={pg.l / 2 - 2} stroke={hex} strokeOpacity={0.5} strokeWidth={1.4} />);
+        }
+        const drag = interactive && tool === 'select'
+          ? { style: { cursor: 'move' as const }, onPointerDown: pergDown, onPointerMove: pergMove, onPointerUp: pergUp }
+          : {};
+        return (
+          <g transform={`translate(${pg.x} ${pg.y}) rotate(${pg.angle})`} {...drag}>
+            <rect x={-pg.w / 2} y={-pg.l / 2} width={pg.w} height={pg.l} fill={hex} fillOpacity={0.14} stroke={hex} strokeWidth={1.6} rx={1} />
+            {rafters}
+            {[-1, 1].map((sx) =>
+              [-1, 1].map((sy) => (
+                <rect
+                  key={`${sx}${sy}`}
+                  x={sx * (pg.w / 2 - inset) - (sx > 0 ? post : 0)}
+                  y={sy * (pg.l / 2 - inset) - (sy > 0 ? post : 0)}
+                  width={post}
+                  height={post}
+                  fill={hex}
+                />
+              ))
+            )}
+            <text x={0} y={0} textAnchor="middle" fontSize={Math.max(4, vb.w * 0.016)} fontWeight={700} fill={hex} style={{ pointerEvents: 'none' }}>
+              {`Pergola — ${pergolaModelInfo(pg.model).name}`}
+            </text>
+            {sel && <rect x={-pg.w / 2 - 2} y={-pg.l / 2 - 2} width={pg.w + 4} height={pg.l + 4} fill="none" stroke="#5b5bd6" strokeWidth={0.8} strokeDasharray="3 2" />}
+          </g>
+        );
+      })()}
+
       {/* measurements (persistent tape) */}
       {(() => {
         const sw = Math.max(0.3, vb.w * 0.003);
@@ -782,6 +873,15 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
 }
 
 export default function TopView() {
+  const pergola = useStore((s) => s.design.pergola);
+  const pergolaHidden = useStore((s) => s.pergolaHidden);
+  const pergolaRates = useStore((s) => s.pergolaRates);
+  const setPergola = useStore((s) => s.setPergola);
+  const updatePergola = useStore((s) => s.updatePergola);
+  const setPergolaHidden = useStore((s) => s.setPergolaHidden);
+  const pergolaSelected = useStore((s) => s.pergolaSelected);
+  const setPergolaSel = useStore((s) => s.setPergolaSelected);
+  const selectedPergola = pergola && pergolaSelected && !pergolaHidden ? pergola : null;
   const [tool, setTool] = useState<'select' | 'draw' | 'measure'>('select');
   const [measureTargetText, setMeasureTargetText] = useState('');
   const measureTarget = parseFloat(measureTargetText);
@@ -843,7 +943,102 @@ export default function TopView() {
               U-shape
             </button>
           </div>
+          <div className="tool-group">
+              {!pergola ? (
+                <button
+                  className="tool-btn"
+                  title="Place a pergola over the kitchen (edited here in Top View; shown in 3D)"
+                  onClick={() => {
+                    setTool('select');
+                    const pts = walls.flatMap((w) => {
+                      const { p0, p1 } = wallEndpoints(w);
+                      return [p0, p1];
+                    });
+                    const cx = pts.length ? pts.reduce((a, p) => a + p.x, 0) / pts.length : 0;
+                    const cy = pts.length ? pts.reduce((a, p) => a + p.y, 0) / pts.length : 0;
+                    setPergola(defaultPergola(cx, cy + 30));
+                    setPergolaSel(true);
+                  }}
+                >
+                  ⛱ Add pergola
+                </button>
+              ) : (
+                <button
+                  className={pergolaHidden ? 'tool-btn' : 'tool-btn active'}
+                  title="Hide the pergola so the cabinets and items under it stay visible and editable — it still shows in 3D"
+                  onClick={() => setPergolaHidden(!pergolaHidden)}
+                >
+                  {pergolaHidden ? '⛱ Show pergola' : '⛱ Hide pergola'}
+                </button>
+              )}
+            </div>
         </div>
+        {selectedPergola && (
+          <div className="wall-props">
+            <label className="wall-dim-field" style={{ marginLeft: 0 }}>
+              Model
+              <select className="select" value={selectedPergola.model} onChange={(e) => updatePergola({ model: e.target.value })}>
+                {PERGOLA_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.desc})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="wall-dim-field">
+              Color
+              <select className="select" value={selectedPergola.color} onChange={(e) => updatePergola({ color: e.target.value })}>
+                {PERGOLA_COLORS.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="wall-dim-field">
+              Width
+              <NumberField value={selectedPergola.w} min={48} max={600} onCommit={(w: number) => updatePergola({ w })} />
+              <span style={{ opacity: 0.65 }}>{fmtFtIn(selectedPergola.w)}</span>
+            </label>
+            <label className="wall-dim-field">
+              Projection
+              <NumberField value={selectedPergola.l} min={48} max={600} onCommit={(l: number) => updatePergola({ l })} />
+              <span style={{ opacity: 0.65 }}>{fmtFtIn(selectedPergola.l)}</span>
+            </label>
+            <label className="wall-dim-field" title="Height to the beams">
+              Height
+              <NumberField value={selectedPergola.postH} min={84} max={168} onCommit={(postH: number) => updatePergola({ postH })} />
+              <span style={{ opacity: 0.65 }}>{fmtFtIn(selectedPergola.postH)}</span>
+            </label>
+            <span className="wall-dim-field" title="Rotate in 45° steps">
+              Rotate ({selectedPergola.angle}°)
+              <button className="tool-btn" onClick={() => updatePergola({ angle: ((selectedPergola.angle - 45) % 360 + 360) % 360 })}>⟲ 45°</button>
+              <button className="tool-btn" onClick={() => updatePergola({ angle: (selectedPergola.angle + 45) % 360 })}>⟳ 45°</button>
+            </span>
+            <label className="wall-dim-field" title="A side mounted to the house needs no columns along it">
+              Against wall
+              <select
+                className="select"
+                value={selectedPergola.attach ?? 'none'}
+                onChange={(e) => updatePergola({ attach: e.target.value as PergolaAttach })}
+              >
+                <option value="none">Free-standing</option>
+                <option value="back">Back side</option>
+                <option value="front">Front side</option>
+                <option value="left">Left side</option>
+                <option value="right">Right side</option>
+              </select>
+            </label>
+            <span className="wall-dim-field" title="Footprint × your pergola rate, plus columns">
+              {pergolaAreaSqft(selectedPergola)} sq ft · ${pergolaRateFor(selectedPergola.model, pergolaRates)}/sq ft ·{' '}
+              {pergolaColumns(selectedPergola).total} column{pergolaColumns(selectedPergola).total === 1 ? '' : 's'}
+            </span>
+            <button className="tool-btn tool-btn-danger" onClick={() => { setPergola(null); setPergolaSel(false); }}>
+              Delete
+            </button>
+          </div>
+        )}
+
         {selectedWall && (
           <div className="wall-props">
             <button className="btn-dark wall-add-btn" title="Add a cabinet to this wall" onClick={() => openAdd(selectedWall.id)}>
