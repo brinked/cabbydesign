@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, takesAppliedEnds } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide, ModelAlign } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
-import { applianceModelInfo, fitModel, fitModelBox, hasModel, requestModel } from './models';
+import { applianceModelInfo, fitModel, fitModelBox, handleFor, hasModel, hdpeNormalMap, libTexture, namedHandle, requestModel } from './models';
 
 // Real griddle model placement (tunable). Width as a fraction of the cabinet,
 // how far the cooking surface sits PROUD of the cabinet top (the firebox drops
@@ -105,8 +105,23 @@ export function marbleTexture(base: string): THREE.CanvasTexture {
   return t;
 }
 
-/** Procedural countertop texture for a selected style (granite/quartzite/etc). */
+/**
+ * Countertop texture for a selected style (granite/quartzite/etc).
+ *
+ * Stones carrying a `tex` scan are drawn from the real photographed map; the
+ * rest are painted procedurally below. The scan is copied into a canvas rather
+ * than used directly so the result is always a per-material CanvasTexture that
+ * disposeMats can free — the shared source in models.ts outlives every scene.
+ */
 export function countertopTexture(ct: Countertop): THREE.CanvasTexture {
+  const scan = ct.tex ? libTexture(`${ct.tex}-color.jpg`) : null;
+  if (scan?.image) {
+    const t = canvasTexture(1024, (ctx, s) => {
+      ctx.drawImage(scan.image as CanvasImageSource, 0, 0, s, s);
+    });
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+  }
   const t = canvasTexture(512, (ctx, s) => {
     ctx.fillStyle = ct.base;
     ctx.fillRect(0, 0, s, s);
@@ -287,6 +302,12 @@ export interface CabMats {
   kick: THREE.Material;
   counter: THREE.MeshPhysicalMaterial;
   counterTex: THREE.CanvasTexture;
+  /** Real-world size of one countertop texture tile (inches). Every counter
+   *  surface sets its map repeat from this, so a scanned stone lands at its
+   *  true scale instead of the 48" slab default. */
+  counterTile: number;
+  /** Double-sided panel material for the routed V-groove channel walls. */
+  grooveWall: THREE.Material;
   steel: THREE.Material;
   /** Matte brushed-steel for appliance filler panels (won't blow out white). */
   steelMatte: THREE.Material;
@@ -303,12 +324,17 @@ export interface CabMats {
 
 export function createMats(fin: FinishOption, ct: Countertop = countertopById(DEFAULT_COUNTERTOP)): CabMats {
   const counterTex = countertopTexture(ct);
+  // Scanned stones get their real surface relief too. The map is shared and
+  // never disposed (see libTexture), so it is safe to hand straight to the
+  // material — only the material itself is disposed with the scene.
+  const ctNrm = ct.tex ? libTexture(`${ct.tex}-normal.jpg`, true) : null;
+  const stone = ctNrm ? { normalMap: ctNrm, normalScale: new THREE.Vector2(0.5, 0.5) } : {};
   const counter =
     ct.category === 'metal'
       ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, metalness: 0.85, roughness: 0.32 })
       : ct.matte
-        ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, roughness: 0.85, metalness: 0 })
-        : new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, roughness: 0.22, clearcoat: 0.5, clearcoatRoughness: 0.25 });
+        ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, roughness: 0.85, metalness: 0, ...stone })
+        : new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: counterTex, roughness: 0.22, clearcoat: 0.5, clearcoatRoughness: 0.25, ...stone });
   // Metallic finishes (NewAge stainless / aluminum) render with metalness so
   // the boxes read as brushed metal rather than painted HDPE.
   const metal = fin.metal ? { metalness: fin.metal === 'stainless' ? 0.85 : 0.65, roughness: fin.metal === 'stainless' ? 0.32 : 0.45 } : null;
@@ -317,28 +343,38 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
   // NewAge door faces: louvered slats are wood-look (Grove) or painted (White)
   // — not bare metal; glass doors get a tinted pane inside the metal frame.
   const louvered = fin.naDoor === 'louvered';
+  // Real scanned HDPE grain for the molded-poly (outdoor) line only — metal and
+  // stained-wood finishes carry their own surface. Null until models.ts has
+  // loaded the map; the scene rebuilds when it arrives.
+  const nrm = !metal && !grain ? hdpeNormalMap() : null;
+  const hdpe = nrm ? { normalMap: nrm, normalScale: new THREE.Vector2(0.9, 0.9) } : {};
   return {
     body: grain
       ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: grain, roughness: 0.52, clearcoat: 0.25, clearcoatRoughness: 0.4 })
       : metal
         ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), ...metal })
-        : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), roughness: 0.55, clearcoat: 0.18, clearcoatRoughness: 0.6 }),
+        : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), roughness: 0.55, clearcoat: 0.06, clearcoatRoughness: 0.6, ...hdpe }),
     panel: grain
       ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: grain, roughness: 0.5, clearcoat: 0.28, clearcoatRoughness: 0.38 })
       : louvered
         ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.58, metalness: 0.08, clearcoat: 0.1, clearcoatRoughness: 0.6 })
         : metal
           ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), ...metal })
-          : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.5, clearcoat: 0.22, clearcoatRoughness: 0.55 }),
+          : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.5, clearcoat: 0.08, clearcoatRoughness: 0.55, ...hdpe }),
     inner: grain
       ? new THREE.MeshPhysicalMaterial({ color: 0xd6d2cc, map: grain, roughness: 0.58, clearcoat: 0.15, clearcoatRoughness: 0.5 })
       : louvered
         ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.7, metalness: 0.05 })
         : metal
           ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), ...metal })
-          : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.6, clearcoat: 0.15, clearcoatRoughness: 0.6 }),
+          : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.6, clearcoat: 0.05, clearcoatRoughness: 0.6, ...hdpe }),
     groove: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.inner).multiplyScalar(0.72), roughness: 0.85 }),
-    kick: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.kick ?? fin.body), roughness: 0.75, metalness: fin.kick ? 0.35 : metal ? metal.metalness : 0 }),
+    // channel interior: same surface, slightly shadow-darkened so the groove
+    // still reads in the WebGL viewport (no ambient occlusion there)
+    grooveWall: grain
+      ? new THREE.MeshPhysicalMaterial({ color: 0xb9b3ac, map: grain, roughness: 0.55, side: THREE.DoubleSide })
+      : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel).multiplyScalar(0.6), roughness: 0.55, clearcoat: 0.05, clearcoatRoughness: 0.6, side: THREE.DoubleSide, ...hdpe }),
+    kick: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.kick ?? fin.body), roughness: 0.75, metalness: fin.kick ? 0.35 : metal ? metal.metalness : 0, ...hdpe }),
     naDoor: fin.naDoor,
     naBar: !!fin.line,
     glassPane:
@@ -346,6 +382,7 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
         ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), metalness: 0.1, roughness: 0.12, clearcoat: 0.8, clearcoatRoughness: 0.15, transparent: true, opacity: 0.88 })
         : undefined,
     counterTex,
+    counterTile: ct.texScale ?? 48,
     counter,
     steel: new THREE.MeshStandardMaterial({ color: STEEL_3D, metalness: 0.9, roughness: 0.28 }),
     steelMatte: new THREE.MeshStandardMaterial({ color: 0x9a9ea3, metalness: 0.45, roughness: 0.5 }),
@@ -355,12 +392,12 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
     // is the same brushed metal as the body, not raw white HDPE board.
     carcass: metal
       ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), ...metal })
-      : new THREE.MeshPhysicalMaterial({ color: 0xeceef0, roughness: 0.55, clearcoat: 0.12, clearcoatRoughness: 0.6 }),
+      : new THREE.MeshPhysicalMaterial({ color: 0xeceef0, roughness: 0.55, clearcoat: 0.05, clearcoatRoughness: 0.6, ...hdpe }),
   };
 }
 
 export function disposeMats(m: CabMats): void {
-  for (const mat of [m.body, m.panel, m.inner, m.groove, m.kick, m.counter, m.steel, m.steelMatte, m.dark, m.egg, m.carcass]) mat.dispose();
+  for (const mat of [m.body, m.panel, m.inner, m.groove, m.kick, m.counter, m.steel, m.steelMatte, m.dark, m.egg, m.carcass, m.grooveWall]) mat.dispose();
   m.glassPane?.dispose();
   m.counterTex.dispose();
 }
@@ -396,6 +433,10 @@ export interface CabDims {
   modelW?: number;
   /** Admin aligner override for this model — applied on top of auto-seating. */
   modelAlign?: ModelAlign;
+  /** Named hardware model key (see NAMED_HANDLE_MODELS). When set, every pull
+   *  on this cabinet is that product at its true size instead of the generic
+   *  bar family sized to the front. */
+  handleModel?: string | null;
 }
 
 /** Apply an admin aligner override (rotation nudge, position offset, scale) to
@@ -471,27 +512,125 @@ function grillHood(gw: number, dh: number, hh: number, mat: THREE.Material): THR
 }
 
 /**
- * Routed groove ring (HDPE shaker look): four dark strips sitting just proud
- * of a face that spans w×h in the local XY plane, face at z=+faceZ.
+ * The routed groove, matched to product photos: a broad channel with angled
+ * walls stepping down to a flat floor (a wide profile pass, not a hairline).
+ * The angled walls are the key — from any camera angle at least one wall
+ * faces the light differently than the door face, so the frame profile
+ * always reads: shadow along one edge, a catch-light along the other.
+ * Length along X; pass vertical=true for Y.
  */
-function grooveRing(w: number, h: number, faceZ: number, mats: CabMats, R = 2.4): THREE.Group {
+function grooveV(len: number, vertical: boolean, mats: CabMats, deep = 0.22 * GROOVE_SCALE): THREE.Mesh {
+  // Matches the valley the Vibe frame leaves between its raised frame and
+  // raised panel, so a routed plank line reads identically to a frame groove.
+  const hBot = (0.22 * GROOVE_SCALE) / 2; // half-width of the flat floor
+  const hTop = hBot + 0.4 * GROOVE_SCALE; // + the chamfered walls
+  const x0 = -len / 2;
+  const x1 = len / 2;
+  const d = -deep;
+  const quad = (ay: number, az: number, by: number, bz: number) => [
+    x0, ay, az, x1, ay, az, x1, by, bz,
+    x0, ay, az, x1, by, bz, x0, by, bz,
+  ];
+  // angled wall, flat floor, angled wall (double-sided material)
+  const pos = new Float32Array([
+    ...quad(hTop, 0, hBot, d),
+    ...quad(hBot, d, -hBot, d),
+    ...quad(-hBot, d, -hTop, 0),
+  ]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, mats.grooveWall);
+  if (vertical) m.rotation.z = Math.PI / 2;
+  m.receiveShadow = true;
+  return m;
+}
+
+/**
+ * Depth scale of the routed groove profile. Every design except Regal uses
+ * this light cut (the "Vibe" look); Regal alone is a full-depth raised panel.
+ */
+const GROOVE_SCALE = 0.375;
+
+/**
+ * The real door construction, matched to product photos: the border FRAME
+ * sits proud and a chamfered step drops to the recessed center field — the
+ * whole panel is lower, not a thin groove line. Built additively (the frame
+ * rises off the flat face) so doors, drawers and end panels all get it.
+ */
+function frameRelief(w: number, h: number, faceZ: number, mats: CabMats, railH?: number, raisedCenter = false, profileScale = 1): THREE.Group {
   const g = new THREE.Group();
-  // R = groove centerline inset from the door edge
-  const sw = 0.42; // groove width
-  const t = 0.05;
-  const z = faceZ + t / 2 - 0.01;
-  const horiz = new THREE.BoxGeometry(w - 2 * R + sw, sw, t);
-  const vert = new THREE.BoxGeometry(sw, h - 2 * R + sw, t);
-  const top = new THREE.Mesh(horiz, mats.groove);
-  top.position.set(0, h / 2 - R, z);
-  const bot = new THREE.Mesh(horiz, mats.groove);
-  bot.position.set(0, -h / 2 + R, z);
-  const left = new THREE.Mesh(vert, mats.groove);
-  left.position.set(-w / 2 + R, 0, z);
-  const right = new THREE.Mesh(vert, mats.groove);
-  right.position.set(w / 2 - R, 0, z);
+  // profileScale scales the routed profile itself (depth + widths), NOT the
+  // frame borders: Regal = 1 (full raised-panel profile), Vibe = 0.5 (the
+  // same design cut half as wide and half as deep).
+  const lift = 0.22 * profileScale; // how proud the frame sits above the groove valley
+  const ch = 0.4 * profileScale; // chamfered step width
+  const sideW = frameStileWidth(w);
+  const rail = Math.min(railH ?? sideW, Math.max(1.0, h * 0.24));
+  const zc = faceZ + lift / 2;
+  const top = box(w, rail, lift, mats.panel);
+  top.position.set(0, h / 2 - rail / 2, zc);
+  const bot = box(w, rail, lift, mats.panel);
+  bot.position.set(0, -h / 2 + rail / 2, zc);
+  const left = box(sideW, h - 2 * rail, lift, mats.panel);
+  left.position.set(-w / 2 + sideW / 2, 0, zc);
+  const right = box(sideW, h - 2 * rail, lift, mats.panel);
+  right.position.set(w / 2 - sideW / 2, 0, zc);
   g.add(top, bot, left, right);
+  const iw = w / 2 - sideW; // inner opening half-extents
+  const ih = h / 2 - rail;
+  const zHi = faceZ + lift;
+  const zLo = faceZ + 0.01;
+  const quads: number[] = [];
+  const quad = (ax: number, ay: number, az: number, bx: number, by: number, bz: number, cx: number, cy: number, cz: number, dx2: number, dy2: number, dz2: number) =>
+    quads.push(ax, ay, az, bx, by, bz, cx, cy, cz, ax, ay, az, cx, cy, cz, dx2, dy2, dz2);
+  // outer chamfer: frame's inner front edge down to the valley
+  quad(-iw, ih, zHi, iw, ih, zHi, iw, ih - ch, zLo, -iw, ih - ch, zLo); // top
+  quad(-iw, -ih + ch, zLo, iw, -ih + ch, zLo, iw, -ih, zHi, -iw, -ih, zHi); // bottom
+  quad(-iw, ih, zHi, -iw + ch, ih - ch, zLo, -iw + ch, -ih + ch, zLo, -iw, -ih, zHi); // left
+  quad(iw, ih, zHi, iw, -ih, zHi, iw - ch, -ih + ch, zLo, iw - ch, ih - ch, zLo); // right
+
+  // raised-panel styles: the center rises back up — the routed groove is the
+  // valley ring between frame and panel
+  const vw = 0.22 * profileScale; // groove valley width
+  const chi = 0.4 * profileScale; // rising chamfer width
+  const pw = iw - ch - vw - chi; // raised panel half-extents
+  const ph = ih - ch - vw - chi;
+  if (raisedCenter && pw > 0.6 && ph > 0.6) {
+    const liftP = lift - 0.05 * profileScale; // panel tops out just shy of the frame
+    const zP = faceZ + liftP;
+    const ow = iw - ch - vw; // valley inner edge
+    const oh = ih - ch - vw;
+    quad(-ow, oh, zLo, ow, oh, zLo, pw, ph, zP, -pw, ph, zP); // top rise
+    quad(-pw, -ph, zP, pw, -ph, zP, ow, -oh, zLo, -ow, -oh, zLo); // bottom rise
+    quad(-ow, oh, zLo, -pw, ph, zP, -pw, -ph, zP, -ow, -oh, zLo); // left rise
+    quad(ow, oh, zLo, ow, -oh, zLo, pw, -ph, zP, pw, ph, zP); // right rise
+    const center = box(pw * 2, ph * 2, liftP, mats.panel);
+    center.position.set(0, 0, faceZ + liftP / 2);
+    g.add(center);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(quads), 3));
+  geo.computeVertexNormals();
+  const chamfer = new THREE.Mesh(geo, mats.grooveWall);
+  chamfer.receiveShadow = true;
+  g.add(chamfer);
   return g;
+}
+
+/** Width of the frame stile down each side of a door of width `w` (inches).
+ *  Pulls are centered on it, so this is shared with the handle placement. */
+export function frameStileWidth(w: number): number {
+  return Math.min(2.4, Math.max(1.0, w * 0.14));
+}
+
+/** How far each style's frame sits proud of the door face (inches) — the
+ *  surface a pull actually screws into. Mirrors the frameRelief() calls in
+ *  facePattern; styles with no raised frame are flat. */
+export function frameLift(style: DoorStyle): number {
+  if (style === 'regal') return 0.22; // full-depth raised panel
+  if (style === 'shaker') return 0.22 * GROOVE_SCALE; // Vibe's perimeter groove
+  return 0; // every other design is routed lines on a flat face
 }
 
 /** Corner cabinets keep a 24" return (base) on each side so adjacent cabinets line up flush. */
@@ -744,16 +883,23 @@ function doorFace(w: number, h: number, style: DoorStyle, mats: CabMats): THREE.
  */
 export function facePattern(w: number, h: number, style: DoorStyle, faceZ: number, mats: CabMats): THREE.Group {
   const g = new THREE.Group();
-  if (w < 8 || h < 8) return g;
-  const sw = 0.42; // groove width
-  const t = 0.05;
-  const z = faceZ + t / 2 - 0.01;
-  const R = 2.4; // frame groove inset (matches grooveRing)
+  // Drawer fronts are ~6.5" tall, so an 8" floor left them plain — they carry
+  // the routed design too. Only genuinely tiny fronts stay flat.
+  if (style === 'flat' || w < 5 || h < 3.2) return g;
+  const sw = 0.5; // groove width
+  // Groove lines sit so their floor lands ON the door face, putting the whole
+  // profile in FRONT of it. The door slab is a solid box, so anything behind
+  // its front plane is occluded by it — cutting the channel inward hid all but
+  // a sliver and left the lines looking faint and painted-on. Riding on top,
+  // the chamfer walls are fully visible and read like Vibe's frame groove
+  // (which works for the same reason: its frame is built up, not cut in).
+  const z = faceZ + 0.22 * GROOVE_SCALE;
+  const R = 2.4; // frame groove inset
   // evenly spaced vertical grooves across [x0, x0+span], each `gh` tall
   const vGrooves = (x0: number, span: number, gh: number, spacing: number) => {
     const n = Math.max(1, Math.round(span / spacing) - 1);
     for (let i = 1; i <= n; i++) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(sw, gh, t), mats.groove);
+      const m = grooveV(gh, true, mats);
       m.position.set(x0 + (span * i) / (n + 1), 0, z);
       g.add(m);
     }
@@ -762,10 +908,22 @@ export function facePattern(w: number, h: number, style: DoorStyle, faceZ: numbe
   const hGrooves = (y0: number, span: number, gw: number, spacing: number) => {
     const n = Math.max(1, Math.round(span / spacing) - 1);
     for (let i = 1; i <= n; i++) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(gw, sw, t), mats.groove);
+      const m = grooveV(gw, false, mats);
       m.position.set(0, y0 + (span * i) / (n + 1), z);
       g.add(m);
     }
+  };
+  // Perimeter groove ring — four routed lines inset from the door edge.
+  const grooveRing = (R2: number) => {
+    const top = grooveV(w - 2 * R2 + sw, false, mats);
+    top.position.set(0, h / 2 - R2, z);
+    const bot = grooveV(w - 2 * R2 + sw, false, mats);
+    bot.position.set(0, -h / 2 + R2, z);
+    const left = grooveV(h - 2 * R2 + sw, true, mats);
+    left.position.set(-w / 2 + R2, 0, z);
+    const right = grooveV(h - 2 * R2 + sw, true, mats);
+    right.position.set(w / 2 - R2, 0, z);
+    g.add(top, bot, left, right);
   };
   // Five-piece construction lines: stile grooves run the FULL height at each
   // edge, and rail grooves span between them at the top/bottom — like a real
@@ -773,28 +931,32 @@ export function facePattern(w: number, h: number, style: DoorStyle, faceZ: numbe
   const railStile = (inset: number, rail: number) => {
     const r = Math.min(rail, h * 0.24);
     for (const sx of [-1, 1]) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(sw, h - 0.4, t), mats.groove);
+      const m = grooveV(h - 0.4, true, mats);
       m.position.set(sx * (w / 2 - inset), 0, z);
       g.add(m);
     }
     for (const sy of [-1, 1]) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w - 2 * inset - sw, sw, t), mats.groove);
+      const m = grooveV(w - 2 * inset - sw, false, mats);
       m.position.set(0, sy * (h / 2 - r), z);
       g.add(m);
     }
     return r;
   };
   switch (style) {
-    case 'shaker': // Vibe — the classic groove ring
-      g.add(grooveRing(w, h, faceZ, mats));
+    case 'regal': // Regal — full raised panel: frame, groove valley, raised center
+      g.add(frameRelief(w, h, faceZ, mats, undefined, true, 1));
       break;
-    case 'metro': {
-      // rail-and-stile shaker: full-height stiles + top/bottom rails, big flat panel
+    // Vibe is the only line design built as a relief panel — its perimeter
+    // groove IS the design. Every other style below is line work, routed with
+    // that same groove profile (grooveV) but in its own layout.
+    case 'shaker': // Vibe — simple perimeter groove
+      g.add(frameRelief(w, h, faceZ, mats, undefined, true, GROOVE_SCALE));
+      break;
+    case 'metro': // rail-and-stile lines running straight to the edges
       railStile(2.4, 3.4);
       break;
-    }
-    case 'clove': // frame + narrow vertical planks in the panel
-      g.add(grooveRing(w, h, faceZ, mats));
+    case 'clove': // perimeter groove + narrow vertical planks inside it
+      grooveRing(R);
       vGrooves(-w / 2 + R, w - 2 * R, h - 2 * R - sw, 3.2);
       break;
     case 'slat': {
@@ -819,7 +981,7 @@ export function facePattern(w: number, h: number, style: DoorStyle, faceZ: numbe
       // the planks run edge-to-edge vertically (no top/bottom rails)
       const inset = 2;
       for (const sx of [-1, 1]) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(sw, h - 0.4, t), mats.groove);
+        const m = grooveV(h - 0.4, true, mats);
         m.position.set(sx * (w / 2 - inset), 0, z);
         g.add(m);
       }
@@ -930,7 +1092,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     const stone = (bd: number) => {
       const m = mats.counter.clone();
       m.map = mats.counterTex.clone();
-      m.map.repeat.set(Math.max(1, w / 48), Math.max(1, bd / 48));
+      m.map.repeat.set(Math.max(1, w / mats.counterTile), Math.max(1, bd / mats.counterTile));
       return m;
     };
     // working body, shifted forward so the bar occupies the back BAR_DEPTH.
@@ -1455,35 +1617,69 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
             ? Math.min(7, fr.h * 0.45)
             : Math.min(9, fr.w * 0.5);
         const rad = mats.naBar ? 0.35 : 0.45;
-        const bar = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, len, 10), mats.steel);
+        // A named product renders at its true size; otherwise the generic bar
+        // family sized to this front. NewAge lines keep their own long factory
+        // bar pulls, and the plain cylinder is the fallback until a model
+        // loads (and if the asset is missing).
+        const named = !mats.naBar && dims.handleModel ? namedHandle(dims.handleModel) : null;
+        const hm = mats.naBar ? null : (named ?? handleFor(len));
+        let bar: THREE.Object3D;
+        if (hm) {
+          // model is door-local: length on X, standoff on +Z, base at Z=0.
+          // Stretch only along X — a real handle family keeps bar diameter
+          // fixed and just moves the posts apart. Named products don't stretch.
+          if (!named) hm.obj.scale.x = len / hm.len;
+          hm.obj.traverse((o) => {
+            if ((o as THREE.Mesh).isMesh) {
+              (o as THREE.Mesh).material = mats.steel;
+              o.castShadow = true;
+            }
+          });
+          const holder = new THREE.Group();
+          holder.name = named ? `cd-handle:${dims.handleModel}` : 'cd-handle:bar';
+          holder.add(hm.obj);
+          bar = holder;
+        } else {
+          const cyl = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, len, 10), mats.steel);
+          cyl.rotation.z = Math.PI / 2; // cylinder is Y-long; match the model's X-long frame
+          cyl.position.z = 0.75;
+          const holder = new THREE.Group();
+          holder.add(cyl);
+          bar = holder;
+        }
         bar.castShadow = true;
+        // handles are built X-long; vertical pulls rotate a quarter turn
+        if (isV) bar.rotation.z = Math.PI / 2;
+        const shown = named ? named.len : len; // named products keep true length
         if (isV) {
-          bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + 1.6 : fr.w / 2 - 1.6;
+          // centered on the frame stile, so the pull never crowds the routed
+          // panel design (narrow doors get a narrower stile, hence the calc)
+          const inset = mats.naBar ? 1.6 : frameStileWidth(fr.w) / 2;
+          bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + inset : fr.w / 2 - inset;
           // Base doors carry the pull near the TOP; wall (upper-lane) doors and
           // high-mounted doors (handleLow) near the BOTTOM — like real cabinets.
-          const yTop = fr.h / 2 - len / 2 - 1.4;
-          const yLow = -fr.h / 2 + len / 2 + 1.4;
+          const yTop = fr.h / 2 - shown / 2 - 1.4;
+          const yLow = -fr.h / 2 + shown / 2 + 1.4;
           let yPos = fr.handleLow || cat.lane === 'upper' ? yLow : yTop;
           // Tall doors (pantry/broom…): cap the pull at a reachable height
           // (~44″ off the floor) instead of the very top of an 84″ door.
           const faceCenter = kick + carcassH / 2 + fr.dy;
           if (yPos === yTop && faceCenter + yTop > 48) yPos = Math.max(yLow, 44 - faceCenter);
           bar.position.y = yPos;
-        } else {
-          bar.rotation.z = Math.PI / 2;
-          if (naTopPull) {
-            // Classic door: horizontal pull at the top, toward the seam edge
-            bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + len / 2 + 1.2 : fr.w / 2 - len / 2 - 1.2;
-            bar.position.y = fr.h / 2 - 1.3;
-          } else if (fr.handleBottom) {
-            // flip-up door: pull centered on the bottom edge
-            bar.position.y = -fr.h / 2 + 1.3;
-          } else if (fr.handleTop || mats.naBar) {
-            // trash pull-outs and all NewAge drawers: pull at the top edge
-            bar.position.y = fr.h / 2 - 1.5;
-          }
+        } else if (naTopPull) {
+          // Classic door: horizontal pull at the top, toward the seam edge
+          bar.position.x = fr.handle === 'v-left' ? -fr.w / 2 + shown / 2 + 1.2 : fr.w / 2 - shown / 2 - 1.2;
+          bar.position.y = fr.h / 2 - 1.3;
+        } else if (fr.handleBottom) {
+          // flip-up door: pull centered on the bottom edge
+          bar.position.y = -fr.h / 2 + 1.3;
+        } else if (fr.handleTop || mats.naBar) {
+          // trash pull-outs and all NewAge drawers: pull at the top edge
+          bar.position.y = fr.h / 2 - 1.5;
         }
-        bar.position.z = 1.1;
+        // mount on the door's actual front surface (raised frame styles sit
+        // proud); the fallback cylinder carries another 0.75 inside its holder
+        bar.position.z = 0.35 + frameLift(fr.slab ? 'flat' : style);
         fg.add(bar);
       }
       // Door slab centered so its outer face ends flush at the nominal depth.

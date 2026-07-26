@@ -55,6 +55,135 @@ const APPLIANCE_MODEL_URLS: Record<string, string> = {
   hood: '/models/hood.glb', // Proline 48" wall-canopy range hood
 };
 
+/**
+ * Wall-opening models — real product geometry replacing the procedural
+ * frame+panel: a hinged entry door, and sliding patio doors in two panel
+ * counts. Like the appliance heads these are ~1-2 MB, so they lazy-load
+ * through `requestModel` the first time a design actually shows one.
+ */
+const OPENING_MODEL_URLS: Record<string, string> = {
+  'door-modern': '/models/openings/door-modern.glb',
+  'slider-2panel': '/models/openings/slider-2panel.glb',
+  'slider-4panel': '/models/openings/slider-4panel.glb',
+};
+
+/** Width (inches) at or above which a sliding door renders as the 4-panel
+ *  unit; narrower openings get the 2-panel one. The two models cover roughly
+ *  5' to 10' of opening, which is the real product range. */
+export const SLIDER_4PANEL_MIN_W = 84;
+
+/** The model key for a sliding door of this opening width. */
+export function sliderModelKey(w: number): string {
+  return w >= SLIDER_4PANEL_MIN_W ? 'slider-4panel' : 'slider-2panel';
+}
+
+/** Cabinet pull models. Exported from the handle library by
+ *  `scripts/export-handles.py` already in door-local space: length along X,
+ *  standoff along +Z, mounting face at Z=0, sized in inches. Real stock
+ *  lengths — callers pick the nearest and stretch only along X (which is how
+ *  a real handle family varies: posts move apart, bar diameter stays). */
+const HANDLE_MODEL_URLS: Record<string, string> = {
+  'bar-5': '/models/handles/bar-5.glb',
+  'bar-7': '/models/handles/bar-7.glb',
+  'bar-8': '/models/handles/bar-8.glb',
+};
+
+/** Named hardware products modelled individually. Unlike the generic bar
+ *  family these render at their TRUE length (a real product comes in fixed
+ *  sizes), and are chosen by matching the design's selected handle name. */
+const NAMED_HANDLE_MODELS: Record<string, string> = {
+  'charlotte-316': '/models/handles/charlotte-316.glb',
+};
+
+/** The scanned HDPE surface normal map — the real molded-poly grain instead
+ *  of a downscaled canvas approximation. Loaded once and shared by every
+ *  cabinet material (hence a single shared `repeat`). */
+let hdpeNormal: THREE.Texture | null = null;
+
+/** The HDPE normal map, or null until it loads. */
+export function hdpeNormalMap(): THREE.Texture | null {
+  return hdpeNormal;
+}
+
+/** Scanned PBR maps under /textures (granite, grass, marble pavers…). Each is
+ *  fetched once on first request and shared by every material that wants it —
+ *  they are never disposed (materials are; see disposeMats), which is what
+ *  makes sharing safe. Returns null until the file arrives; `onModelsLoaded`
+ *  fires then, so the caller re-renders with the real map. */
+const libTextures = new Map<string, THREE.Texture | null>();
+
+/**
+ * A texture from /textures/<file>, or null until it loads.
+ * Pass data=true for normal/roughness maps so they skip the sRGB transform.
+ * Callers that need their own tiling should `.clone()` the result — a clone
+ * carries its own repeat/offset while sharing the uploaded image.
+ */
+export function libTexture(file: string, data = false): THREE.Texture | null {
+  const cached = libTextures.get(file);
+  if (cached !== undefined) return cached;
+  libTextures.set(file, null); // in flight — don't request it twice
+  new THREE.TextureLoader().load(
+    `/textures/${file}`,
+    (tex) => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = data ? THREE.NoColorSpace : THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      libTextures.set(file, tex);
+      listeners.forEach((l) => l());
+    },
+    undefined,
+    () => undefined // missing file: caller keeps its procedural fallback
+  );
+  return null;
+}
+
+/** Selectable 3D models for a hardware item (catalog prefs → Handles). */
+export const HANDLE_3D_MODELS: Array<{ key: string; label: string }> = [
+  { key: 'bar', label: 'Bar pull (auto-sized)' },
+  { key: 'charlotte-316', label: 'Charlotte 316' },
+];
+
+interface HandleTemplate {
+  obj: THREE.Object3D;
+  /** True length of the model along X (inches). */
+  len: number;
+}
+
+const handleTemplates = new Map<string, HandleTemplate>();
+
+/** Slugified handle name → model key, or null when there's no dedicated model
+ *  (the generic bar family is used instead). */
+export function namedHandleKey(name: string | undefined): string | null {
+  if (!name) return null;
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return slug in NAMED_HANDLE_MODELS ? slug : null;
+}
+
+/** A named product handle at its true size; null until the model loads. */
+export function namedHandle(key: string): { obj: THREE.Object3D; len: number } | null {
+  const t = handleTemplates.get(key);
+  return t ? { obj: t.obj.clone(true), len: t.len } : null;
+}
+
+/** Stock handle lengths, ascending — used to pick the closest size. */
+export const HANDLE_SIZES: Array<{ key: string; len: number }> = [
+  { key: 'bar-5', len: 5.38 },
+  { key: 'bar-7', len: 6.6 },
+  { key: 'bar-8', len: 7.88 },
+];
+
+/** Nearest stock handle to a target length; null until the models load. */
+export function handleFor(targetLen: number): { obj: THREE.Object3D; len: number } | null {
+  let best: { key: string; len: number } | null = null;
+  for (const s of HANDLE_SIZES) {
+    if (!handleTemplates.has(s.key)) continue;
+    if (!best || Math.abs(s.len - targetLen) < Math.abs(best.len - targetLen)) best = s;
+  }
+  if (!best) return null;
+  const t = handleTemplates.get(best.key)!;
+  return { obj: t.obj.clone(true), len: t.len };
+}
+
 const requested = new Set<string>();
 
 /**
@@ -63,7 +192,7 @@ const requested = new Set<string>();
  * `onModelsLoaded` fires on arrival so views re-render with the real head.
  */
 export function requestModel(key: string): void {
-  const url = APPLIANCE_MODEL_URLS[key];
+  const url = APPLIANCE_MODEL_URLS[key] ?? OPENING_MODEL_URLS[key];
   if (!url || requested.has(key) || templates.has(key)) return;
   requested.add(key);
   new GLTFLoader().load(
@@ -160,6 +289,37 @@ export function loadModels(): void {
       },
       undefined,
       () => undefined // on error: leave it unset, procedural fallback stays
+    );
+  }
+  // cabinet surface grain — fires the same listeners so the 3D scene rebuilds
+  // with it once it arrives
+  new THREE.TextureLoader().load(
+    '/textures/hdpe-normal.jpg',
+    (tex) => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.NoColorSpace; // normal maps are data, not color
+      // BoxGeometry UVs run 0..1 per face, so this is a tile count rather
+      // than a real-world size: ~5 tiles reads as fine grain on a door and
+      // stays invisibly fine on small parts.
+      tex.repeat.set(5, 5);
+      hdpeNormal = tex;
+      listeners.forEach((l) => l());
+    },
+    undefined,
+    () => undefined // no grain is fine — materials just render smooth
+  );
+  for (const [key, url] of Object.entries({ ...HANDLE_MODEL_URLS, ...NAMED_HANDLE_MODELS })) {
+    loader.load(
+      url,
+      (gltf) => {
+        const root = gltf.scene;
+        root.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(root);
+        handleTemplates.set(key, { obj: root, len: box.max.x - box.min.x });
+        listeners.forEach((l) => l());
+      },
+      undefined,
+      () => undefined // handle model missing: the procedural bar stays
     );
   }
 }

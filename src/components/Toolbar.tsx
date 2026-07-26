@@ -3,7 +3,8 @@ import { DOOR_STYLE_LABELS, doorStylesFor, finishesForLine } from '../model/cata
 import { companyFinishes, mergedHandles } from '../model/companyCatalog';
 import { LINE_LABELS } from '../model/newage';
 import { COUNTERTOPS, COUNTER_CATEGORY_LABELS, type CounterCategory } from '../model/countertops';
-import type { Design, KitchenType, ProductLine } from '../model/types';
+import { DEFAULT_FLOORING, FLOORING } from '../model/flooring';
+import type { Design, FlooringKind, KitchenType, ProductLine } from '../model/types';
 import { useStore, type Tab } from '../state/store';
 import { useSession, type Screen } from '../state/session';
 
@@ -368,6 +369,21 @@ function SettingsMenu({
                     </option>
                   ))}
                 </optgroup>
+              ))}
+            </select>
+          </label>
+          <label className="settings-menu-row">
+            <span>Patio floor</span>
+            <select
+              className="select"
+              value={design.flooring ?? DEFAULT_FLOORING}
+              onChange={(e) => setDesignMeta({ flooring: e.target.value as FlooringKind })}
+              title="Surface the kitchen pad is finished in"
+            >
+              {FLOORING.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
               ))}
             </select>
           </label>

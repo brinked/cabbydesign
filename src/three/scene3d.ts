@@ -3,9 +3,11 @@ import { ALL_FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUN
 import { cornerCounterExtend, frameForWall, planBounds } from '../model/geometry';
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
-import type { ApplianceItem, Design, FinishOption, ModelAligns, PlacedItem, Wall } from '../model/types';
+import { flooringById } from '../model/flooring';
+import type { ApplianceItem, Design, FinishOption, ModelAligns, OpeningKind, PlacedItem, Wall } from '../model/types';
 import { resolveItemFinish } from '../model/newage';
-import { backsplashSpans, barRiserFor, counterHeightFor, footprintW, laneItems, reservesFor } from '../state/store';
+import { backsplashSpans, barRiserFor, counterHeightFor, footprintW, laneItems, reservesFor, useStore } from '../state/store';
+import { SLIDER_4PANEL_MIN_W, fitModelBox, hasModel, libTexture, namedHandleKey, onModelsLoaded, requestModel, sliderModelKey } from './models';
 import { CORNER_RETURN, END_PANEL_T, MAX_PANEL_W, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, facePattern, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';
 
 function counterRuns3d(items: PlacedItem[], bridge: boolean): Array<{ x1: number; x2: number; d: number; h: number }> {
@@ -33,6 +35,49 @@ function counterRuns3d(items: PlacedItem[], bridge: boolean): Array<{ x1: number
     } else runs.push({ x1: it.x, x2: it.x + footprintW(it), d: fd, h });
   }
   return runs;
+}
+
+/** Real-world size of one lawn texture tile (inches) — the scan is a ~2 m
+ *  patch of turf, so it repeats about every 80". */
+const GRASS_TILE = 80;
+
+/**
+ * Lawn material for the yard the kitchen sits in. Uses the scanned turf
+ * (colour + normal) once it loads, tiled at its true size; until then — and if
+ * the texture is ever missing — it falls back to the procedural canvas below.
+ *
+ * `radius` is the ground disc's radius in inches, used to work out the tile
+ * count (CircleGeometry UVs span 0..1 across the bounding square).
+ */
+export function groundMaterial(radius: number): THREE.MeshStandardMaterial {
+  const reps = Math.max(1, Math.round((radius * 2) / GRASS_TILE));
+  const tile = (t: THREE.Texture) => {
+    const c = t.clone();
+    c.needsUpdate = true;
+    c.wrapS = c.wrapT = THREE.RepeatWrapping;
+    c.repeat.set(reps, reps);
+    return c;
+  };
+  // the scan already carries its own shading; keep the surface fully matte
+  const mat = new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 0.95 });
+  const apply = () => {
+    const color = libTexture('grass-color.jpg');
+    if (!color) return false;
+    const normal = libTexture('grass-normal.jpg', true);
+    mat.map?.dispose(); // the procedural canvas it replaces
+    mat.map = tile(color);
+    if (normal) mat.normalMap = tile(normal);
+    mat.needsUpdate = true;
+    return true;
+  };
+  // The ground is built once by the viewer, not rebuilt with the design, so
+  // it has to patch itself when the scan lands rather than wait to be redrawn.
+  if (!apply()) {
+    const off = onModelsLoaded(() => {
+      if (apply()) off();
+    });
+  }
+  return mat;
 }
 
 export function groundTexture(): THREE.CanvasTexture {
@@ -294,6 +339,14 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     }
     return m;
   };
+  // Selected hardware: a handle named to match a modelled product (e.g.
+  // "Charlotte 316") renders as that product; anything else falls back to the
+  // generic bar family sized per front.
+  const selectedHandle = design.handleId ? useStore.getState().handles.find((h) => h.id === design.handleId) : undefined;
+  // explicit model choice wins; otherwise fall back to matching the product
+  // name (so items named e.g. "Charlotte 316" work without being re-saved)
+  const handleModel =
+    selectedHandle?.model && selectedHandle.model !== 'bar' ? selectedHandle.model : namedHandleKey(selectedHandle?.name);
   const cT = design.counterThickness ?? COUNTER_T;
   const bsH = design.backsplashHeight ?? 0; // stone backsplash height up the wall (0 = none)
   const BS_THICK = 0.75; // backsplash slab thickness off the wall
@@ -333,14 +386,38 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   const glassMat = new THREE.MeshPhysicalMaterial({ color: 0xbcd4e6, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.4, transmission: 0.5, clearcoat: 0.6 });
   const doorMat = new THREE.MeshStandardMaterial({ color: 0xe6ded0, roughness: 0.7 });
 
-  /** A framed window (frame+glass+mullions) or door (frame+panel+knob), built
-   *  in local coords with its sill at y=0. */
-  const buildOpening = (o: { kind: 'window' | 'door'; w: number; h: number }): THREE.Group => {
+  /**
+   * A framed window, a hinged door or a sliding patio door, built in local
+   * coords with its sill at y=0.
+   *
+   * Doors and sliders render as real product models, stretched to the opening
+   * the user drew. A slider picks its model by width — a wide opening is a
+   * 4-panel unit, a narrow one a 2-panel (see sliderModelKey). Models are
+   * lazy-loaded, so until one arrives (or if it fails) the procedural
+   * frame+panel below still draws.
+   */
+  const buildOpening = (o: { kind: OpeningKind; w: number; h: number }): THREE.Group => {
     const g2 = new THREE.Group();
     const { w, h } = o;
     const FT = 1.6; // frame face width
     const FD = 2.2; // frame depth (out from wall)
     const zc = 0.3; // proud of the room-facing wall surface
+
+    if (o.kind === 'door' || o.kind === 'slider') {
+      const key = o.kind === 'slider' ? sliderModelKey(w) : 'door-modern';
+      requestModel(key);
+      if (hasModel(key)) {
+        // The unit fills the drawn opening exactly: these are sold in stock
+        // sizes, but the design's opening is what the wall was framed for.
+        const unit = fitModelBox(key, w, h, FD + 1.4);
+        if (unit) {
+          unit.position.set(0, 0, zc);
+          g2.add(unit);
+          return g2;
+        }
+      }
+    }
+
     const addFrame = (bw: number, bh: number, x: number, y: number) => {
       const m = box(bw, bh, FD, frameMat);
       m.position.set(x, y, zc);
@@ -356,6 +433,21 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const glass = box(iw, ih, 0.3, glassMat);
       glass.position.set(0, h / 2, zc);
       g2.add(glass);
+    } else if (o.kind === 'slider') {
+      // glazed panels split by a meeting stile, matching the real unit
+      const panes = w >= SLIDER_4PANEL_MIN_W ? 4 : 2;
+      const pw = iw / panes;
+      for (let i = 0; i < panes; i++) {
+        const x = -iw / 2 + pw * (i + 0.5);
+        const glass = box(pw - 1.2, ih - 1.2, 0.3, glassMat);
+        glass.position.set(x, h / 2, zc);
+        g2.add(glass);
+        if (i > 0) {
+          const stile = box(1.2, ih, FD * 0.8, frameMat);
+          stile.position.set(-iw / 2 + pw * i, h / 2, zc);
+          g2.add(stile);
+        }
+      }
     } else {
       const panel = box(iw, ih, 1.0, doorMat);
       panel.position.set(0, h / 2, zc);
@@ -411,7 +503,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
             : null;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined },
+        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel },
         matsFor(resolveItemFinish(fin.id, it, cat))
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;
@@ -432,7 +524,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         const stone = (bd: number) => {
           const m = rmats.counter.clone();
           m.map = rmats.counterTex.clone();
-          m.map.repeat.set(Math.max(1, rw / 48), Math.max(1, bd / 48));
+          m.map.repeat.set(Math.max(1, rw / mats.counterTile), Math.max(1, bd / mats.counterTile));
           return m;
         };
         const topY = rs.topH + BAR_RISE;
@@ -614,7 +706,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const x2 = fillEnd ? f.wall.length : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
       const slabMat = mats.counter.clone();
       slabMat.map = mats.counterTex.clone();
-      slabMat.map.repeat.set(1 / 48, 1 / 48);
+      slabMat.map.repeat.set(1 / mats.counterTile, 1 / mats.counterTile);
       const runCenter = (x1 + x2) / 2;
       const modelWFor = (it: PlacedItem) => appliance3dModel(it.appliance, appliances)?.w;
 
@@ -690,7 +782,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         if (w <= 0) continue;
         const bsMat = mats.counter.clone();
         bsMat.map = mats.counterTex.clone();
-        bsMat.map.repeat.set(Math.max(1, w / 48), Math.max(1, bsH / 48));
+        bsMat.map.repeat.set(Math.max(1, w / mats.counterTile), Math.max(1, bsH / mats.counterTile));
         const bs = box(w, bsH, BS_THICK, bsMat);
         place(bs, (s.x1 + s.x2) / 2, BS_THICK / 2, BASE_H + cT + bsH / 2);
       }
@@ -704,14 +796,45 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     }
   }
 
-  // Concrete patio pad under the kitchen: the walls/cabinets footprint plus a
-  // 24" apron. The rest of the yard is lawn (see groundTexture), so the space
-  // reads as a defined patio instead of an endless open plane.
-  const slabMat = new THREE.MeshStandardMaterial({ color: 0xd8d6cf, roughness: 0.95 });
+  // Patio pad under the kitchen: the walls/cabinets footprint plus a 24"
+  // apron. The rest of the yard is lawn (see groundMaterial), so the space
+  // reads as a defined patio instead of an endless open plane. Its surface is
+  // the design's flooring choice — poured concrete, or a laid paver field.
+  const floor = flooringById(design.flooring);
+  const floorColor = floor.tex ? libTexture(`${floor.tex}-color.jpg`) : null;
+  const floorNormal = floor.tex ? libTexture(`${floor.tex}-normal.jpg`, true) : null;
+  const slabMat = new THREE.MeshStandardMaterial({
+    color: floorColor ? 0xffffff : new THREE.Color(floor.base),
+    roughness: floor.roughness,
+  });
   // fences sit on the lawn — they don't stretch the pad
   const slabFrames = frames.filter((f) => !f.wall.fence);
   if (slabFrames.length) {
     const sb = planBounds(slabFrames, 24);
+    // Pavers tile across the pad's top face at their real size. BoxGeometry
+    // UVs run 0..1 per face, so the repeat is a tile count, and only the top
+    // face is seen — sizing it to the pad's own footprint keeps the courses
+    // square whatever shape the patio is.
+    if (floorColor) {
+      const t = floor.texScale ?? 48;
+      const tile = (tex: THREE.Texture) => {
+        const c = tex.clone();
+        c.needsUpdate = true;
+        c.wrapS = c.wrapT = THREE.RepeatWrapping;
+        // Same inches-per-tile on both axes so the pavers stay square. Don't
+        // round or clamp to whole tiles: a patio is far shallower than it is
+        // wide, and forcing a full tile into the depth squashes the courses
+        // into a smear. The scan is seamless, so fractions tile cleanly.
+        c.repeat.set(sb.w / t, sb.h / t);
+        return c;
+      };
+      slabMat.map = tile(floorColor);
+      if (floorNormal) {
+        slabMat.normalMap = tile(floorNormal);
+        // pavers are laid with real joints — keep them readable at a distance
+        slabMat.normalScale = new THREE.Vector2(1.5, 1.5);
+      }
+    }
     const slab = new THREE.Mesh(new THREE.BoxGeometry(sb.w, 1.2, sb.h), slabMat);
     // top face sits a hair above the lawn so the pad never z-fights it
     slab.position.set(sb.x + sb.w / 2, -0.55, sb.y + sb.h / 2);

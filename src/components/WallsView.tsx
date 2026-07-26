@@ -675,6 +675,7 @@ function RoughInAdd({ wallId }: { wallId: string }) {
 const OPENING_KINDS: { kind: OpeningKind; label: string }[] = [
   { kind: 'window', label: 'Window' },
   { kind: 'door', label: 'Door' },
+  { kind: 'slider', label: 'Sliding Door' },
 ];
 
 function OpeningAdd({ wallId }: { wallId: string }) {

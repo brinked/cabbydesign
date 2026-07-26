@@ -1,5 +1,6 @@
 import type { CatalogItem, FinishOption, HingeSide, OpeningKind, RoughInKind } from '../model/types';
 import { COUNTER_T, TOEKICK_H } from '../model/catalog';
+import { SLIDER_4PANEL_MIN_W } from '../three/models';
 
 // All SVG drawing is done in inch coordinates; the parent <svg> sets a
 // viewBox in inches so everything scales losslessly.
@@ -1061,6 +1062,22 @@ export function OpeningGlyph({ kind, w, h, clash }: { kind: OpeningKind; w: numb
       <g>
         <rect x={0} y={0} width={w} height={h} rx={0.6} fill={frameFill} stroke={frame} strokeWidth={sw} />
         <rect x={gx} y={gy} width={gw} height={gh} fill={glass} stroke={frame} strokeWidth={sw * 0.6} />
+      </g>
+    );
+  }
+  if (kind === 'slider') {
+    // sliding door — glazed panels split by meeting stiles, panel count
+    // matching the unit the 3D view picks for this width
+    const panes = w >= SLIDER_4PANEL_MIN_W ? 4 : 2;
+    const pw = gw / panes;
+    return (
+      <g>
+        <rect x={0} y={0} width={w} height={h} rx={0.6} fill={frameFill} stroke={frame} strokeWidth={sw} />
+        {Array.from({ length: panes }, (_, i) => (
+          <rect key={i} x={gx + pw * i} y={gy} width={pw} height={gh} fill={glass} stroke={frame} strokeWidth={sw * 0.6} />
+        ))}
+        {/* pull on the lead panel */}
+        <rect x={gx + pw - Math.max(0.5, w * 0.012)} y={h * 0.42} width={Math.max(0.5, w * 0.012)} height={h * 0.16} fill={frame} />
       </g>
     );
   }

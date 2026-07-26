@@ -110,6 +110,8 @@ const ROUGHIN_DEFAULTS: Record<RoughInKind, { w: number; h: number; y: number }>
 const OPENING_DEFAULTS: Record<OpeningKind, { w: number; h: number; y: number }> = {
   window: { w: 36, h: 36, y: 36 },
   door: { w: 36, h: 80, y: 0 },
+  // sliding patio door — defaults to a 6' opening, the common 2-panel size
+  slider: { w: 72, h: 80, y: 0 },
 };
 
 /** Minimum clearance a rough-in must keep from a cabinet end (inches). */

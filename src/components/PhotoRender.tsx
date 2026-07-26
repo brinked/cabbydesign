@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { WebGLPathTracer } from 'three-gpu-pathtracer';
 import type { Design, FinishOption } from '../model/types';
 import { useStore } from '../state/store';
-import { buildDesignGroup, equirectSkyHDR, groundTexture } from '../three/scene3d';
+import { buildDesignGroup, equirectSkyHDR, groundMaterial } from '../three/scene3d';
 
 export interface PhotoCam {
   pos: THREE.Vector3;
@@ -74,7 +74,7 @@ export default function PhotoRender({
 
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(2000, 48),
-      new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 0.95 })
+      groundMaterial(2000)
     );
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);

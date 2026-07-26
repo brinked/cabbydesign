@@ -71,6 +71,7 @@ export function finishesForLine(line: ProductLine | undefined, kitchenType?: Kit
 export const DOOR_STYLE_LABELS: Record<DoorStyle, string> = {
   'flat': 'Euro (flat slab)',
   'shaker': 'Vibe (groove frame)',
+  'regal': 'Regal (raised panel)',
   'metro': 'Metro (slim frame)',
   'miami': 'Miami (horizontal slats)',
   'clove': 'Clove (frame + planks)',
@@ -86,7 +87,7 @@ export const DOOR_STYLE_LABELS: Record<DoorStyle, string> = {
 export function doorStylesFor(kitchenType: KitchenType | undefined): DoorStyle[] {
   return (kitchenType ?? 'outdoor') === 'indoor'
     ? ['shaker-inset', 'shaker-skinny', 'raised', 'beadboard', 'flat']
-    : ['flat', 'shaker', 'metro', 'miami', 'clove', 'cottage', 'slat', 'tampa'];
+    : ['flat', 'shaker', 'regal', 'metro', 'miami', 'clove', 'cottage', 'slat', 'tampa'];
 }
 
 // Box formulas: width × depth + a fixed amount. The fixed amount is $500 for a

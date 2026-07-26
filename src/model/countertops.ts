@@ -25,6 +25,16 @@ export interface Countertop {
   style?: 'marble' | 'soft' | 'limestone' | 'cement' | 'volcanic' | 'speckle';
   /** Thicker, higher-contrast main veining (dramatic marble designs). */
   boldVeins?: boolean;
+  /** Scanned PBR texture set in /textures: `<tex>-color.jpg` (+ optional
+   *  `<tex>-normal.jpg`). When present the real scan is used instead of the
+   *  procedural painter; the fields above stay as the fallback until it
+   *  loads (and if the file is ever missing). */
+  tex?: string;
+  /** Real-world size of one texture tile (inches) — how far the scan repeats
+   *  across a slab. Defaults to 48". */
+  texScale?: number;
+  /** Price tier for the customer-facing selector. */
+  level?: 1 | 2 | 3;
 }
 
 export const DEFAULT_COUNTERTOP = 'classic-white';
@@ -35,6 +45,10 @@ export const COUNTERTOPS: Countertop[] = [
   { id: 'carrara', name: 'Carrara Marble', category: 'solid', base: '#eceef0', vein: '#aeb4ba' },
 
   // ---- Granite ----
+  // Level 1 is the entry-price stone and the only one running off a real scan:
+  // a pale warm grey with dense fine dark speckle. The flecks/base below are
+  // the procedural stand-in used until the scan loads.
+  { id: 'granite-l1', name: 'Granite Level 1', category: 'granite', level: 1, tex: 'granite-l1', texScale: 42, base: '#c8c6bd', flecks: ['#4a4740', '#8d8a80', '#2f2d29', '#e0ded5'] },
   { id: 'absolute-black', name: 'Absolute Black', category: 'granite', base: '#17191c', flecks: ['#2b2f34', '#3c424a'] },
   { id: 'black-galaxy', name: 'Black Galaxy', category: 'granite', base: '#0e0f12', flecks: ['#caa64a', '#d9d4c8', '#8a7d5a'] },
   { id: 'uba-tuba', name: 'Uba Tuba', category: 'granite', base: '#1f261d', flecks: ['#3c4a32', '#b9a86a', '#5a6347'] },

@@ -17,6 +17,7 @@ import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleI
 import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, sideExposed, spaceLeft, uid, useStore } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { useSession } from '../state/session';
+import { HANDLE_3D_MODELS, SLIDER_4PANEL_MIN_W } from '../three/models';
 import { CatalogThumb } from './CabinetImage';
 import { useFinish } from './WallsView';
 import { fmtIn } from './svg';
@@ -848,13 +849,20 @@ export function OpeningModal() {
   const wallH = wall?.height ?? 96;
   const set = (patch: Partial<typeof o>) => updateOpening(o.id, patch);
   return (
-    <Modal title={o.kind === 'window' ? 'Window' : 'Door'} sub={`On ${wall?.name ?? 'wall'} · drag to position on the elevation`} onClose={() => openOpening(null)}>
+    <Modal
+      title={o.kind === 'window' ? 'Window' : o.kind === 'slider' ? 'Sliding Door' : 'Door'}
+      sub={`On ${wall?.name ?? 'wall'} · drag to position on the elevation`}
+      onClose={() => openOpening(null)}
+    >
       <div className="seg" style={{ marginBottom: 12 }}>
         <button className={o.kind === 'window' ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ kind: 'window' })}>
           Window
         </button>
         <button className={o.kind === 'door' ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ kind: 'door', y: 0 })}>
           Door
+        </button>
+        <button className={o.kind === 'slider' ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ kind: 'slider', y: 0 })}>
+          Sliding
         </button>
       </div>
       <div className="stepper-list">
@@ -863,6 +871,13 @@ export function OpeningModal() {
         <PositionFields x={o.x} wallLen={wallLen} onChange={(x) => set({ x })} />
         <Stepper label="Sill height (from floor)" value={o.y} step={1} min={0} max={Math.max(0, wallH - o.h)} onChange={(y) => set({ y })} />
       </div>
+      {o.kind === 'slider' && (
+        <p className="card-sub" style={{ marginTop: 8 }}>
+          {o.w >= SLIDER_4PANEL_MIN_W
+            ? `4-panel unit (openings ${SLIDER_4PANEL_MIN_W}″ and wider).`
+            : `2-panel unit — widen to ${SLIDER_4PANEL_MIN_W}″ or more for the 4-panel door.`}
+        </p>
+      )}
       <div className="modal-actions">
         <button className="btn-danger" onClick={() => removeOpening(o.id)}>
           Remove
@@ -939,6 +954,13 @@ function HandleRow({ h, onChange, onRemove }: { h: HandleItem; onChange: (patch:
         />
       </div>
       <input className="dim-input" value={name} placeholder="Handle name" onChange={(e) => setName(e.target.value)} onBlur={() => onChange({ name: name.trim() })} />
+      <select className="select" value={h.model ?? 'bar'} title="Which 3D model shows in the designer and renders" onChange={(e) => onChange({ model: e.target.value })}>
+        {HANDLE_3D_MODELS.map((m) => (
+          <option key={m.key} value={m.key}>
+            {m.label}
+          </option>
+        ))}
+      </select>
       <input className="dim-input" value={retail} inputMode="decimal" placeholder="Retail" onChange={(e) => setRetail(e.target.value)} onBlur={() => onChange({ retail: num(retail) })} />
       <input className="dim-input" value={dealer} inputMode="decimal" placeholder="Dealer" onChange={(e) => setDealer(e.target.value)} onBlur={() => onChange({ dealer: num(dealer) })} />
       <button className="btn-danger-ghost" title="Remove" onClick={onRemove}>
@@ -969,6 +991,7 @@ export function HandlesModal() {
         <div className="handle-row handle-row-head">
           <span>Photo</span>
           <span>Name</span>
+          <span>3D model</span>
           <span>Retail $</span>
           <span>Dealer $</span>
           <span></span>

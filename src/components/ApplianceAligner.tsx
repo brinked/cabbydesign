@@ -5,7 +5,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { ApplianceItem, Design, ModelAlign, ModelAligns } from '../model/types';
 import { api } from '../api/client';
 import { useStore } from '../state/store';
-import { buildDesignGroup, groundTexture, skyTexture } from '../three/scene3d';
+import { buildDesignGroup, groundMaterial, skyTexture } from '../three/scene3d';
 import { onModelsLoaded } from '../three/models';
 import { useFinish } from './WallsView';
 import { Modal, SaveGlobalFooter } from './Modals';
@@ -105,7 +105,7 @@ function AlignerPreview({ model, align }: { model: AlignerModel; align: ModelAli
     scene.add(sun.target);
     sunRef.current = sun;
 
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(1600, 48), new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 0.95 }));
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(1600, 48), groundMaterial(1600));
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);

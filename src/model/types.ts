@@ -143,6 +143,10 @@ export interface HandleItem {
   name: string;
   /** Optional product photo as a data-URL (base64). */
   photo?: string;
+  /** Which 3D model represents this pull in the viewer and renders. Omitted
+   *  (or 'bar') = the generic bar family, auto-sized per door/drawer. Other
+   *  values are named products from HANDLE_3D_MODELS. */
+  model?: string;
   /** Retail price per handle (what the customer pays). */
   retail: number;
   /** Dealer cost per handle. */
@@ -237,6 +241,7 @@ export type HingeSide = 'left' | 'right';
 export type DoorStyle =
   | 'shaker' // outdoor HDPE 'Vibe' groove frame
   | 'flat' // Euro slab
+  | 'regal' // HDPE full raised panel
   | 'metro' // HDPE slim frame
   | 'miami' // HDPE horizontal slats
   | 'clove' // HDPE frame + narrow vertical planks
@@ -353,7 +358,12 @@ export interface RoughIn {
 }
 
 /** A window or door cut into a wall — framed, draggable/resizable in elevation. */
-export type OpeningKind = 'window' | 'door';
+/** Patio surface under the kitchen. 'concrete' is the poured pad the design
+ *  has always drawn; 'marble-pavers' is a laid tumbled-marble paver field
+ *  (Milestone "Ice White" and similar). */
+export type FlooringKind = 'concrete' | 'marble-pavers';
+
+export type OpeningKind = 'window' | 'door' | 'slider';
 export interface Opening {
   id: string;
   wallId: string;
@@ -413,6 +423,8 @@ export interface Design {
   backsplashHeight: number;
   /** Countertops run over gaps between counter cabinets (default on). */
   bridgeCounters?: boolean;
+  /** Patio surface the kitchen sits on (default poured concrete). */
+  flooring?: FlooringKind;
   /** Measure horizontal positions from the left or right wall end. */
   dimFrom?: DimFrom;
   /** Selected cabinet handle/pull for the job (id into the handle inventory). */

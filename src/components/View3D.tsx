@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { useStore } from '../state/store';
-import { buildDesignGroup, groundTexture, skyTexture } from '../three/scene3d';
+import { buildDesignGroup, groundMaterial, skyTexture } from '../three/scene3d';
 import PhotoRender, { type PhotoCam } from './PhotoRender';
 import { useFinish } from './WallsView';
 
@@ -58,7 +58,7 @@ export default function View3D() {
 
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(1600, 48),
-      new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 0.95 })
+      groundMaterial(1600)
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
