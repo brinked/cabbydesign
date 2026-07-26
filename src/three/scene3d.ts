@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ALL_FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, takesAppliedEnds } from '../model/catalog';
-import { cornerCounterExtend, frameForWall, planBounds } from '../model/geometry';
+import { cornerCounterExtend, frameForWall, isFenceStyle, planBounds, wallStyleOf } from '../model/geometry';
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import { flooringById } from '../model/flooring';
@@ -353,20 +353,89 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   const reserves = bsH > 0 ? reservesFor(design) : null; // corner zones for backsplash spans
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1eee7, roughness: 0.92 });
   const fenceMat = new THREE.MeshStandardMaterial({ color: 0x9c7a4d, roughness: 0.85 });
+  const whiteFenceMat = new THREE.MeshStandardMaterial({ color: 0xf2f1ec, roughness: 0.8 });
+  // Textured wall finishes (brick / shiplap / modern wood / acoustic slats):
+  // one procedural 48"-tile per style, repeated to each wall's size.
+  const styledWallMats: THREE.MeshStandardMaterial[] = [];
+  const styledWallMat = (style: string, L: number, H: number): THREE.MeshStandardMaterial => {
+    const TILE = 48;
+    const tex = canvasTexture(512, (ctx, s) => {
+      const px = s / TILE; // pixels per inch
+      if (style === 'brick') {
+        ctx.fillStyle = '#cfc7bb'; // mortar
+        ctx.fillRect(0, 0, s, s);
+        const bh = 2.7 * px;
+        const bw = 8.4 * px;
+        const bricks = ['#9b5744', '#8f4f3e', '#a56350', '#94564a'];
+        for (let r = 0; r * bh < s; r++) {
+          const off = r % 2 ? bw / 2 : 0;
+          for (let cIdx = -1; cIdx * bw < s + bw; cIdx++) {
+            ctx.fillStyle = bricks[Math.abs((r * 7 + cIdx * 3) % bricks.length)];
+            ctx.fillRect(cIdx * bw + off + 0.4 * px, r * bh + 0.4 * px, bw - 0.8 * px, bh - 0.8 * px);
+          }
+        }
+      } else if (style === 'shiplap') {
+        ctx.fillStyle = '#eceeed';
+        ctx.fillRect(0, 0, s, s);
+        const board = 6.85 * px;
+        for (let r = 0; r * board < s; r++) {
+          const y = r * board;
+          ctx.fillStyle = 'rgba(0,0,0,0.22)';
+          ctx.fillRect(0, y, s, 1.5);
+          ctx.fillStyle = r % 2 ? '#e9ebe9' : '#eff1f0';
+          ctx.fillRect(0, y + 1.5, s, board - 1.5);
+          ctx.fillStyle = 'rgba(0,0,0,0.04)';
+          for (let i = 0; i < 6; i++) ctx.fillRect(Math.random() * s, y + Math.random() * board, 30 + Math.random() * 90, 1);
+        }
+      } else if (style === 'modern-wood') {
+        const planks = ['#7a5a3d', '#8a6748', '#6e4f35', '#83603f'];
+        const board = 7.9 * px;
+        for (let r = 0; r * board < s; r++) {
+          const y = r * board;
+          ctx.fillStyle = planks[r % planks.length];
+          ctx.fillRect(0, y, s, board);
+          ctx.fillStyle = 'rgba(0,0,0,0.28)';
+          ctx.fillRect(0, y, s, 1.2);
+          ctx.fillStyle = 'rgba(255,255,255,0.05)';
+          for (let i = 0; i < 8; i++) ctx.fillRect(0, y + Math.random() * board, s, 0.8);
+        }
+      } else {
+        // acoustic slats: warm wood slats over a near-black backing
+        ctx.fillStyle = '#17130f';
+        ctx.fillRect(0, 0, s, s);
+        const pitch = 3.4 * px;
+        const slat = 2.3 * px;
+        const woods = ['#a97e5a', '#9c7250', '#b0855f', '#8a6344'];
+        for (let cIdx = 0; cIdx * pitch < s + pitch; cIdx++) {
+          const x = cIdx * pitch;
+          ctx.fillStyle = woods[cIdx % woods.length];
+          ctx.fillRect(x, 0, slat, s);
+          ctx.fillStyle = 'rgba(0,0,0,0.12)';
+          for (let i = 0; i < 5; i++) ctx.fillRect(x + Math.random() * slat, 0, 0.8, s);
+        }
+      }
+    });
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(Math.max(1, L / TILE), Math.max(1, H / TILE));
+    const m = new THREE.MeshStandardMaterial({ map: tex, roughness: style === 'shiplap' ? 0.85 : 0.9 });
+    styledWallMats.push(m);
+    return m;
+  };
   // A picket fence centered at the origin (x=length, y=height, z=thickness), so it
   // drops into the same place() call the solid wall box uses.
-  const buildFence = (L: number, H: number, th: number): THREE.Group => {
+  const buildFence = (L: number, H: number, th: number, mat: THREE.Material = fenceMat): THREE.Group => {
     const g = new THREE.Group();
     const postW = Math.min(3.5, Math.max(2, th));
     const posts = Math.max(2, Math.round(L / 72) + 1);
     for (let i = 0; i < posts; i++) {
-      const post = box(postW, H, postW, fenceMat);
+      const post = box(postW, H, postW, mat);
       post.position.set(-L / 2 + (L * i) / (posts - 1), 0, 0);
       post.castShadow = true;
       g.add(post);
     }
     for (const ry of [H * 0.32, -H * 0.32]) {
-      const rail = box(L, 3.5, 1.0, fenceMat);
+      const rail = box(L, 3.5, 1.0, mat);
       rail.position.set(0, ry, 0);
       g.add(rail);
     }
@@ -374,7 +443,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     const n = Math.max(1, Math.floor(L / pitch));
     const picketH = H * 0.9;
     for (let i = 0; i < n; i++) {
-      const pk = box(3.5, picketH, 0.75, fenceMat);
+      const pk = box(3.5, picketH, 0.75, mat);
       pk.position.set(-L / 2 + ((i + 0.5) * L) / n, -(H - picketH) / 2, th / 2 - 0.4);
       pk.castShadow = true;
       g.add(pk);
@@ -476,8 +545,50 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
 
     if (!f.wall.ghost) {
       const th = f.wall.thickness ?? 5;
-      if (f.wall.fence) {
-        place(buildFence(f.wall.length, f.wall.height, th), f.wall.length / 2, -th / 2, f.wall.height / 2);
+      const wallStyle = wallStyleOf(f.wall);
+      // Cutout openings punch REAL holes through the wall, so those walls are
+      // built as an extruded outline-with-holes instead of a solid box.
+      const cutouts = design.openings.filter((o) => o.wallId === f.wall.id && o.kind === 'cutout');
+      const wallGeoWithHoles = (): THREE.ExtrudeGeometry => {
+        const L = f.wall.length;
+        const H = f.wall.height;
+        const s = new THREE.Shape();
+        s.moveTo(0, 0);
+        s.lineTo(L, 0);
+        s.lineTo(L, H);
+        s.lineTo(0, H);
+        s.closePath();
+        for (const o of cutouts) {
+          const hw = Math.min(o.w, L - 2) / 2;
+          const cx = Math.min(Math.max(o.x, hw + 0.5), L - hw - 0.5);
+          const y0 = Math.max(o.y, 0);
+          const y1 = Math.min(y0 + o.h, H - 0.5);
+          if (y1 - y0 < 1) continue;
+          const p = new THREE.Path();
+          p.moveTo(cx - hw, y0);
+          p.lineTo(cx + hw, y0);
+          p.lineTo(cx + hw, y1);
+          p.lineTo(cx - hw, y1);
+          p.closePath();
+          s.holes.push(p);
+        }
+        const geo = new THREE.ExtrudeGeometry(s, { depth: th, bevelEnabled: false });
+        geo.translate(0, 0, -th); // wall body sits behind the room-facing plane
+        return geo;
+      };
+      if (wallStyle === 'fence' || wallStyle === 'white-fence') {
+        place(buildFence(f.wall.length, f.wall.height, th, wallStyle === 'white-fence' ? whiteFenceMat : fenceMat), f.wall.length / 2, -th / 2, f.wall.height / 2);
+      } else if (cutouts.length) {
+        const mat = wallStyle !== 'standard' ? styledWallMat(wallStyle, f.wall.length, f.wall.height) : wallMat;
+        if (wallStyle !== 'standard' && mat.map) mat.map.repeat.set(1 / 48, 1 / 48); // extrude UVs are in inches
+        const wallMesh = new THREE.Mesh(wallGeoWithHoles(), mat);
+        wallMesh.castShadow = false;
+        wallMesh.receiveShadow = true;
+        place(wallMesh, 0, 0, 0);
+      } else if (wallStyle !== 'standard') {
+        const wallMesh = box(f.wall.length, f.wall.height, th, styledWallMat(wallStyle, f.wall.length, f.wall.height));
+        wallMesh.castShadow = false;
+        place(wallMesh, f.wall.length / 2, -th / 2, f.wall.height / 2);
       } else {
         const wallMesh = box(f.wall.length, f.wall.height, th, wallMat);
         wallMesh.castShadow = false;
@@ -692,7 +803,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
 
     const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
     const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
-    for (const r of counterRuns3d(floorItems, design.bridgeCounters !== false)) {
+    for (const r of counterRuns3d(floorItems, true)) {
       // Overhang only exposed run ends. Where another cabinet abuts (e.g. a
       // shorter neighbour in its own run), keep the counter flush so it doesn't
       // cut over the adjoining cabinet.
@@ -790,7 +901,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
 
     // Windows / doors framed on the room-facing wall surface (real walls only).
     if (!f.wall.ghost) {
-      for (const o of design.openings.filter((x) => x.wallId === f.wall.id)) {
+      for (const o of design.openings.filter((x) => x.wallId === f.wall.id && x.kind !== 'cutout')) {
         place(buildOpening(o), o.x, 0, o.y);
       }
     }
@@ -808,7 +919,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     roughness: floor.roughness,
   });
   // fences sit on the lawn — they don't stretch the pad
-  const slabFrames = frames.filter((f) => !f.wall.fence);
+  const slabFrames = frames.filter((f) => !isFenceStyle(f.wall));
   if (slabFrames.length) {
     const sb = planBounds(slabFrames, 24);
     // Pavers tile across the pad's top face at their real size. BoxGeometry
@@ -851,6 +962,11 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     for (const m of matsByFinish.values()) disposeMats(m);
     wallMat.dispose();
     fenceMat.dispose();
+    whiteFenceMat.dispose();
+    for (const m of styledWallMats) {
+      m.map?.dispose();
+      m.dispose();
+    }
     frameMat.dispose();
     glassMat.dispose();
     doorMat.dispose();

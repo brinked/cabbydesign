@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { DOOR_STYLE_LABELS, doorStylesFor, finishesForLine } from '../model/catalog';
-import { companyFinishes, mergedHandles } from '../model/companyCatalog';
-import { LINE_LABELS } from '../model/newage';
-import { COUNTERTOPS, COUNTER_CATEGORY_LABELS, type CounterCategory } from '../model/countertops';
-import { DEFAULT_FLOORING, FLOORING } from '../model/flooring';
-import type { Design, FlooringKind, KitchenType, ProductLine } from '../model/types';
+import type { Design, KitchenType, ProductLine } from '../model/types';
 import { useStore, type Tab } from '../state/store';
 import { useSession, type Screen } from '../state/session';
+import DesignPanel from './DesignPanel';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'design', label: 'Walls' },
@@ -74,7 +70,7 @@ export default function Toolbar() {
           </nav>
 
           <div className="toolbar-right">
-            <SettingsMenu design={design} setDesignMeta={setDesignMeta} isAdmin={isAdmin} />
+            <SettingsMenu isAdmin={isAdmin} />
             <FileMenu
               onSave={() => (isGuest ? openAuth('Create a free account to save your designs — reopen them anytime, on any device.') : openSaveJob(true))}
               onOpen={() => (isGuest ? openAuth('Sign in to open your saved designs.') : setScreen('jobs'))}
@@ -211,23 +207,17 @@ function NewDesignModal({ onClose, onCreate }: { onClose: () => void; onCreate: 
 }
 
 /** Gear dropdown gathering the per-job design options + admin config links. */
-function SettingsMenu({
-  design,
-  setDesignMeta,
-  isAdmin,
-}: {
-  design: Design;
-  setDesignMeta: (patch: Partial<Design>) => void;
-  isAdmin: boolean;
-}) {
+/** The toolbar's design + settings controls. The look-and-feel choices live in
+ *  the visual DesignPanel; this keeps only the occasional shortcuts (a
+ *  homeowner's appliance list, or the admin catalogue screens) behind a gear. */
+function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
   const setPricingOpen = useStore((s) => s.setPricingOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const setAppliancesOpen = useStore((s) => s.setAppliancesOpen);
   const setMyAppliancesOpen = useStore((s) => s.setMyAppliancesOpen);
   const setHandlesOpen = useStore((s) => s.setHandlesOpen);
-  const setLine = useStore((s) => s.setLine);
-  const handles = useStore((s) => s.handles);
   const [open, setOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -249,291 +239,46 @@ function SettingsMenu({
     setOpen(false);
   };
 
-  const line = design.line ?? 'ext';
-  const isNewAge = line !== 'ext';
-  // Cabinet-company accounts can hide finishes/handles and add their own.
-  const catalogPrefs = useSession((s) => s.catalogPrefs);
-  const hiddenFinishes = new Set(catalogPrefs?.hiddenFinishes ?? []);
-  const lineFinishes = [
-    ...finishesForLine(line, design.kitchenType).filter((f) => !hiddenFinishes.has(f.id)),
-    ...(isNewAge ? [] : companyFinishes(catalogPrefs)),
-  ];
-  const handleOptions = mergedHandles(handles, catalogPrefs);
-  // NewAge finishes group by series; indoor finishes by Painted / Wood Stains.
-  const finishGroups = [...new Set(lineFinishes.map((f) => f.group ?? ''))];
-
   return (
-    <div className="settings-dd" ref={ref}>
-      <button className={open ? 'btn-ghost active' : 'btn-ghost'} onClick={() => setOpen((o) => !o)} title="Design & settings">
-        ⚙ Settings ▾
+    <>
+      <button className="btn-soft" onClick={() => setPanelOpen(true)} title="Colours, doors, worktops, flooring">
+        ✨ Design
       </button>
-      {open && (
-        <div className="settings-menu">
-          <div className="settings-menu-label">Project</div>
-          <label className="settings-menu-row">
-            <span>Name</span>
-            <input className="settings-text" value={design.name} placeholder="Project name" onChange={(e) => setDesignMeta({ name: e.target.value })} />
-          </label>
-          <label className="settings-menu-row">
-            <span>Client</span>
-            <input className="settings-text" value={design.client} placeholder="Optional" onChange={(e) => setDesignMeta({ client: e.target.value })} />
-          </label>
-          <div className="settings-menu-sep" />
-          <div className="settings-menu-label">Design</div>
-          <label className="settings-menu-row">
-            <span>Cabinet line</span>
-            <select
-              className="select"
-              value={line}
-              onChange={(e) => {
-                const next = e.target.value as ProductLine;
-                if (next === line) return;
-                const dropped = design.items.filter((it) => !it.auto).length;
-                if (
-                  dropped === 0 ||
-                  confirm(
-                    `Switch to ${LINE_LABELS[next]}? The ${dropped} placed cabinet(s) belong to the current line and will be removed — walls, windows and stub-outs stay.`
-                  )
-                ) {
-                  setLine(next);
-                }
-              }}
-            >
-              {(['ext', 'newage'] as ProductLine[]).map((l) => (
-                <option key={l} value={l}>
-                  {LINE_LABELS[l]}
-                </option>
-              ))}
-            </select>
-          </label>
-          {!isNewAge && (
-            <label className="settings-menu-row">
-              <span>Door style</span>
-              <select className="select" value={design.doorStyle} onChange={(e) => setDesignMeta({ doorStyle: e.target.value as Design['doorStyle'] })}>
-                {doorStylesFor(design.kitchenType).map((s) => (
-                  <option key={s} value={s}>
-                    {DOOR_STYLE_LABELS[s]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          {!isNewAge && (
-            <label className="settings-menu-row">
-              <span>Handle</span>
-              <select className="select" value={design.handleId ?? ''} onChange={(e) => setDesignMeta({ handleId: e.target.value || undefined })}>
-                <option value="">Not selected</option>
-                {handleOptions
-                  .map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.name || 'Unnamed handle'}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          )}
-          <label className="settings-menu-row" title={isNewAge ? 'Default series & door finish for new cabinets — each cabinet can override this in its own settings' : undefined}>
-            <span>{isNewAge ? 'Default finish' : 'Finish'}</span>
-            <select className="select" value={design.finishId} onChange={(e) => setDesignMeta({ finishId: e.target.value })}>
-              {finishGroups.map((g) =>
-                g ? (
-                  <optgroup key={g} label={g}>
-                    {lineFinishes
-                      .filter((f) => (f.group ?? '') === g)
-                      .map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                ) : (
-                  lineFinishes
-                    .filter((f) => !f.group)
-                    .map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))
-                )
-              )}
-            </select>
-          </label>
-          <label className="settings-menu-row">
-            <span>Countertop</span>
-            <select className="select" value={design.counterId} onChange={(e) => setDesignMeta({ counterId: e.target.value })}>
-              {(['dekton', 'solid', 'granite', 'quartzite', 'concrete', 'metal'] as CounterCategory[]).map((cat) => (
-                <optgroup key={cat} label={COUNTER_CATEGORY_LABELS[cat]}>
-                  {COUNTERTOPS.filter((c) => c.category === cat).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-          <label className="settings-menu-row">
-            <span>Patio floor</span>
-            <select
-              className="select"
-              value={design.flooring ?? DEFAULT_FLOORING}
-              onChange={(e) => setDesignMeta({ flooring: e.target.value as FlooringKind })}
-              title="Surface the kitchen pad is finished in"
-            >
-              {FLOORING.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="settings-menu-row">
-            <span>Gas type</span>
-            <select className="select" value={design.gasType ?? ''} onChange={(e) => setDesignMeta({ gasType: (e.target.value || undefined) as Design['gasType'] })}>
-              <option value="">Not set</option>
-              <option value="ng">Natural Gas</option>
-              <option value="lp">Liquid Propane</option>
-            </select>
-          </label>
-          <label className="settings-menu-row">
-            <span>Countertop</span>
-            <CounterThicknessInput value={design.counterThickness} onChange={(v) => setDesignMeta({ counterThickness: v })} />
-          </label>
-          <label className="settings-menu-row" title="Run the countertop across gaps between counter cabinets / end caps (up to 60&quot;)">
-            <span>Counters bridge gaps</span>
-            <input
-              type="checkbox"
-              checked={design.bridgeCounters !== false}
-              onChange={(e) => setDesignMeta({ bridgeCounters: e.target.checked })}
-            />
-          </label>
-          <label className="settings-menu-row">
-            <span>Backsplash</span>
-            <BacksplashControl value={design.backsplashHeight ?? 0} onChange={(v) => setDesignMeta({ backsplashHeight: v })} />
-          </label>
-
-          {!isAdmin && (
-            <>
-              <div className="settings-menu-sep" />
-              <div className="settings-menu-label">Inventory</div>
-              <button className="settings-menu-item" onClick={() => openModal(setMyAppliancesOpen)}>
-                My appliances &amp; brands…
-              </button>
-            </>
-          )}
-
-          {isAdmin && (
-            <>
-              <div className="settings-menu-sep" />
-              <div className="settings-menu-label">Admin</div>
-              <button className="settings-menu-item" onClick={() => openModal(setPricingOpen)}>
-                Base pricing…
-              </button>
-              <button className="settings-menu-item" onClick={() => openModal(setSettingsOpen)}>
-                Cabinet size limits…
-              </button>
-              <button className="settings-menu-item" onClick={() => openModal(setAppliancesOpen)}>
-                Appliances…
-              </button>
-              <button className="settings-menu-item" onClick={() => openModal(setHandlesOpen)}>
-                Cabinet handles…
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Countertop thickness (inches). Commits a positive number on blur/Enter. */
-function CounterThicknessInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const [text, setText] = useState(String(value));
-  const [editing, setEditing] = useState(false);
-  useEffect(() => {
-    if (!editing) setText(String(value));
-  }, [value, editing]);
-  const commit = () => {
-    setEditing(false);
-    const v = parseFloat(text);
-    if (Number.isFinite(v) && v > 0) {
-      const clamped = Math.min(5, Math.round(v * 100) / 100);
-      setText(String(clamped));
-      onChange(clamped);
-    } else setText(String(value));
-  };
-  // apply live as typed (no Enter needed) once it's a valid positive number
-  const live = (t: string) => {
-    const v = parseFloat(t);
-    if (Number.isFinite(v) && v > 0) onChange(Math.min(5, Math.round(v * 100) / 100));
-  };
-  return (
-    <span className="counter-thick" title="Countertop thickness in inches (default 1.25″ = 3cm, max 5″)">
-      <span>Counter</span>
-      <input
-        className="counter-input"
-        inputMode="decimal"
-        value={text}
-        onFocus={() => setEditing(true)}
-        onChange={(e) => {
-          setText(e.target.value);
-          live(e.target.value);
-        }}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-        }}
-      />
-      <span>″</span>
-    </span>
-  );
-}
-
-/** Stone backsplash toggle + height (inches). Height 0 = no backsplash; the
- *  checkbox enables it (defaulting to 4″) and the field sets the stone height. */
-const DEFAULT_BACKSPLASH_H = 4;
-function BacksplashControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const on = value > 0;
-  const [text, setText] = useState(String(value || DEFAULT_BACKSPLASH_H));
-  const [editing, setEditing] = useState(false);
-  useEffect(() => {
-    if (!editing && value > 0) setText(String(value));
-  }, [value, editing]);
-  const commit = () => {
-    setEditing(false);
-    const v = parseFloat(text);
-    if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100) / 100);
-    else setText(String(value || DEFAULT_BACKSPLASH_H));
-  };
-  // apply live as typed (no Enter needed) once it's a valid positive number
-  const live = (t: string) => {
-    const v = parseFloat(t);
-    if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100) / 100);
-  };
-  return (
-    <span className="counter-thick" title="Stone backsplash height up the wall (inches). Uses the countertop stone.">
-      <input
-        type="checkbox"
-        checked={on}
-        onChange={(e) => onChange(e.target.checked ? parseFloat(text) || DEFAULT_BACKSPLASH_H : 0)}
-        title={on ? 'Backsplash on' : 'Backsplash off'}
-      />
-      <input
-        className="counter-input"
-        inputMode="decimal"
-        value={text}
-        disabled={!on}
-        onFocus={() => setEditing(true)}
-        onChange={(e) => {
-          setText(e.target.value);
-          live(e.target.value);
-        }}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-        }}
-      />
-      <span>″</span>
-    </span>
+      <div className="settings-dd" ref={ref}>
+        <button className={open ? 'btn-ghost active' : 'btn-ghost'} onClick={() => setOpen((o) => !o)} title="More settings">
+          ⚙
+        </button>
+        {open && (
+          <div className="settings-menu">
+            {!isAdmin && (
+              <>
+                <div className="settings-menu-label">Inventory</div>
+                <button className="settings-menu-item" onClick={() => openModal(setMyAppliancesOpen)}>
+                  My appliances &amp; brands…
+                </button>
+              </>
+            )}
+            {isAdmin && (
+              <>
+                <div className="settings-menu-label">Admin</div>
+                <button className="settings-menu-item" onClick={() => openModal(setPricingOpen)}>
+                  Base pricing…
+                </button>
+                <button className="settings-menu-item" onClick={() => openModal(setSettingsOpen)}>
+                  Cabinet size limits…
+                </button>
+                <button className="settings-menu-item" onClick={() => openModal(setAppliancesOpen)}>
+                  Appliances…
+                </button>
+                <button className="settings-menu-item" onClick={() => openModal(setHandlesOpen)}>
+                  Cabinet handles…
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      {panelOpen && <DesignPanel onClose={() => setPanelOpen(false)} />}
+    </>
   );
 }

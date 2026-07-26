@@ -112,6 +112,7 @@ const OPENING_DEFAULTS: Record<OpeningKind, { w: number; h: number; y: number }>
   door: { w: 36, h: 80, y: 0 },
   // sliding patio door — defaults to a 6' opening, the common 2-panel size
   slider: { w: 72, h: 80, y: 0 },
+  cutout: { w: 24, h: 24, y: 36 }, // plain pass-through hole in the wall
 };
 
 /** Minimum clearance a rough-in must keep from a cabinet end (inches). */
@@ -306,7 +307,7 @@ interface AppState {
   setAlignerOpen: (open: boolean) => void;
   setModelAligns: (modelAligns: ModelAligns) => void;
   setDim: (catalogId: string, patch: Partial<DimOverride>) => void;
-  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight' | 'bridgeCounters' | 'dimFrom' | 'handleId'>>) => void;
+  setDesignMeta: (patch: Partial<Pick<Design, 'name' | 'client' | 'finishId' | 'doorStyle' | 'gasType' | 'counterThickness' | 'counterId' | 'backsplashHeight' | 'dimFrom' | 'handleId'>>) => void;
   applyPreset: (layout: LayoutKind) => void;
   addWall: () => void;
   addWallAt: (placement: { x: number; y: number; angle: number; length: number }) => void;
@@ -713,7 +714,7 @@ export function counterAreaSqft(design: Design): number {
       .sort((a, b) => a.x - b.x);
     const runs: Array<{ x1: number; x2: number; d: number }> = [];
     // counters may bridge gaps between counter cabinets (design setting)
-    const bridge = design.bridgeCounters !== false ? 60 : 0.2;
+    const bridge = 60; // counters always bridge gaps (see BRIDGE_GAP)
     for (const it of tops) {
       const fd = it.d + it.outset + frontExtraD(catalogById(it.catalogId));
       const last = runs[runs.length - 1];

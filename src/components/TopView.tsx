@@ -1,12 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 import { ALL_FINISHES, COUNTER_OVERHANG, catalogById, frontExtraD } from '../model/catalog';
 import { resolveItemFinish } from '../model/newage';
-import { WALL_T, cornerCounterExtend, cornerNeedsFlip, frameForWall, isCornerFront, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints } from '../model/geometry';
-import type { MeasureEnd, Measurement, PlacedItem, Wall } from '../model/types';
+import { WALL_T, cornerCounterExtend, cornerNeedsFlip, frameForWall, isCornerFront, isFenceStyle, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints, wallStyleOf } from '../model/geometry';
+import type { MeasureEnd, Measurement, PlacedItem, Wall, WallStyle } from '../model/types';
 import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, uid, useStore } from '../state/store';
 import { NumberField } from './NumberField';
 import { useFinish } from './WallsView';
 import { CabinetTop, DimH, fmtIn, susanCounterPts } from './svg';
+
+const WALL_STYLE_LABELS: Record<WallStyle, string> = {
+  'standard': 'Standard wall',
+  'fence': 'Wood fence',
+  'white-fence': 'White fence',
+  'brick': 'Brick wall',
+  'shiplap': 'Shiplap wall',
+  'modern-wood': 'Modern wood wall',
+  'slat': 'Acoustic slat panels',
+};
+
+/** Plan-view slab fill per wall style (fences draw their own picket band). */
+const WALL_STYLE_PLAN_FILL: Partial<Record<WallStyle, string>> = {
+  'brick': '#8d5140',
+  'shiplap': '#c9cdcb',
+  'modern-wood': '#7a5a3d',
+  'slat': '#5d4a36',
+};
 
 const SNAP = 1.25; // inches, item snapping
 const END_SNAP = 8; // inches, wall endpoint snapping
@@ -484,7 +502,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
       {frames.map((f) => {
         const wallItems = design.items.filter((it) => it.wallId === f.wall.id);
         const floor = laneItems(wallItems, f.wall.id, 'floor');
-        const runs = planCounterRuns(floor, design.bridgeCounters !== false);
+        const runs = planCounterRuns(floor, true);
         // a lazy susan's L orientation follows the wall end it sits at (so it
         // stays put when the hinge toggle moves its single handle)
         const susanHinge = (it: PlacedItem): 'left' | 'right' => (it.x + footprintW(it) / 2 > f.wall.length / 2 ? 'right' : 'left');
@@ -516,17 +534,17 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
                 strokeDasharray="3 2.5"
                 {...wallHandlers}
               />
-            ) : f.wall.fence ? (
-              // fence — brown rail with evenly spaced picket ticks along its length
+            ) : isFenceStyle(f.wall) ? (
+              // fence — rail with evenly spaced picket ticks along its length
               <g {...wallHandlers} style={{ cursor: interactive && tool === 'select' ? 'grab' : 'default' }}>
-                <polygon points={slabPts} fill={isSel ? '#5b5bd6' : '#8a6d3b'} />
+                <polygon points={slabPts} fill={isSel ? '#5b5bd6' : wallStyleOf(f.wall) === 'white-fence' ? '#d9d7cf' : '#8a6d3b'} />
                 {Array.from({ length: Math.max(1, Math.floor(f.wall.length / 5)) }, (_, i) => {
                   const px = (i + 0.5) * (f.wall.length / Math.max(1, Math.floor(f.wall.length / 5)));
                   return <line key={i} x1={px} y1={0} x2={px} y2={-(f.wall.thickness ?? WALL_T)} stroke="rgba(255,255,255,0.55)" strokeWidth={0.6} />;
                 })}
               </g>
             ) : (
-              <polygon points={slabPts} fill={isSel ? '#5b5bd6' : '#3f4754'} {...wallHandlers} />
+              <polygon points={slabPts} fill={isSel ? '#5b5bd6' : WALL_STYLE_PLAN_FILL[wallStyleOf(f.wall)] ?? '#3f4754'} {...wallHandlers} />
             )}
             {/* countertop runs — extended over an owned dead corner (matches 3D) */}
             {runs.map((r, i) => {
@@ -856,15 +874,26 @@ export default function TopView() {
               />
               Island
             </label>
-            <label className="wall-dim-field wall-island" title="Draw this run as a fence (posts + pickets) instead of a solid wall">
-              <input
-                type="checkbox"
-                checked={!!selectedWall.fence}
-                disabled={selectedWall.ghost}
-                onChange={(e) => updateWall(selectedWall.id, { fence: e.target.checked })}
-              />
-              Fence
-            </label>
+            {!selectedWall.ghost && (
+              <label className="wall-dim-field" title="How this wall looks in the plan and in 3D">
+                Finish
+                <select
+                  className="select"
+                  value={wallStyleOf(selectedWall)}
+                  onChange={(e) => {
+                    const style = e.target.value as WallStyle;
+                    // keep the legacy flag in step so older saves stay readable
+                    updateWall(selectedWall.id, { style, fence: style === 'fence' || style === 'white-fence' });
+                  }}
+                >
+                  {(Object.entries(WALL_STYLE_LABELS) as Array<[WallStyle, string]>).map(([id, label]) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {selectedWall.ghost && (
               <label className="wall-dim-field wall-island" title="Counter overhangs the back of the island by half the cabinet depth (24″ deep → 12″) for seating">
                 <input
@@ -917,3 +946,14 @@ export default function TopView() {
     </div>
   );
 }
+
+/** Swatch previews for the wall styles (CSS approximations of the 3D textures). */
+const WALL_STYLE_SWATCH: Record<WallStyle, React.CSSProperties> = {
+  'standard': { background: '#efece4' },
+  'fence': { background: 'repeating-linear-gradient(90deg, #9c7a4d 0 6px, #f2efe8 6px 10px)' },
+  'white-fence': { background: 'repeating-linear-gradient(90deg, #e6e4dd 0 6px, #fafaf8 6px 10px)' },
+  'brick': { background: 'repeating-linear-gradient(0deg, #cfc7bb 0 2px, #9b5744 2px 11px)' },
+  'shiplap': { background: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.2) 0 1.5px, #eceeed 1.5px 11px)' },
+  'modern-wood': { background: 'repeating-linear-gradient(0deg, #5e4530 0 1.5px, #7a5a3d 1.5px 12px)' },
+  'slat': { background: 'repeating-linear-gradient(90deg, #a97e5a 0 4px, #17130f 4px 6.5px)' },
+};

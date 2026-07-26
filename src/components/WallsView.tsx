@@ -82,7 +82,7 @@ export function WallElevationSvg({
   const viewH = wall.height + topPad + dimSpace;
 
   const floorItems = laneItems(wallItems, wall.id, 'floor');
-  const runs = counterRuns(floorItems, design.bridgeCounters !== false);
+  const runs = counterRuns(floorItems, true);
   const cT = design.counterThickness ?? COUNTER_T;
   const bsH = design.backsplashHeight ?? 0;
   const counterColor = countertopById(design.counterId).base;
@@ -676,6 +676,7 @@ const OPENING_KINDS: { kind: OpeningKind; label: string }[] = [
   { kind: 'window', label: 'Window' },
   { kind: 'door', label: 'Door' },
   { kind: 'slider', label: 'Sliding Door' },
+  { kind: 'cutout', label: 'Wall Cutout' },
 ];
 
 function OpeningAdd({ wallId }: { wallId: string }) {

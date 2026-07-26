@@ -76,7 +76,7 @@ export default function SaveJobModal() {
     setError(null);
     setSavedTo(null);
     setBusy(true);
-    // Keep design.client in sync with the customer name for the report cover.
+    // Keep design.client in sync with the name for the report cover.
     if (customerName.trim() && customerName !== design.client) setDesignMeta({ client: customerName.trim() });
     if (name.trim() && name !== design.name) setDesignMeta({ name: name.trim() });
     if (isGuest) {
@@ -170,21 +170,21 @@ export default function SaveJobModal() {
 
         <div className="form-grid">
           <label className="form-field form-field-wide">
-            <span>Job name</span>
+            <span>Design name</span>
             <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           </label>
           {!isGuest && (
             <>
               <label className="form-field">
-                <span>Customer name</span>
+                <span>Your name</span>
                 <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
               </label>
               <label className="form-field">
-                <span>Customer email</span>
+                <span>Your email</span>
                 <input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
               </label>
               <label className="form-field form-field-wide">
-                <span>Customer address</span>
+                <span>Project address</span>
                 <input value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} />
               </label>
             </>

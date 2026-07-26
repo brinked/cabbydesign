@@ -850,7 +850,7 @@ export function OpeningModal() {
   const set = (patch: Partial<typeof o>) => updateOpening(o.id, patch);
   return (
     <Modal
-      title={o.kind === 'window' ? 'Window' : o.kind === 'slider' ? 'Sliding Door' : 'Door'}
+      title={o.kind === 'window' ? 'Window' : o.kind === 'slider' ? 'Sliding Door' : o.kind === 'cutout' ? 'Wall Cutout' : 'Door'}
       sub={`On ${wall?.name ?? 'wall'} · drag to position on the elevation`}
       onClose={() => openOpening(null)}
     >

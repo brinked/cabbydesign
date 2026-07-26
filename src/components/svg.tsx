@@ -1126,6 +1126,24 @@ export function OpeningGlyph({ kind, w, h, clash }: { kind: OpeningKind; w: numb
     );
   }
 
+  if (kind === 'cutout') {
+    // plain pass-through hole: dark void with a dashed edge (no frame)
+    return (
+      <g>
+        <rect
+          x={0}
+          y={0}
+          width={w}
+          height={h}
+          fill={clash ? 'rgba(192,57,43,0.25)' : 'rgba(45,52,62,0.30)'}
+          stroke={line}
+          strokeWidth={sw}
+          strokeDasharray={`${sw * 5} ${sw * 3}`}
+        />
+      </g>
+    );
+  }
+
   if (kind === 'slider') {
     // Sliding door: the panel count the 3D view will use for this width, one
     // leaf shown as the operable one with its full-height pull.

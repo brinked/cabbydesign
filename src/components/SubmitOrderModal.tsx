@@ -71,8 +71,8 @@ export default function SubmitOrderModal({
           <>
             <div className="form-grid">
               <label className="form-field">
-                <span>Customer name</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Customer name" />
+                <span>Your name</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
               </label>
               <label className="form-field">
                 <span>Customer email</span>

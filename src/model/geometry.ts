@@ -1,4 +1,4 @@
-import type { CatalogItem, LayoutKind, PlacedItem, Wall } from './types';
+import type { CatalogItem, LayoutKind, PlacedItem, Wall, WallStyle } from './types';
 
 /**
  * Plan-view placement of a wall: origin point, unit direction vector
@@ -397,4 +397,15 @@ export function planBounds(frames: WallFrame[], pad = 40): { x: number; y: numbe
   }
   if (!Number.isFinite(minX)) return { x: 0, y: 0, w: 100, h: 100 };
   return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
+}
+
+/** Effective wall style, honouring the legacy `fence` flag on older saves. */
+export function wallStyleOf(w: Wall): WallStyle {
+  return w.style ?? (w.fence ? 'fence' : 'standard');
+}
+
+/** Fence-type walls (wood or white picket) — open runs that sit on the lawn. */
+export function isFenceStyle(w: Wall): boolean {
+  const st = wallStyleOf(w);
+  return st === 'fence' || st === 'white-fence';
 }

@@ -266,8 +266,11 @@ export interface Wall {
   thickness: number;
   /** Invisible wall — an island/peninsula run with no physical wall drawn. */
   ghost: boolean;
-  /** Render this run as a fence (posts + pickets) instead of a solid wall. */
+  /** Render this run as a fence (posts + pickets) instead of a solid wall.
+   *  Legacy flag — superseded by `style`; kept in sync for older saves. */
   fence?: boolean;
+  /** Wall finish in plan/3D. Defaults to 'standard' (stucco). */
+  style?: WallStyle;
   /** Island only: the counter overhangs the BACK by half the cabinet depth
    *  (24″ cabinets → 12″) for bar-stool seating. */
   seatingOverhang?: boolean;
@@ -358,12 +361,16 @@ export interface RoughIn {
 }
 
 /** A window or door cut into a wall — framed, draggable/resizable in elevation. */
+/** Wall finishes: solid stucco, wood/white picket fences, or textured walls
+ *  (brick, shiplap, modern wood planks, acoustic wood slats). */
+export type WallStyle = 'standard' | 'fence' | 'white-fence' | 'brick' | 'shiplap' | 'modern-wood' | 'slat';
+
 /** Patio surface under the kitchen. 'concrete' is the poured pad the design
  *  has always drawn; 'marble-pavers' is a laid tumbled-marble paver field
  *  (Milestone "Ice White" and similar). */
 export type FlooringKind = 'concrete' | 'marble-pavers';
 
-export type OpeningKind = 'window' | 'door' | 'slider';
+export type OpeningKind = 'window' | 'door' | 'slider' | 'cutout';
 export interface Opening {
   id: string;
   wallId: string;
@@ -421,7 +428,8 @@ export interface Design {
   /** Stone backsplash height up the wall in inches (0 = no backsplash). Uses
    *  the same stone as the countertop. */
   backsplashHeight: number;
-  /** Countertops run over gaps between counter cabinets (default on). */
+  /** Legacy: countertops bridging gaps used to be optional. It is now always
+   *  on, so this is read only to keep older saves loading. */
   bridgeCounters?: boolean;
   /** Patio surface the kitchen sits on (default poured concrete). */
   flooring?: FlooringKind;
