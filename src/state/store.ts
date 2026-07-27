@@ -640,9 +640,15 @@ function packLane(items: PlacedItem[], wallLength: number, lo: number, hi: numbe
       let ax = Math.min(Math.max(active.x, loEdge), hiEdge - fpwA);
       // Auto applied ends are stripped AFTER the first pack pass, which used
       // to leave their 3/4″ ghost as a gap on a fast drop — snap flush to a
-      // neighbour when the drop lands within 2″ of it.
-      if (prev && ax - loEdge < 2) ax = loEdge;
-      else if (next && hiEdge - (ax + fpwA) < 2) ax = hiEdge - fpwA;
+      // neighbour when the drop lands within 2″ of it. Snap toward whichever
+      // side the drop is actually nearer: testing the left edge first meant
+      // that inside a gap narrower than 2″ the left branch always won, so a
+      // cabinet with (say) a 1″ gap on its right could never be pushed flush
+      // right — it sprang back left however far you dragged it.
+      const gapL = ax - loEdge;
+      const gapR = hiEdge - (ax + fpwA);
+      if (prev && gapL < 2 && (!next || gapL <= gapR)) ax = loEdge;
+      else if (next && gapR < 2) ax = hiEdge - fpwA;
       active.x = ax;
       return; // it fit in the gap — nobody else moves
     }

@@ -297,14 +297,23 @@ export function cornerCounterExtend(
   const qualifies = (wid: string, end: 'start' | 'end') =>
     items.some((it) => it.id === `cf-${wid}-${end}`) || overrides?.[cornerKey(wid, end)]?.off === true;
   const out = { start: false, end: false };
-  if (wall.ghost) return out;
   for (const other of walls) {
-    if (other.id === wall.id || other.ghost) continue;
+    if (other.id === wall.id) continue;
+    // Only like meets like: an island butting a real wall keeps the old
+    // behaviour (no fill). Two islands meeting IS handled — see below.
+    if (!!wall.ghost !== !!other.ghost) continue;
+    const bothIslands = !!wall.ghost && !!other.ghost;
     const oe = wallEndpoints(other);
     for (const [myEnd, myPt] of [['start', me.p0] as const, ['end', me.p1] as const]) {
       for (const [oEnd, oPt] of [['start', oe.p0] as const, ['end', oe.p1] as const]) {
         if (Math.hypot(myPt.x - oPt.x, myPt.y - oPt.y) > CORNER_EPS) continue;
-        if (qualifies(wall.id, myEnd) && qualifies(other.id, oEnd) && wall.id < other.id) out[myEnd] = true;
+        // Islands never get corner fillers (autoCornerFillers skips ghost
+        // walls), so they could never qualify and their dead corner was left
+        // bare. Cover it unconditionally: the stone runs to the corner and
+        // carries the run's own seating overhang, which turns the cabinet
+        // beneath into a hidden box under a continuous top.
+        const ok = bothIslands || (qualifies(wall.id, myEnd) && qualifies(other.id, oEnd));
+        if (ok && wall.id < other.id) out[myEnd] = true;
       }
     }
   }
