@@ -925,8 +925,13 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // square is covered (the run that reaches that end is the one extended).
       const fillStart = ext.start && r.x1 <= wr.start + 1;
       const fillEnd = ext.end && r.x2 >= f.wall.length - wr.end - 1;
-      const x1 = fillStart ? 0 : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
-      const x2 = fillEnd ? f.wall.length : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
+      // An island's seating overhang projects past the shared corner point by
+      // half a cabinet depth, so a filled corner that stops dead at the wall
+      // end leaves a step where the two tops meet. Run on by that overhang so
+      // the pair closes into one continuous L over the dead corner.
+      const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
+      const x1 = fillStart ? -cornerRunOn : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
+      const x2 = fillEnd ? f.wall.length + cornerRunOn : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
       const slabMat = mats.counter.clone();
       slabMat.map = mats.counterTex.clone();
       slabMat.map.repeat.set(1 / mats.counterTile, 1 / mats.counterTile);
