@@ -915,7 +915,9 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
 
     const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
     const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
-    for (const r of counterRuns3d(floorItems, true)) {
+    const runs3d = counterRuns3d(floorItems, true);
+    for (let ri = 0; ri < runs3d.length; ri++) {
+      const r = runs3d[ri];
       // Overhang only exposed run ends. Where another cabinet abuts (e.g. a
       // shorter neighbour in its own run), keep the counter flush so it doesn't
       // cut over the adjoining cabinet.
@@ -925,13 +927,23 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // square is covered (the run that reaches that end is the one extended).
       const fillStart = ext.start && r.x1 <= wr.start + 1;
       const fillEnd = ext.end && r.x2 >= f.wall.length - wr.end - 1;
-      // An island's seating overhang projects past the shared corner point by
-      // half a cabinet depth, so a filled corner that stops dead at the wall
-      // end leaves a step where the two tops meet. Run on by that overhang so
-      // the pair closes into one continuous L over the dead corner.
+      // An island's top spans the WHOLE ghost wall, not just the cabinets under
+      // it: the invisible wall's length is what defines the counter's length,
+      // so lengthening the wall lengthens the top (and its seating overhang)
+      // past the boxes. The outermost run on each side reaches the wall end;
+      // interior runs (a height change starts a new one) still butt normally.
+      const islandStart = !!f.wall.ghost && ri === 0;
+      const islandEnd = !!f.wall.ghost && ri === runs3d.length - 1;
+      // Its seating overhang also projects past a shared corner point by half a
+      // cabinet depth, so a filled corner stopping dead at the wall end leaves
+      // a step. Run on by that overhang to close the pair into one L.
       const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
-      const x1 = fillStart ? -cornerRunOn : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
-      const x2 = fillEnd ? f.wall.length + cornerRunOn : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
+      const x1 = fillStart ? -cornerRunOn : islandStart ? 0 : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
+      const x2 = fillEnd
+        ? f.wall.length + cornerRunOn
+        : islandEnd
+          ? f.wall.length
+          : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
       const slabMat = mats.counter.clone();
       slabMat.map = mats.counterTex.clone();
       slabMat.map.repeat.set(1 / mats.counterTile, 1 / mats.counterTile);

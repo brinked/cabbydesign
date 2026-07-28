@@ -602,8 +602,18 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
               const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
               const fillStart = ext.start && r.x1 <= wr.start + 1;
               const fillEnd = ext.end && r.x2 >= f.wall.length - wr.end - 1;
-              const x1 = fillStart ? 0 : Math.max(r.x1 - COUNTER_OVERHANG, 0);
-              const x2 = fillEnd ? f.wall.length : Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
+              // Mirrors scene3d: an island's top spans the whole ghost wall
+              // (the wall length defines it, not the cabinets), and a filled
+              // corner runs on by the seating overhang so the pair closes.
+              const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
+              const islandStart = !!f.wall.ghost && i === 0;
+              const islandEnd = !!f.wall.ghost && i === runs.length - 1;
+              const x1 = fillStart ? -cornerRunOn : islandStart ? 0 : Math.max(r.x1 - COUNTER_OVERHANG, 0);
+              const x2 = fillEnd
+                ? f.wall.length + cornerRunOn
+                : islandEnd
+                  ? f.wall.length
+                  : Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
               // island seating overhang: the counter extends past the back by
               // half the cabinet depth
               const backExt = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
