@@ -1590,9 +1590,14 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: 'h-center', handleBottom: true });
         break;
       case 'endcap':
-      case 'filler':
         // finished panel in the cabinet design, no door hardware
         fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: 'none' });
+        break;
+      case 'filler':
+        // Narrow trim strip closing a gap — it is not a door, and squeezing a
+        // door design onto a few inches of width reads as a mistake. Plain
+        // slab in the cabinet finish, like the real part.
+        fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: 'none', slab: true });
         break;
       default:
         fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: oneDoorHandle });
