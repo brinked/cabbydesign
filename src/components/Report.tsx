@@ -486,7 +486,7 @@ export default function Report() {
                 {showPricing && <td className="num">{money(pergolaRate)}/sq ft</td>}
                 {showPricing && <td className="num">{money(Math.round(pergolaSqft * pergolaRate * 100) / 100)}</td>}
               </tr>
-              {pergolaCols > 0 && pergolaColRate > 0 && (
+              {pergolaCols > 0 && (
                 <tr>
                   <td>
                     Columns — {pergolaCols}

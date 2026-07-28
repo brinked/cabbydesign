@@ -466,6 +466,9 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1eee7, roughness: 0.92 });
   const fenceMat = new THREE.MeshStandardMaterial({ color: 0x9c7a4d, roughness: 0.85 });
   const whiteFenceMat = new THREE.MeshStandardMaterial({ color: 0xf2f1ec, roughness: 0.8 });
+  // Screened-in patio wall: dark bronze aluminum framing + see-through mesh.
+  const screenFrameMat = new THREE.MeshStandardMaterial({ color: 0x3a3d40, roughness: 0.5, metalness: 0.45 });
+  const screenMeshMat = new THREE.MeshStandardMaterial({ color: 0x22262a, roughness: 0.9, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
   // Textured wall finishes (brick / shiplap / modern wood / acoustic slats):
   // one procedural 48"-tile per style, repeated to each wall's size.
   const styledWallMats: THREE.MeshStandardMaterial[] = [];
@@ -560,6 +563,31 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       pk.castShadow = true;
       g.add(pk);
     }
+    return g;
+  };
+  // A screened-in patio wall centered at the origin like buildFence: square
+  // aluminum posts every ~8 ft bay, top/bottom (and knee-height) rails, and a
+  // single translucent mesh plane you can see the yard through.
+  const buildScreen = (L: number, H: number): THREE.Group => {
+    const g = new THREE.Group();
+    const P = 2; // 2" square aluminum tube
+    const bays = Math.max(1, Math.round(L / 96));
+    for (let i = 0; i <= bays; i++) {
+      const post = box(P, H, P, screenFrameMat);
+      post.position.set(-L / 2 + (L * i) / bays, 0, 0);
+      post.castShadow = true;
+      g.add(post);
+    }
+    const railYs = [H / 2 - P / 2, -H / 2 + P / 2];
+    if (H > 54) railYs.push(-H / 2 + 36); // knee rail on full-height walls
+    for (const ry of railYs) {
+      const rail = box(L, P, P, screenFrameMat);
+      rail.position.set(0, ry, 0);
+      g.add(rail);
+    }
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(L, H - P * 2), screenMeshMat);
+    mesh.position.set(0, 0, 0);
+    g.add(mesh);
     return g;
   };
   // window / door materials (built once, disposed with the scene)
@@ -690,6 +718,8 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       };
       if (wallStyle === 'fence' || wallStyle === 'white-fence') {
         place(buildFence(f.wall.length, f.wall.height, th, wallStyle === 'white-fence' ? whiteFenceMat : fenceMat), f.wall.length / 2, -th / 2, f.wall.height / 2);
+      } else if (wallStyle === 'screen') {
+        place(buildScreen(f.wall.length, f.wall.height), f.wall.length / 2, -th / 2, f.wall.height / 2);
       } else if (cutouts.length) {
         const mat = wallStyle !== 'standard' ? styledWallMat(wallStyle, f.wall.length, f.wall.height) : wallMat;
         if (wallStyle !== 'standard' && mat.map) mat.map.repeat.set(1 / 48, 1 / 48); // extrude UVs are in inches
@@ -1113,6 +1143,8 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     wallMat.dispose();
     fenceMat.dispose();
     whiteFenceMat.dispose();
+    screenFrameMat.dispose();
+    screenMeshMat.dispose();
     for (const m of styledWallMats) {
       m.map?.dispose();
       m.dispose();

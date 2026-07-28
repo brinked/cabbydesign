@@ -13,6 +13,7 @@ const WALL_STYLE_LABELS: Record<WallStyle, string> = {
   'standard': 'Standard wall',
   'fence': 'Wood fence',
   'white-fence': 'White fence',
+  'screen': 'Screen wall',
   'brick': 'Brick wall',
   'shiplap': 'Shiplap wall',
   'modern-wood': 'Modern wood wall',
@@ -21,6 +22,7 @@ const WALL_STYLE_LABELS: Record<WallStyle, string> = {
 
 /** Plan-view slab fill per wall style (fences draw their own picket band). */
 const WALL_STYLE_PLAN_FILL: Partial<Record<WallStyle, string>> = {
+  'screen': '#93a8b0',
   'brick': '#8d5140',
   'shiplap': '#c9cdcb',
   'modern-wood': '#7a5a3d',
@@ -1157,6 +1159,7 @@ const WALL_STYLE_SWATCH: Record<WallStyle, React.CSSProperties> = {
   'standard': { background: '#efece4' },
   'fence': { background: 'repeating-linear-gradient(90deg, #9c7a4d 0 6px, #f2efe8 6px 10px)' },
   'white-fence': { background: 'repeating-linear-gradient(90deg, #e6e4dd 0 6px, #fafaf8 6px 10px)' },
+  'screen': { background: 'repeating-linear-gradient(90deg, rgba(47,54,60,0.5) 0 1px, #cfd9dd 1px 3.5px)' },
   'brick': { background: 'repeating-linear-gradient(0deg, #cfc7bb 0 2px, #9b5744 2px 11px)' },
   'shiplap': { background: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.2) 0 1.5px, #eceeed 1.5px 11px)' },
   'modern-wood': { background: 'repeating-linear-gradient(0deg, #5e4530 0 1.5px, #7a5a3d 1.5px 12px)' },

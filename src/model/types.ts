@@ -363,7 +363,7 @@ export interface RoughIn {
 /** A window or door cut into a wall — framed, draggable/resizable in elevation. */
 /** Wall finishes: solid stucco, wood/white picket fences, or textured walls
  *  (brick, shiplap, modern wood planks, acoustic wood slats). */
-export type WallStyle = 'standard' | 'fence' | 'white-fence' | 'brick' | 'shiplap' | 'modern-wood' | 'slat';
+export type WallStyle = 'standard' | 'fence' | 'white-fence' | 'screen' | 'brick' | 'shiplap' | 'modern-wood' | 'slat';
 
 export type PergolaAttach = 'none' | 'back' | 'front' | 'left' | 'right';
 
