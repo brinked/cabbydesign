@@ -906,6 +906,7 @@ export default function TopView() {
   const items = useStore((s) => s.design.items);
   const flipWall = useStore((s) => s.flipWall);
   const rotateWall = useStore((s) => s.rotateWall);
+  const centerWallItems = useStore((s) => s.centerWallItems);
   const updateWall = useStore((s) => s.updateWall);
   const removeWall = useStore((s) => s.removeWall);
   const openAdd = useStore((s) => s.openAdd);
@@ -1138,6 +1139,9 @@ export default function TopView() {
                 </button>
               );
             })}
+            <button className="tool-btn" title="Center the cabinets on this wall — equal space at both ends" onClick={() => centerWallItems(selectedWall.id)}>
+              ⇹ Center
+            </button>
             <button className="tool-btn" title="Rotate this wall 45° about its center" onClick={() => rotateWall(selectedWall.id, 45)}>
               ↻ 45°
             </button>

@@ -555,6 +555,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
   const design = useStore((s) => s.design);
   const updateWall = useStore((s) => s.updateWall);
   const removeWall = useStore((s) => s.removeWall);
+  const centerWallItems = useStore((s) => s.centerWallItems);
   const openAdd = useStore((s) => s.openAdd);
   const finish = useStore((s) => s.design.finishId);
   const fin = useFinish(finish);
@@ -619,6 +620,9 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
             ✕
           </button>
         )}
+        <button className="btn-ghost" title="Center the cabinets on this wall — equal space at both ends" onClick={() => centerWallItems(wall.id)}>
+          ⇹ Center
+        </button>
         <RoughInAdd wallId={wall.id} />
         <OpeningAdd wallId={wall.id} />
         <button className="btn-dark" onClick={() => openAdd(wall.id)}>

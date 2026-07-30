@@ -325,6 +325,7 @@ interface AppState {
   removeWall: (id: string) => void;
   updateWall: (id: string, patch: Partial<Omit<Wall, 'id'>>) => void;
   flipWall: (id: string) => void;
+  centerWallItems: (id: string) => void;
   rotateWall: (id: string, deltaDeg: number) => void;
   addItem: (wallId: string, catalogId: string) => boolean;
   updateItem: (id: string, patch: Partial<Omit<PlacedItem, 'id' | 'catalogId'>>) => void;
@@ -1198,6 +1199,39 @@ export const useStore = create<AppState>()(
             it.wallId === id ? { ...it, x: wall.length - it.x - it.w } : it
           );
           return { design: withPack({ ...s.design, walls, items }) };
+        }),
+
+      // Slide each lane's run of cabinets so the leftover space splits evenly
+      // between the wall's two ends. Corner cabinets stay anchored in their
+      // dead corners and bound the free span (as do corner reserves from
+      // neighbouring walls); auto fillers are ignored (re-derived by the
+      // pack); each lane centers independently.
+      centerWallItems: (id) =>
+        set((s) => {
+          const wall = s.design.walls.find((w) => w.id === id);
+          if (!wall) return s;
+          const r = reservesFor(s.design).get(id) ?? { start: 0, end: 0 };
+          const items = s.design.items.map((it) => ({ ...it }));
+          for (const lane of ['floor', 'upper'] as const) {
+            const laneRun = items.filter((it) => it.wallId === id && !it.auto && catalogById(it.catalogId).lane === lane);
+            const run = laneRun.filter((it) => !isCornerFront(catalogById(it.catalogId)));
+            if (!run.length) continue;
+            let lo = r.start;
+            let hi = wall.length - r.end;
+            for (const a of laneRun) {
+              if (!isCornerFront(catalogById(a.catalogId))) continue;
+              if (a.x + footprintW(a) / 2 < wall.length / 2) lo = Math.max(lo, a.x + footprintW(a));
+              else hi = Math.min(hi, a.x);
+            }
+            const minX = Math.min(...run.map((it) => it.x));
+            const maxX = Math.max(...run.map((it) => it.x + footprintW(it)));
+            const span = maxX - minX;
+            if (span > hi - lo + 0.001) continue; // overfull — packing already governs
+            const offset = Math.round((lo + (hi - lo - span) / 2 - minX) * 8) / 8;
+            if (!offset) continue;
+            for (const it of run) it.x += offset;
+          }
+          return { design: withPack({ ...s.design, items }) };
         }),
 
       addItem: (wallId, catalogId) => {
