@@ -21,6 +21,15 @@ export default function View3D() {
   const captureRef = useRef<(() => string) | null>(null);
   const camRef = useRef<{ camera: THREE.PerspectiveCamera; controls: OrbitControls } | null>(null);
 
+  // The persistent 3D world (renderer, environment, lights, ground, camera)
+  // lives in refs and is built ONCE per mount. Design changes and arriving
+  // model files only swap the design group (second effect below) — rebuilding
+  // the WebGL context and re-baking the environment per change is what made
+  // opening this tab crawl.
+  const worldRef = useRef<{ scene: THREE.Scene; sun: THREE.DirectionalLight } | null>(null);
+  const needsRenderRef = useRef(true);
+  const framedRef = useRef(false);
+
   useEffect(() => {
     const el = mount.current;
     if (!el) return;
@@ -55,6 +64,7 @@ export default function View3D() {
     sun.shadow.blurSamples = 8;
     sun.shadow.bias = -0.0004;
     scene.add(sun);
+    scene.add(sun.target);
 
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(1600, 48),
@@ -64,25 +74,11 @@ export default function View3D() {
     ground.receiveShadow = true;
     scene.add(ground);
 
-    const { group, center, radius, dispose } = buildDesignGroup(design, fin, appliances, modelAligns);
-    scene.add(group);
+    worldRef.current = { scene, sun };
+    framedRef.current = false;
 
-    sun.position.copy(center).add(new THREE.Vector3(radius, radius * 1.4, radius * 0.6));
-    sun.target.position.copy(center);
-    scene.add(sun.target);
-    const s = radius * 1.4;
-    sun.shadow.camera.left = -s;
-    sun.shadow.camera.right = s;
-    sun.shadow.camera.top = s;
-    sun.shadow.camera.bottom = -s;
-    sun.shadow.camera.far = radius * 6;
-
-    camera.position.copy(center).add(new THREE.Vector3(radius * 1.1, radius * 0.8, radius * 1.25));
-    controls.target.copy(center);
-
-    let needsRender = true;
     controls.addEventListener('change', () => {
-      needsRender = true;
+      needsRenderRef.current = true;
     });
 
     const resize = () => {
@@ -91,7 +87,7 @@ export default function View3D() {
       renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      needsRender = true;
+      needsRenderRef.current = true;
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -100,8 +96,8 @@ export default function View3D() {
     let raf = 0;
     const tick = () => {
       controls.update();
-      if (needsRender) {
-        needsRender = false;
+      if (needsRenderRef.current) {
+        needsRenderRef.current = false;
         renderer.render(scene, camera);
       }
       raf = requestAnimationFrame(tick);
@@ -121,11 +117,48 @@ export default function View3D() {
       pmrem.dispose();
       renderer.dispose();
       el.removeChild(renderer.domElement);
-      scene.traverse((o) => {
+      ground.geometry.dispose();
+      camRef.current = null;
+      worldRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Swap the design group into the persistent world whenever the design (or a
+  // freshly arrived model file) changes. Much cheaper than a full rebuild: the
+  // renderer, environment and camera stay put — the camera only frames the
+  // scene on the first build so a loading model doesn't yank the view around.
+  useEffect(() => {
+    const world = worldRef.current;
+    if (!world) return;
+    const { scene, sun } = world;
+    const { group, center, radius, dispose } = buildDesignGroup(design, fin, appliances, modelAligns);
+    scene.add(group);
+
+    sun.position.copy(center).add(new THREE.Vector3(radius, radius * 1.4, radius * 0.6));
+    sun.target.position.copy(center);
+    const s = radius * 1.4;
+    sun.shadow.camera.left = -s;
+    sun.shadow.camera.right = s;
+    sun.shadow.camera.top = s;
+    sun.shadow.camera.bottom = -s;
+    sun.shadow.camera.far = radius * 6;
+    sun.shadow.camera.updateProjectionMatrix();
+
+    const cam = camRef.current;
+    if (cam && !framedRef.current) {
+      framedRef.current = true;
+      cam.camera.position.copy(center).add(new THREE.Vector3(radius * 1.1, radius * 0.8, radius * 1.25));
+      cam.controls.target.copy(center);
+    }
+    needsRenderRef.current = true;
+
+    return () => {
+      scene.remove(group);
+      group.traverse((o) => {
         if (o instanceof THREE.Mesh) o.geometry.dispose();
       });
       dispose();
-      camRef.current = null;
     };
   }, [design, fin, appliances, modelAligns, modelsReady]);
 

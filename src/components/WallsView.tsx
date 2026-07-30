@@ -595,7 +595,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
           />
           Island
         </label>
-        {wall.ghost && (
+        {wall.ghost && !design.items.some((it) => it.wallId === wall.id && catalogById(it.catalogId).barHeight) && (
           <label className="wall-dim-field wall-island" title="Counter overhangs the back of the island by half the cabinet depth (24″ deep → 12″) for seating">
             <input
               type="checkbox"

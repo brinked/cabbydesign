@@ -987,6 +987,13 @@ function withPack(design: Design, activeId?: string): Design {
   autoFridgeOutset(next);
   autoCornerFillers(next);
   alignFillers(next);
+  // Bar-height cabinets carry their own raised bar + 10″ seating overhang, so
+  // the island's seating-overhang flag is redundant — drop it once one lands.
+  if (next.walls.some((w) => w.seatingOverhang && next.items.some((it) => it.wallId === w.id && catalogById(it.catalogId).barHeight))) {
+    next.walls = next.walls.map((w) =>
+      w.seatingOverhang && next.items.some((it) => it.wallId === w.id && catalogById(it.catalogId).barHeight) ? { ...w, seatingOverhang: false } : w,
+    );
+  }
   return next;
 }
 

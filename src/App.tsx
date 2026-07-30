@@ -52,11 +52,23 @@ export default function App() {
   }, [init]);
 
   // Preload real 3D appliance models; flip the store flag so the 3D scene and
-  // 2D sprites re-render with them once they arrive.
+  // 2D sprites re-render with them once they arrive. Arrivals are coalesced —
+  // a burst of models/textures landing together triggers ONE re-render, not a
+  // rebuild per file.
   useEffect(() => {
-    const off = onModelsLoaded(() => useStore.setState((s) => ({ modelsReady: s.modelsReady + 1 })));
+    let t: number | null = null;
+    const off = onModelsLoaded(() => {
+      if (t !== null) return;
+      t = window.setTimeout(() => {
+        t = null;
+        useStore.setState((s) => ({ modelsReady: s.modelsReady + 1 }));
+      }, 150);
+    });
     loadModels();
-    return off;
+    return () => {
+      off();
+      if (t !== null) window.clearTimeout(t);
+    };
   }, []);
 
   if (resetToken) {

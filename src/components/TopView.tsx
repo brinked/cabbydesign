@@ -903,6 +903,7 @@ export default function TopView() {
   const wallCount = useStore((s) => s.design.walls.length);
   const selectedId = useStore((s) => s.selectedId);
   const walls = useStore((s) => s.design.walls);
+  const items = useStore((s) => s.design.items);
   const flipWall = useStore((s) => s.flipWall);
   const rotateWall = useStore((s) => s.rotateWall);
   const updateWall = useStore((s) => s.updateWall);
@@ -1114,7 +1115,7 @@ export default function TopView() {
                 </select>
               </label>
             )}
-            {selectedWall.ghost && (
+            {selectedWall.ghost && !items.some((it) => it.wallId === selectedWall.id && catalogById(it.catalogId).barHeight) && (
               <label className="wall-dim-field wall-island" title="Counter overhangs the back of the island by half the cabinet depth (24″ deep → 12″) for seating">
                 <input
                   type="checkbox"
