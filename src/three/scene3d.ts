@@ -962,18 +962,16 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // so lengthening the wall lengthens the top (and its seating overhang)
       // past the boxes. The outermost run on each side reaches the wall end;
       // interior runs (a height change starts a new one) still butt normally.
-      const islandStart = !!f.wall.ghost && ri === 0;
-      const islandEnd = !!f.wall.ghost && ri === runs3d.length - 1;
-      // Its seating overhang also projects past a shared corner point by half a
+      // The top covers just the cabinets in the run, overhanging exposed ends
+      // by COUNTER_OVERHANG (1") — islands included.
+      // A seating overhang also projects past a shared corner point by half a
       // cabinet depth, so a filled corner stopping dead at the wall end leaves
       // a step. Run on by that overhang to close the pair into one L.
       const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
-      const x1 = fillStart ? -cornerRunOn : islandStart ? 0 : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
+      const x1 = fillStart ? -cornerRunOn : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
       const x2 = fillEnd
         ? f.wall.length + cornerRunOn
-        : islandEnd
-          ? f.wall.length
-          : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
+        : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
       const slabMat = mats.counter.clone();
       slabMat.map = mats.counterTex.clone();
       slabMat.map.repeat.set(1 / mats.counterTile, 1 / mats.counterTile);

@@ -14,7 +14,7 @@ import {
   selectedApplianceWidth,
 } from '../model/appliances';
 import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleItem, KitchenType, PlacedItem, ProductLine } from '../model/types';
-import { effectiveDims, itemPrice, largestOpening, openingFor, roughInConflict, sideExposed, spaceLeft, uid, useStore } from '../state/store';
+import { effectiveDims, footprintW, itemPrice, laneItems, largestOpening, openingFor, roughInConflict, sideExposed, spaceLeft, uid, useStore } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { useSession } from '../state/session';
 import { HANDLE_3D_MODELS, SLIDER_4PANEL_MIN_W } from '../three/models';
@@ -549,6 +549,20 @@ export function EditItemModal() {
   const island = wall.ghost;
   const maxTrays = cat.maxTrays ?? 0;
 
+  // Free space beside this cabinet — up to the nearest lane-mate or the wall
+  // end. Editing a side slides the cabinet, giving exact control over its
+  // distance from the wall edge or the neighbouring cabinet.
+  const laneMates = laneItems(design.items, it.wallId, cat.lane).filter((o) => o.id !== it.id);
+  const fpw = footprintW(it);
+  const leftEdge = laneMates.reduce((m, o) => {
+    const e = o.x + footprintW(o);
+    return e <= it.x + 0.001 ? Math.max(m, e) : m;
+  }, 0);
+  const rightEdge = laneMates.reduce((m, o) => (o.x >= it.x + fpw - 0.001 ? Math.min(m, o.x) : m), wall.length);
+  const gapL = Math.round(Math.max(0, it.x - leftEdge) * 100) / 100;
+  const gapR = Math.round(Math.max(0, rightEdge - it.x - fpw) * 100) / 100;
+  const slide = (x: number) => updateItem(it.id, { x: Math.round(Math.min(Math.max(x, leftEdge), rightEdge - fpw) * 8) / 8 });
+
   // NewAge units: series & door finish are per-cabinet options (like the
   // manufacturer's own product page). Effective finish = the cabinet's own
   // choice, else the kitchen default.
@@ -701,6 +715,22 @@ export function EditItemModal() {
           {maxTrays > 0 && (
             <Stepper label="Pull-out trays" value={it.trays} step={1} min={0} max={maxTrays} onChange={(trays) => updateItem(it.id, { trays })} />
           )}
+          <Stepper
+            label={leftEdge > 0.001 ? 'Space left (to neighbor)' : 'Space left (to wall end)'}
+            value={gapL}
+            step={1}
+            min={0}
+            max={gapL + gapR}
+            onChange={(v) => slide(leftEdge + v)}
+          />
+          <Stepper
+            label={rightEdge < wall.length - 0.001 ? 'Space right (to neighbor)' : 'Space right (to wall end)'}
+            value={gapR}
+            step={1}
+            min={0}
+            max={gapL + gapR}
+            onChange={(v) => slide(rightEdge - v - fpw)}
+          />
         </div>
         <div className="stepper-list">
           {hasEndOptions && endRow('left')}
