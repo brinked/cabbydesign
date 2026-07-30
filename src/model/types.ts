@@ -266,6 +266,10 @@ export interface Wall {
   thickness: number;
   /** Invisible wall — an island/peninsula run with no physical wall drawn. */
   ghost: boolean;
+  /** Opt this wall out of endpoint snapping, both as a thing that snaps and as
+   *  a thing others snap to. For running a wall alongside another without the
+   *  two grabbing each other and joining into a corner. */
+  noSnap?: boolean;
   /** Render this run as a fence (posts + pickets) instead of a solid wall.
    *  Legacy flag — superseded by `style`; kept in sync for older saves. */
   fence?: boolean;

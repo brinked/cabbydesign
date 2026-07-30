@@ -770,13 +770,37 @@ export function EditItemModal() {
 }
 
 /** Horizontal position rows — both the from-left and from-right distances are
- *  directly editable (editing one updates the other). */
-function PositionFields({ x, wallLen, onChange }: { x: number; wallLen: number; onChange: (x: number) => void }) {
-  const fromRight = Math.round(Math.max(0, wallLen - x) * 100) / 100;
+ *  directly editable (editing one updates the other).
+ *
+ *  `width` switches them from centre-based to EDGE-based. A rough-in is a
+ *  point, so its centre IS its position; but a door or window is dimensioned
+ *  to the opening itself the way it's built and measured on site — a 36" door
+ *  set 12" off the left jamb reads "12 to the opening", not "30 to its
+ *  centre". `x` stays the centre in the model either way. */
+function PositionFields({ x, wallLen, width = 0, onChange }: { x: number; wallLen: number; width?: number; onChange: (x: number) => void }) {
+  const half = width / 2;
+  const span = Math.max(0, wallLen - width); // travel available to the near edge
+  const fromLeft = Math.round(Math.max(0, x - half) * 100) / 100;
+  const fromRight = Math.round(Math.max(0, wallLen - (x + half)) * 100) / 100;
+  const edge = width > 0;
   return (
     <>
-      <Stepper label="Center from left" value={x} step={1} min={0} max={wallLen} onChange={onChange} />
-      <Stepper label="Center from right" value={fromRight} step={1} min={0} max={wallLen} onChange={(v) => onChange(Math.max(0, Math.min(wallLen, wallLen - v)))} />
+      <Stepper
+        label={edge ? 'Left edge from left' : 'Center from left'}
+        value={fromLeft}
+        step={1}
+        min={0}
+        max={span}
+        onChange={(v) => onChange(Math.max(half, Math.min(wallLen - half, v + half)))}
+      />
+      <Stepper
+        label={edge ? 'Right edge from right' : 'Center from right'}
+        value={fromRight}
+        step={1}
+        min={0}
+        max={span}
+        onChange={(v) => onChange(Math.max(half, Math.min(wallLen - half, wallLen - v - half)))}
+      />
     </>
   );
 }
@@ -868,7 +892,7 @@ export function OpeningModal() {
       <div className="stepper-list">
         <Stepper label="Width" value={o.w} step={1} min={6} max={Math.max(6, wallLen)} onChange={(w) => set({ w })} />
         <Stepper label="Height" value={o.h} step={1} min={6} max={Math.max(6, wallH)} onChange={(h) => set({ h })} />
-        <PositionFields x={o.x} wallLen={wallLen} onChange={(x) => set({ x })} />
+        <PositionFields x={o.x} wallLen={wallLen} width={o.w} onChange={(x) => set({ x })} />
         <Stepper label="Sill height (from floor)" value={o.y} step={1} min={0} max={Math.max(0, wallH - o.h)} onChange={(y) => set({ y })} />
       </div>
       {o.kind === 'slider' && (

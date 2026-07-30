@@ -201,8 +201,10 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
   const itemDrag = useRef<{ id: string; wallId: string; startPt: { x: number; y: number }; startX: number; moved: boolean } | null>(null);
   const wallDrag = useRef<{ id: string; startPt: { x: number; y: number }; origX: number; origY: number; moved: boolean } | null>(null);
 
+  // A wall marked noSnap is invisible to snapping: it offers no endpoints for
+  // others to grab, and nothing is snapped when IT is the one being moved.
   const allEndpoints = (excludeId?: string) =>
-    design.walls.filter((w) => w.id !== excludeId).flatMap((w) => wallSnapPoints(w));
+    design.walls.filter((w) => w.id !== excludeId && !w.noSnap).flatMap((w) => wallSnapPoints(w));
 
   const snapToEndpoints = (p: { x: number; y: number }, excludeId?: string) => {
     let best = p;
@@ -453,7 +455,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
     // joins keep wall thickness from covering another run's usable length)
     const moved = { ...wall, x: nx, y: ny };
     let bestAdj: { x: number; y: number } | null = null;
-    let bestD = END_SNAP;
+    let bestD = wall.noSnap ? 0 : END_SNAP; // opted out per wall
     for (const mine of wallSnapPoints(moved)) {
       for (const other of allEndpoints(wallId)) {
         const dd = Math.hypot(mine.x - other.x, mine.y - other.y);
@@ -1080,6 +1082,17 @@ export default function TopView() {
                 onChange={(e) => updateWall(selectedWall.id, { ghost: e.target.checked })}
               />
               Island
+            </label>
+            <label
+              className="wall-dim-field wall-island"
+              title="Leave this wall out of snapping entirely — it won't grab other walls and they won't grab it. For running a wall alongside another without the two joining."
+            >
+              <input
+                type="checkbox"
+                checked={!!selectedWall.noSnap}
+                onChange={(e) => updateWall(selectedWall.id, { noSnap: e.target.checked })}
+              />
+              No snap
             </label>
             {!selectedWall.ghost && (
               <label className="wall-dim-field" title="How this wall looks in the plan and in 3D">

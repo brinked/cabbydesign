@@ -285,8 +285,8 @@ export function WallElevationSvg({
             {dragging && (
               <g className="rough-dims">
                 <line x1={0} y1={gy + o.h} x2={wall.length} y2={gy + o.h} stroke="#5b5bd6" strokeWidth={0.3} strokeDasharray="1.5 1" />
-                <DimH x1={0} x2={o.x} y={gy + o.h - 2} label={`${fmtIn(o.x)} →`} />
-                <DimH x1={o.x} x2={wall.length} y={gy + o.h - 2} label={`← ${fmtIn(Math.max(0, wall.length - o.x))}`} />
+                <DimH x1={0} x2={gx} y={gy + o.h - 2} label={`${fmtIn(Math.max(0, gx))} →`} />
+                <DimH x1={gx + o.w} x2={wall.length} y={gy + o.h - 2} label={`← ${fmtIn(Math.max(0, wall.length - gx - o.w))}`} />
                 {o.y > 0.01 && <DimV y1={gy + o.h} y2={floorY} x={gx - 3} label={`${fmtIn(o.y)} ↑`} />}
               </g>
             )}
