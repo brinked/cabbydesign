@@ -2060,7 +2060,10 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   }
 
   // above-counter appliance gear
-  const counterTop = BASE_H + (dims.counterT ?? COUNTER_T);
+  // Top of this cabinet's counter slab. Derived from the cabinet's OWN height,
+  // not BASE_H: pinning it to BASE_H left the kamado egg (and a sink's basin)
+  // floating at standard counter height when the cabinet was made shorter.
+  const counterTop = h + (dims.counterT ?? COUNTER_T);
 
   // Drop-in cooktop: black glass slab resting on the countertop with four
   // burner rings (front pair larger) and a small front control strip.

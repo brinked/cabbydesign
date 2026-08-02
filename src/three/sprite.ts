@@ -52,7 +52,10 @@ export type SpriteView = 'front' | 'iso';
 /** Total sprite height in inches for a front-view sprite (carcass + gear). */
 export function spriteTopY(cat: CatalogItem, h: number): number {
   const gear = gearAbove(cat);
-  return gear > 0 ? BASE_H + gear : h;
+  // Framed off the cabinet's OWN height: pinning to BASE_H cropped the gear on
+  // any non-standard-height cabinet (a shortened built-in kamado lost its vent
+  // cap in the elevation), and the placement <image> uses this same function.
+  return gear > 0 ? h + gear : h;
 }
 
 /** Extra sprite width on each side for applied end panels. */
