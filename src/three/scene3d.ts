@@ -695,9 +695,11 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     if (!f.wall.ghost) {
       const th = f.wall.thickness ?? 5;
       const wallStyle = wallStyleOf(f.wall);
-      // Cutout openings punch REAL holes through the wall, so those walls are
-      // built as an extruded outline-with-holes instead of a solid box.
-      const cutouts = design.openings.filter((o) => o.wallId === f.wall.id && o.kind === 'cutout');
+      // EVERY opening punches a REAL hole through the wall — a door, slider or
+      // window shouldn't show the painted wall through its glass (the unit's
+      // frame covers the cut edges), and cutouts are pass-throughs by nature.
+      // Walls with openings are built as an extruded outline-with-holes.
+      const cutouts = design.openings.filter((o) => o.wallId === f.wall.id);
       const wallGeoWithHoles = (): THREE.ExtrudeGeometry => {
         const L = f.wall.length;
         const H = f.wall.height;
