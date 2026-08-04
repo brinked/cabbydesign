@@ -6,7 +6,7 @@ import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndJoined, wallEndpoints } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot.
  *  Default only — the admin-managed rates live in store.panelRates. */
@@ -1154,16 +1154,33 @@ export const useStore = create<AppState>()(
 
       updateWall: (id, patch) =>
         set((s) => {
+          let items = s.design.items;
           const walls = s.design.walls.map((w) => {
             if (w.id !== id) return w;
             const next = { ...w, ...patch };
+            // Length change: grow/shrink from the UNATTACHED end so a corner
+            // this wall shares with another stays connected. The origin end is
+            // naturally fixed; when only the FAR end is joined, shift the
+            // origin instead so the far corner holds — and shift the wall's
+            // cabinets with it so they keep their spot in the plan.
+            if (patch.length !== undefined && Math.abs(patch.length - w.length) > 0.001) {
+              const startJoined = wallEndJoined(w, s.design.walls, 'start');
+              const endJoined = wallEndJoined(w, s.design.walls, 'end');
+              if (endJoined && !startJoined) {
+                const delta = patch.length - w.length;
+                const rad = (w.angle * Math.PI) / 180;
+                next.x = Math.round((w.x - Math.cos(rad) * delta) * 100) / 100;
+                next.y = Math.round((w.y - Math.sin(rad) * delta) * 100) / 100;
+                items = items.map((it) => (it.wallId === id ? { ...it, x: Math.max(0, it.x + delta) } : it));
+              }
+            }
             // thickness 0 ⟹ island; un-islanding restores a default thickness
             if (patch.thickness !== undefined && patch.thickness <= 0) next.ghost = true;
             if (patch.ghost === false && (next.thickness ?? 0) <= 0) next.thickness = 5;
             if (patch.ghost === true) next.thickness = 0;
             return next;
           });
-          return { design: withPack({ ...s.design, walls }) };
+          return { design: withPack({ ...s.design, walls, items }) };
         }),
 
       rotateWall: (id, deltaDeg) =>

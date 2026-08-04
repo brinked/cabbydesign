@@ -275,6 +275,9 @@ export interface Wall {
   fence?: boolean;
   /** Wall finish in plan/3D. Defaults to 'standard' (stucco). */
   style?: WallStyle;
+  /** Paint color for the standard (stucco) finish — hex like '#aabbcc'.
+   *  Absent = the default off-white. Textured styles ignore it. */
+  color?: string;
   /** Island only: the counter overhangs the BACK by half the cabinet depth
    *  (24″ cabinets → 12″) for bar-stool seating. */
   seatingOverhang?: boolean;

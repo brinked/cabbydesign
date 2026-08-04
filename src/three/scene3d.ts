@@ -464,6 +464,15 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
   const BS_THICK = 0.75; // backsplash slab thickness off the wall
   const reserves = bsH > 0 ? reservesFor(design) : null; // corner zones for backsplash spans
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1eee7, roughness: 0.92 });
+  // Per-wall paint colors (standard finish only) — created on demand, disposed
+  // with the scene.
+  const coloredWallMats: THREE.MeshStandardMaterial[] = [];
+  const wallMatFor = (wall: Wall): THREE.MeshStandardMaterial => {
+    if (!wall.color) return wallMat;
+    const m = new THREE.MeshStandardMaterial({ color: new THREE.Color(wall.color), roughness: 0.92 });
+    coloredWallMats.push(m);
+    return m;
+  };
   const fenceMat = new THREE.MeshStandardMaterial({ color: 0x9c7a4d, roughness: 0.85 });
   const whiteFenceMat = new THREE.MeshStandardMaterial({ color: 0xf2f1ec, roughness: 0.8 });
   // Screened-in patio wall: dark bronze aluminum framing + see-through mesh.
@@ -721,7 +730,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       } else if (wallStyle === 'screen') {
         place(buildScreen(f.wall.length, f.wall.height), f.wall.length / 2, -th / 2, f.wall.height / 2);
       } else if (cutouts.length) {
-        const mat = wallStyle !== 'standard' ? styledWallMat(wallStyle, f.wall.length, f.wall.height) : wallMat;
+        const mat = wallStyle !== 'standard' ? styledWallMat(wallStyle, f.wall.length, f.wall.height) : wallMatFor(f.wall);
         if (wallStyle !== 'standard' && mat.map) mat.map.repeat.set(1 / 48, 1 / 48); // extrude UVs are in inches
         const wallMesh = new THREE.Mesh(wallGeoWithHoles(), mat);
         wallMesh.castShadow = false;
@@ -732,7 +741,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         wallMesh.castShadow = false;
         place(wallMesh, f.wall.length / 2, -th / 2, f.wall.height / 2);
       } else {
-        const wallMesh = box(f.wall.length, f.wall.height, th, wallMat);
+        const wallMesh = box(f.wall.length, f.wall.height, th, wallMatFor(f.wall));
         wallMesh.castShadow = false;
         place(wallMesh, f.wall.length / 2, -th / 2, f.wall.height / 2);
       }
@@ -1139,6 +1148,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     disposeMats(mats);
     for (const m of matsByFinish.values()) disposeMats(m);
     wallMat.dispose();
+    for (const m of coloredWallMats) m.dispose();
     fenceMat.dispose();
     whiteFenceMat.dispose();
     screenFrameMat.dispose();

@@ -50,6 +50,21 @@ export function wallSnapPoints(wall: Wall): Pt[] {
   return [p0, p1];
 }
 
+/** Whether this wall's start/end endpoint touches another wall's endpoint —
+ *  i.e. the two form a corner. */
+export function wallEndJoined(wall: Wall, walls: Wall[], end: 'start' | 'end'): boolean {
+  if (wall.ghost) return false;
+  const me = wallEndpoints(wall);
+  const pt = end === 'start' ? me.p0 : me.p1;
+  for (const other of walls) {
+    if (other.id === wall.id || other.ghost) continue;
+    const oe = wallEndpoints(other);
+    if (Math.hypot(pt.x - oe.p0.x, pt.y - oe.p0.y) <= CORNER_EPS) return true;
+    if (Math.hypot(pt.x - oe.p1.x, pt.y - oe.p1.y) <= CORNER_EPS) return true;
+  }
+  return false;
+}
+
 /** Intersection of two infinite lines (point + direction), or null if parallel. */
 function lineIntersect(pa: Pt, da: Pt, pb: Pt, db: Pt): Pt | null {
   const denom = da.x * db.y - da.y * db.x;

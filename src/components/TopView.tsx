@@ -598,7 +598,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
                 })}
               </g>
             ) : (
-              <polygon points={slabPts} fill={isSel ? '#5b5bd6' : WALL_STYLE_PLAN_FILL[wallStyleOf(f.wall)] ?? '#3f4754'} {...wallHandlers} />
+              <polygon points={slabPts} fill={isSel ? '#5b5bd6' : WALL_STYLE_PLAN_FILL[wallStyleOf(f.wall)] ?? f.wall.color ?? '#3f4754'} {...wallHandlers} />
             )}
             {/* countertop runs — extended over an owned dead corner (matches 3D) */}
             {runs.map((r, i) => {
@@ -1110,6 +1110,17 @@ export default function TopView() {
                     </option>
                   ))}
                 </select>
+              </label>
+            )}
+            {!selectedWall.ghost && wallStyleOf(selectedWall) === 'standard' && (
+              <label className="wall-dim-field" title="Paint color for the standard (stucco) finish — double-click the swatch to reset">
+                Color
+                <input
+                  type="color"
+                  value={selectedWall.color ?? '#f1eee7'}
+                  onChange={(e) => updateWall(selectedWall.id, { color: e.target.value })}
+                  onDoubleClick={() => updateWall(selectedWall.id, { color: undefined })}
+                />
               </label>
             )}
             {selectedWall.ghost && !items.some((it) => it.wallId === selectedWall.id && catalogById(it.catalogId).barHeight) && (
