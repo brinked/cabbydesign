@@ -956,6 +956,28 @@ export function barRiserFor(design: Design, it: PlacedItem): { topH: number } | 
  *  sides; any end treatment is cleared on sides that abut a neighbour (useless
  *  there). Items the user hand-set (endsAuto === false) keep their exposed-side
  *  choice. Run on the packed layout, then re-pack so the ends seat correctly. */
+/** Auto applied ends only make sense where a run VISIBLY breaks: another
+ *  cabinet further down the same wall, past this gap. Closer gaps are
+ *  appliance slots and filler breaks, and a side with nothing beyond it at
+ *  all (a lone cabinet, the outer end of a run) stays plain unless the user
+ *  picks a panel themselves — auto panels kept appearing on every exposed
+ *  side and quietly bloating footprints by 0.75″ each. */
+export const AUTO_END_MIN_GAP = 30;
+
+/** Clear gap (inches) from `it`’s side to the nearest floor item on that side
+ *  of the same wall, or null when there is nothing on that side at all. */
+function sideGap(design: Design, it: PlacedItem, side: 'left' | 'right'): number | null {
+  const edge = side === 'left' ? it.x : it.x + footprintW(it);
+  let best: number | null = null;
+  for (const o of design.items) {
+    if (o.id === it.id || o.wallId !== it.wallId) continue;
+    if (catalogById(o.catalogId).lane !== 'floor') continue;
+    const gap = side === 'left' ? edge - (o.x + footprintW(o)) : o.x - edge;
+    if (gap >= -0.1 && (best === null || gap < best)) best = gap;
+  }
+  return best;
+}
+
 function autoEnds(design: Design): void {
   const marks = design.items.map((it) => {
     if (it.auto) return null;
@@ -971,8 +993,15 @@ function autoEnds(design: Design): void {
     if (!left) { it.endL = false; it.waterfallL = false; }
     if (!right) { it.endR = false; it.waterfallR = false; }
     if (it.endsAuto !== false) {
-      if (left && !it.finL && !it.waterfallL) it.endL = true;
-      if (right && !it.finR && !it.waterfallR) it.endR = true;
+      // Recomputed from scratch each reflow (any manual pick sets endsAuto
+      // false, so everything here is auto-owned): a side earns a panel only
+      // when another cabinet sits further than AUTO_END_MIN_GAP down the
+      // wall — the break is wide enough to read as a real run end. This also
+      // strips the stale auto panels older saves accumulated on outer sides.
+      const gapL = sideGap(design, it, 'left');
+      const gapR = sideGap(design, it, 'right');
+      if (!it.finL && !it.waterfallL) it.endL = left && gapL !== null && gapL > AUTO_END_MIN_GAP;
+      if (!it.finR && !it.waterfallR) it.endR = right && gapR !== null && gapR > AUTO_END_MIN_GAP;
     }
     // `x` anchors the FOOTPRINT's left edge (panel included), so toggling a
     // left panel used to slide the box itself 3/4″ — opening a gap against
