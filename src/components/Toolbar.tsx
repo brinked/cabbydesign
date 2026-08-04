@@ -18,6 +18,30 @@ export default function Toolbar() {
   const setDesignMeta = useStore((s) => s.setDesignMeta);
   const newDesign = useStore((s) => s.newDesign);
   const setQuoteOpen = useStore((s) => s.setQuoteOpen);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
+  const canUndo = useStore((s) => s.undoStack.length > 0);
+  const canRedo = useStore((s) => s.redoStack.length > 0);
+
+  // Ctrl/Cmd+Z undoes, Ctrl+Y or Ctrl/Cmd+Shift+Z redoes — except while typing
+  // in a field (the browser's own text undo should win there).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        useStore.getState().undo();
+      } else if (k === 'y' || (k === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        useStore.getState().redo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const user = useSession((s) => s.user);
   const status = useSession((s) => s.status);
@@ -71,6 +95,12 @@ export default function Toolbar() {
           </nav>
 
           <div className="toolbar-right">
+            <button className="btn-ghost" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={undo}>
+              ↶
+            </button>
+            <button className="btn-ghost" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={redo}>
+              ↷
+            </button>
             <SettingsMenu isAdmin={isAdmin} />
             <FileMenu
               onSave={() => (isGuest ? openAuth('Create a free account to save your designs — reopen them anytime, on any device.') : openSaveJob(true))}

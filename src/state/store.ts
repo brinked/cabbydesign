@@ -358,6 +358,11 @@ interface AppState {
   setRetailFormula: (catalogId: string, formula: string | null) => void;
   setSnapshot: (dataUrl: string | null) => void;
   newDesign: (kitchenType?: KitchenType, line?: ProductLine) => void;
+  /** Design history (session-only; not persisted). One entry per edit burst. */
+  undoStack: Design[];
+  redoStack: Design[];
+  undo: () => void;
+  redo: () => void;
   /** Switch the design's cabinet line in place. Walls/openings stay; placed
    *  cabinets from another line are removed (their catalogs don't overlap). */
   setLine: (line: ProductLine) => void;
@@ -1025,10 +1030,61 @@ function autoFridgeOutset(design: Design): void {
   }
 }
 
+// ---- Design history (undo/redo) ----
+// One undo step per edit BURST: the first design change after a quiet period
+// remembers the pre-edit design, and 400ms of quiet commits it — so a drag or
+// stepper scrub lands as a single step instead of dozens.
+const HISTORY_MAX = 50;
+let historyRestoring = false;
+let historyTimer: number | null = null;
+let historyBase: Design | null = null; // design as it was before the current burst
+
+/** Commit the pending burst's pre-edit snapshot onto the undo stack. */
+function flushHistoryCapture(): void {
+  if (historyTimer !== null) {
+    clearTimeout(historyTimer);
+    historyTimer = null;
+  }
+  const snap = historyBase;
+  historyBase = null;
+  if (!snap) return;
+  useStore.setState((s) => ({ undoStack: [...s.undoStack, snap].slice(-HISTORY_MAX), redoStack: [] }));
+}
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       design: defaultDesign(),
+      undoStack: [],
+      redoStack: [],
+      // Restore the previous design snapshot. The capture subscriber (below the
+      // store) is suppressed so the restore itself doesn't record history.
+      undo: () => {
+        flushHistoryCapture();
+        historyRestoring = true;
+        set((s) => {
+          if (!s.undoStack.length) return s;
+          return {
+            design: s.undoStack[s.undoStack.length - 1],
+            undoStack: s.undoStack.slice(0, -1),
+            redoStack: [...s.redoStack, s.design].slice(-HISTORY_MAX),
+          };
+        });
+        historyRestoring = false;
+      },
+      redo: () => {
+        flushHistoryCapture();
+        historyRestoring = true;
+        set((s) => {
+          if (!s.redoStack.length) return s;
+          return {
+            design: s.redoStack[s.redoStack.length - 1],
+            redoStack: s.redoStack.slice(0, -1),
+            undoStack: [...s.undoStack, s.design].slice(-HISTORY_MAX),
+          };
+        });
+        historyRestoring = false;
+      },
       tab: 'design',
       selectedId: null,
       editingId: null,
@@ -1451,3 +1507,16 @@ export const useStore = create<AppState>()(
     }
   )
 );
+
+// History capture: whenever the design changes outside an undo/redo restore,
+// remember the pre-burst design; a quiet 400ms commits it as one undo step.
+useStore.subscribe((s, prev) => {
+  if (s.design === prev.design) return;
+  if (historyRestoring) {
+    historyBase = null; // a restore never records itself as an edit
+    return;
+  }
+  if (historyBase === null) historyBase = prev.design;
+  if (historyTimer !== null) clearTimeout(historyTimer);
+  historyTimer = window.setTimeout(flushHistoryCapture, 400);
+});
