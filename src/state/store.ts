@@ -1506,7 +1506,9 @@ export const useStore = create<AppState>()(
           };
         }),
       loadDesign: (design) =>
-        set({ design: normalizeDesign(design), selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null }),
+        // Pack on open, exactly like the rehydrate path does: without it a job
+        // carries stale auto end-panels until the first edit reflows.
+        set({ design: withPack(normalizeDesign(design)), selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null }),
     }),
     {
       name: 'cabdesign-v1',
