@@ -765,9 +765,24 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
           : cat.front === 'hood'
             ? { key: 'hood', w: it.w }
             : null;
+      // Deep fridge/ice-maker housings: seat their kick on the RUN's kick
+      // plane (the flush neighbour's depth), not their own deeper face.
+      let kickFrontZ: number | undefined;
+      if (cat.applianceCat === 'fridge' || cat.applianceCat === 'icemaker') {
+        for (const o of floorItems) {
+          if (o.id === it.id) continue;
+          const oc = catalogById(o.catalogId);
+          if (oc.front === 'filler' || oc.category === 'appliance') continue;
+          const flush = Math.abs(o.x + footprintW(o) - it.x) < 0.75 || Math.abs(o.x - (it.x + footprintW(it))) < 0.75;
+          if (!flush) continue;
+          const plane = o.d + o.outset - 2;
+          kickFrontZ = kickFrontZ === undefined ? plane : Math.max(kickFrontZ, plane);
+        }
+        if (kickFrontZ !== undefined) kickFrontZ -= it.outset;
+      }
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel },
+        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel, kickFrontZ },
         matsFor(resolveItemFinish(fin.id, it, cat))
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;

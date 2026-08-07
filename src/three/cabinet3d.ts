@@ -437,6 +437,10 @@ export interface CabDims {
    *  on this cabinet is that product at its true size instead of the generic
    *  bar family sized to the front. */
   handleModel?: string | null;
+  /** Local z of the RUN's toe-kick face. A fridge/ice-maker housing is often
+   *  deeper than its neighbours, and a kick following its own depth broke the
+   *  continuous base band — pass the run's plane so kicks line up. */
+  kickFrontZ?: number;
 }
 
 /** Apply an admin aligner override (rotation nudge, position offset, scale) to
@@ -1363,11 +1367,28 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     g.add(carcass);
     if (kick > 0) {
       // Full cabinet width and finish-matched: kicks are applied as long strips,
-      // so adjacent cabinets read as one seamless band.
-      const kickD = Math.max(1, boxD - 1);
+      // so adjacent cabinets read as one seamless band. The face follows the
+      // RUN's kick plane when the caller passes one (deep fridge housings),
+      // and the back holds a 0.75" reveal so an island's base shadow line runs
+      // continuously across columns with and without finished back panels.
+      const kickFace = Math.min(Math.max(dims.kickFrontZ ?? boxD - 1, 2), boxD - 1);
+      const kickBack = 0.75;
+      const kickD = Math.max(1, kickFace - kickBack);
       const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, kickD, steel ? mats.steel : mats.kick);
-      kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, kickD / 2);
+      kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, kickBack + kickD / 2);
       g.add(kickMesh);
+      // Gas cooking cabinets ventilate through the kick: two slot louvres.
+      const vented =
+        cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' || cat.applianceCat === 'sideburner' || cat.applianceCat === 'powerburner';
+      if (vented) {
+        const slotW = Math.min(w - 8, Math.max(10, w * 0.7));
+        for (const fy of [0.34, 0.66]) {
+          const slot = box(slotW, 0.65, 0.2, mats.dark);
+          slot.position.set(0, kick * fy, kickBack + kickD + 0.08);
+          slot.castShadow = false;
+          g.add(slot);
+        }
+      }
     }
   }
 
