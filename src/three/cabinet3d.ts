@@ -1377,9 +1377,15 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, kickD, steel ? mats.steel : mats.kick);
       kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, kickBack + kickD / 2);
       g.add(kickMesh);
-      // Gas cooking cabinets ventilate through the kick: two slot louvres.
+      // Cooking cabinets ventilate their gas through the kick, and fridge /
+      // ice-maker housings breathe their condensers the same way: two slots.
       const vented =
-        cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' || cat.applianceCat === 'sideburner' || cat.applianceCat === 'powerburner';
+        cat.applianceCat === 'grill' ||
+        cat.applianceCat === 'griddle' ||
+        cat.applianceCat === 'sideburner' ||
+        cat.applianceCat === 'powerburner' ||
+        cat.applianceCat === 'fridge' ||
+        cat.applianceCat === 'icemaker';
       if (vented) {
         const slotW = Math.min(w - 8, Math.max(10, w * 0.7));
         for (const fy of [0.34, 0.66]) {
