@@ -994,14 +994,15 @@ function autoEnds(design: Design): void {
     if (!right) { it.endR = false; it.waterfallR = false; }
     if (it.endsAuto !== false) {
       // Recomputed from scratch each reflow (any manual pick sets endsAuto
-      // false, so everything here is auto-owned): a side earns a panel only
-      // when another cabinet sits further than AUTO_END_MIN_GAP down the
-      // wall — the break is wide enough to read as a real run end. This also
-      // strips the stale auto panels older saves accumulated on outer sides.
+      // false, so everything here is auto-owned). An exposed side gets a
+      // panel UNLESS another cabinet sits within AUTO_END_MIN_GAP down the
+      // wall — those tighter breaks are appliance slots and filler gaps, not
+      // run ends. A side with nothing beyond it at all (a lone cabinet, the
+      // open end of a run) is a true run end and keeps its panel.
       const gapL = sideGap(design, it, 'left');
       const gapR = sideGap(design, it, 'right');
-      if (!it.finL && !it.waterfallL) it.endL = left && gapL !== null && gapL > AUTO_END_MIN_GAP;
-      if (!it.finR && !it.waterfallR) it.endR = right && gapR !== null && gapR > AUTO_END_MIN_GAP;
+      if (!it.finL && !it.waterfallL) it.endL = left && (gapL === null || gapL > AUTO_END_MIN_GAP);
+      if (!it.finR && !it.waterfallR) it.endR = right && (gapR === null || gapR > AUTO_END_MIN_GAP);
     }
     // `x` anchors the FOOTPRINT's left edge (panel included), so toggling a
     // left panel used to slide the box itself 3/4″ — opening a gap against
