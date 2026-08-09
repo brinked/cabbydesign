@@ -14,7 +14,7 @@ import {
   selectedApplianceWidth,
 } from '../model/appliances';
 import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleItem, KitchenType, PlacedItem, ProductLine } from '../model/types';
-import { effectiveDims, footprintW, itemPrice, laneItems, largestOpening, openingFor, roughInConflict, sideExposed, spaceLeft, uid, useStore } from '../state/store';
+import { effectiveDims, footprintW, itemPrice, laneItems, largestOpening, openingFor, roughInConflict, sideExposed, spaceLeft, uid, useStore, widthPartners } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { useSession } from '../state/session';
 import { HANDLE_3D_MODELS, SLIDER_4PANEL_MIN_W } from '../three/models';
@@ -535,7 +535,17 @@ export function EditItemModal() {
   }
 
   const left = spaceLeft(design, it.wallId, cat.lane);
-  const dimRange = effectiveDims(it.catalogId, dims);
+  // The width editor spans the CONVERSION PAIR's ranges, not just the current
+  // variant's: a 4-door grill whose own minW sits above the 2-door threshold
+  // could never be stepped back down (the clamp blocked the very widths that
+  // trigger the down-conversion). Space and appliance minimums still apply.
+  const partners = widthPartners(it.catalogId);
+  const ownRange = effectiveDims(it.catalogId, dims);
+  const dimRange = {
+    ...ownRange,
+    minW: partners.down ? Math.min(ownRange.minW, effectiveDims(partners.down, dims).minW) : ownRange.minW,
+    maxW: partners.up ? Math.max(ownRange.maxW, effectiveDims(partners.up, dims).maxW) : ownRange.maxW,
+  };
   const maxW = Math.min(dimRange.maxW, it.w + left);
   // A grill/griddle/burner's insulated liner needs cabinet width ≥ liner cutout
   // + clearance; a fridge/ice maker needs a cabinet at least as wide as the unit.

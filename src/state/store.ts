@@ -34,6 +34,18 @@ export const FOUR_DOOR_AT = 41;
 const FOUR_DOOR_UP: Record<string, string> = { 'out-grill': 'out-grill4', 'out-griddle': 'out-griddle4' };
 const FOUR_DOOR_DOWN: Record<string, string> = { 'out-grill4': 'out-grill', 'out-griddle4': 'out-griddle' };
 
+/** The auto-conversion partners of a catalog item (2-door <-> 4-door grills
+ *  and griddles, narrow <-> wide sinks). The width editor spans BOTH ranges:
+ *  clamping to the current variant's own min/max made conversion one-way —
+ *  a 4-door with minW above the conversion threshold could never be stepped
+ *  back down to become the 2-door again. */
+export function widthPartners(catalogId: string): { up?: string; down?: string } {
+  return {
+    up: FOUR_DOOR_UP[catalogId],
+    down: FOUR_DOOR_DOWN[catalogId],
+  };
+}
+
 /** Grill/griddle cabinets over FOUR_DOOR_AT wide become the 4-door version;
  *  at or under it they revert to the 2-door version. Everything else passes. */
 function autoFourDoor(it: PlacedItem): PlacedItem {
