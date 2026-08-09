@@ -1382,8 +1382,12 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       bowl.closePath();
       shape.holes.push(bowl);
       const geo = new THREE.ExtrudeGeometry(shape, { depth: ch2, bevelEnabled: false });
-      geo.rotateX(-Math.PI / 2); // shape XZ plane -> extrude up Y
-      geo.translate(0, kick, 0);
+      // Same mapping counterRunSlab uses: +90° about X turns the shape's Y
+      // into +Z (depth out the front) and the extrusion into −Y, so translate
+      // by the carcass TOP. (−90° built the shell behind the wall line — the
+      // catalog thumbnails showed the carcass floating behind the doors.)
+      geo.rotateX(Math.PI / 2);
+      geo.translate(0, kick + ch2, 0);
       const carcass = new THREE.Mesh(geo, mats.carcass);
       carcass.castShadow = carcass.receiveShadow = true;
       g.add(carcass);
