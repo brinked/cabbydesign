@@ -179,6 +179,15 @@ export interface CornerReserve {
 
 /** Extra clearance reserved on each wall at a corner for door/drawer clearance. */
 export const CORNER_FILLER = 3;
+/** Corner clearance for the run NEXT TO a cooking cabinet: a grill/griddle/
+ *  burner head protrudes past the cabinet face, so the perpendicular
+ *  cabinet's drawers and doors need a wider filler to swing clear of it.
+ *  The cooking cabinet itself keeps the standard filler. */
+export const COOKING_CORNER_FILLER = 7;
+/** Cabinet categories whose heads protrude past the face (see above). */
+export function isCookingCat(cat: { applianceCat?: string }): boolean {
+  return cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' || cat.applianceCat === 'sideburner' || cat.applianceCat === 'powerburner';
+}
 
 /** User override for one auto corner filler: a custom width, or removed. */
 export interface CornerOverride {
@@ -196,11 +205,12 @@ export function cornerKey(wallId: string, end: 'start' | 'end'): string {
 export function cornerGapFor(
   overrides: Record<string, CornerOverride> | undefined,
   wallId: string,
-  end: 'start' | 'end'
+  end: 'start' | 'end',
+  dflt: number = CORNER_FILLER
 ): number {
   const o = overrides?.[cornerKey(wallId, end)];
   if (o?.off) return 0;
-  return Math.max(0, o?.w ?? CORNER_FILLER);
+  return Math.max(0, o?.w ?? dflt);
 }
 
 /**
@@ -228,11 +238,12 @@ export function cornerReserves(
   // must be cleared. Fillers are shallow trim that sit IN the reserve, so they
   // don't size it. Also reports whether it's a corner cabinet (susan/diagonal/
   // blind), and blind specifically (blind corners still need the clearance).
-  const nearest = (wall: Wall, atEnd: 'start' | 'end'): { depth: number; corner: boolean; blind: boolean } => {
+  const nearest = (wall: Wall, atEnd: 'start' | 'end'): { depth: number; corner: boolean; blind: boolean; cooking: boolean } => {
     let bestDist = Infinity;
     let depth = 0;
     let corner = false;
     let blind = false;
+    let cooking = false;
     for (const it of items) {
       const c = catFor(it.catalogId);
       if (it.wallId !== wall.id || c.lane !== 'floor' || c.front === 'filler') continue;
@@ -243,9 +254,10 @@ export function cornerReserves(
         depth = it.d + it.outset;
         corner = isCornerFront(c);
         blind = isBlindFront(c);
+        cooking = isCookingCat(c);
       }
     }
-    return { depth, corner, blind };
+    return { depth, corner, blind, cooking };
   };
   // No cabinet on the other wall → no reserve. A diagonal/lazy-susan corner
   // cabinet fills the corner → the other run butts flush (no filler). A blind
@@ -266,7 +278,9 @@ export function cornerReserves(
       ];
       for (const [endA, endB, d] of combos) {
         if (d > CORNER_EPS) continue;
-        if (walls[i].ghost || walls[j].ghost) continue; // islands don't form corners
+        // Island (ghost) walls DO form corners: there is no physical wall,
+        // but the runs still collide, so the dead-corner reserve + filler
+        // treatment applies the moment an island endpoint meets another run.
         const ra = map.get(walls[i].id)!;
         const rb = map.get(walls[j].id)!;
         // Each wall reserves enough to clear the OTHER wall's nearest cabinet.
@@ -276,8 +290,10 @@ export function cornerReserves(
         // cabinets are exempt and may occupy their own reserve.
         const nA = nearest(walls[i], endA);
         const nB = nearest(walls[j], endB);
-        const gapA = cornerGapFor(overrides, walls[i].id, endA);
-        const gapB = cornerGapFor(overrides, walls[j].id, endB);
+        // A run beside a cooking cabinet needs the wider clearance (its head
+        // protrudes); the cooking run itself keeps the standard filler.
+        const gapA = cornerGapFor(overrides, walls[i].id, endA, nB.cooking ? COOKING_CORNER_FILLER : CORNER_FILLER);
+        const gapB = cornerGapFor(overrides, walls[j].id, endB, nA.cooking ? COOKING_CORNER_FILLER : CORNER_FILLER);
         let reserveA = reserveFor(nB, gapA);
         let reserveB = reserveFor(nA, gapB);
         // L-corner: the other wall has no run, but this wall's cabinet is pushed

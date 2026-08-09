@@ -6,7 +6,7 @@ import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndJoined, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, COOKING_CORNER_FILLER, CORNER_FILLER, isCookingCat, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndJoined, wallEndpoints } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot.
  *  Default only — the admin-managed rates live in store.panelRates. */
@@ -816,13 +816,13 @@ function autoCornerFillers(design: Design): void {
 
   // nearest non-filler floor cabinet to a wall end + its edge gap and corner-ness
   const nearest = (wall: Wall, atEnd: 'start' | 'end') => {
-    let best: { it: PlacedItem; edge: number; corner: boolean; blind: boolean } | null = null;
+    let best: { it: PlacedItem; edge: number; corner: boolean; blind: boolean; cooking: boolean } | null = null;
     for (const it of laneItems(design.items, wall.id, 'floor')) {
       const c = catalogById(it.catalogId);
       if (c.front === 'filler') continue;
       const fw = footprintW(it);
       const edge = atEnd === 'start' ? it.x : wall.length - (it.x + fw);
-      if (!best || edge < best.edge) best = { it, edge, corner: isCornerFront(c), blind: isBlindFront(c) };
+      if (!best || edge < best.edge) best = { it, edge, corner: isCornerFront(c), blind: isBlindFront(c), cooking: isCookingCat(c) };
     }
     return best;
   };
@@ -833,7 +833,7 @@ function autoCornerFillers(design: Design): void {
     for (let j = i + 1; j < design.walls.length; j++) {
       const A = design.walls[i];
       const B = design.walls[j];
-      if (A.ghost || B.ghost) continue;
+      // island walls form corners too — see cornerReserves
       const a = ep(A);
       const b = ep(B);
       const combos: Array<['start' | 'end', 'start' | 'end', number]> = [
@@ -855,18 +855,25 @@ function autoCornerFillers(design: Design): void {
           // NewAge modular kitchens don't use HDPE fillers — their corner
           // cabinets close the corner instead.
           if (catalogById(nW.it.catalogId).line || (nO && catalogById(nO.it.catalogId).line)) continue;
-          // per-corner override: custom filler width, or removed entirely
-          const gap = cornerGapFor(design.cornerOverrides, W.id, eW);
+          // per-corner override: custom filler width, or removed entirely.
+          // Beside a cooking cabinet the default widens: its head protrudes
+          // past the face, so the neighbouring run's doors/drawers need more
+          // room to swing clear. The cooking run itself keeps the standard 3".
+          const gap = cornerGapFor(design.cornerOverrides, W.id, eW, nO?.cooking ? COOKING_CORNER_FILLER : CORNER_FILLER);
           if (gap <= 0) continue;
           // A filler is needed when W's run borders the corner and either:
           //  - the other wall has a plain OR blind cabinet there (dead corner), or
           //  - the other wall has NO run but its returning wall blocks W's cabinet
           //    (an L corner). A diagonal/susan corner cabinet butts flush → none.
+          // The border test tolerates 2" of slack past the cleared depth: the
+          // old exact +1 test silently skipped the filler whenever packing
+          // parked the run slightly past the recomputed depth (deep grill
+          // fronts), which is how corner fillers "stopped working".
           let borders: boolean;
           if (nO && !(nO.corner && !nO.blind)) {
-            borders = nW.edge <= nO.it.d + nO.it.outset + gap + 1;
+            borders = nW.edge <= nO.it.d + nO.it.outset + gap + 2;
           } else if (!nO) {
-            borders = cornerBlocksRun(W, O, eO) && nW.edge <= gap + 1;
+            borders = cornerBlocksRun(W, O, eO) && nW.edge <= gap + 2;
           } else {
             borders = false;
           }
