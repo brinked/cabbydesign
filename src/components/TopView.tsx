@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ALL_FINISHES, COUNTER_OVERHANG, catalogById, frontExtraD } from '../model/catalog';
 import { resolveItemFinish } from '../model/newage';
 import { PERGOLA_COLORS, PERGOLA_MODELS, defaultPergola, pergolaAreaSqft, pergolaColorHex, pergolaColumns, pergolaModelInfo, pergolaRateFor, snapPergolaToWalls } from '../model/pergola';
-import { WALL_T, cornerCounterExtend, cornerNeedsFlip, frameForWall, isCornerFront, isFenceStyle, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints, wallStyleOf } from '../model/geometry';
+import { CORNER_EPS, WALL_T, cornerCounterExtend, cornerNeedsFlip, frameForWall, isCornerFront, isFenceStyle, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints, wallStyleOf } from '../model/geometry';
 import type { MeasureEnd, Measurement, PergolaAttach, PlacedItem, Wall, WallStyle } from '../model/types';
 import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, uid, useStore } from '../state/store';
 import { NumberField } from './NumberField';
@@ -610,13 +610,40 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
               // (the wall length defines it, not the cabinets), and a filled
               // corner runs on by the seating overhang so the pair closes.
               const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
+              // A corner partner that is an island WITH a seating overhang projects its
+              // slab past the shared corner point. The filling slab runs on past the
+              // wall end by that overhang so the two outlines meet instead of leaving
+              // a notch at the junction.
+              const partnerOverRun = (end: 'start' | 'end'): number => {
+                const my = wallEndpoints(f.wall);
+                const pt = end === 'start' ? my.p0 : my.p1;
+                for (const o of design.walls) {
+                  if (o.id === f.wall.id || !o.ghost || !o.seatingOverhang) continue;
+                  const oe = wallEndpoints(o);
+                  const touches =
+                    Math.hypot(oe.p0.x - pt.x, oe.p0.y - pt.y) <= CORNER_EPS || Math.hypot(oe.p1.x - pt.x, oe.p1.y - pt.y) <= CORNER_EPS;
+                  if (!touches) continue;
+                  const ds = design.items
+                    .filter((i) => {
+                      const c = catalogById(i.catalogId);
+                      return i.wallId === o.id && c.lane === 'floor' && c.front !== 'filler' && c.category !== 'appliance';
+                    })
+                    .map((i) => i.d + i.outset);
+                  if (ds.length) return Math.max(...ds) / 2;
+                }
+                return 0;
+              };
               const cfS = design.items.find((i) => i.id === `cf-${f.wall.id}-start`);
               const cfE = design.items.find((i) => i.id === `cf-${f.wall.id}-end`);
-              const x1 = fillStart ? (ext.start === 'toFiller' && cfS ? cfS.x : -cornerRunOn) : Math.max(r.x1 - COUNTER_OVERHANG, 0);
+              const x1 = fillStart
+                ? ext.start === 'toFiller' && cfS
+                  ? cfS.x
+                  : -Math.max(cornerRunOn, partnerOverRun('start'))
+                : Math.max(r.x1 - COUNTER_OVERHANG, 0);
               const x2 = fillEnd
                 ? ext.end === 'toFiller' && cfE
                   ? cfE.x + cfE.w
-                  : f.wall.length + cornerRunOn
+                  : f.wall.length + Math.max(cornerRunOn, partnerOverRun('end'))
                 : Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
               // island seating overhang: the counter extends past the back by
               // half the cabinet depth

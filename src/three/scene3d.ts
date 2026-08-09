@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ALL_FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, takesAppliedEnds } from '../model/catalog';
-import { cornerCounterExtend, frameForWall, isFenceStyle, planBounds, wallStyleOf } from '../model/geometry';
+import { CORNER_EPS, cornerCounterExtend, frameForWall, isFenceStyle, planBounds, wallEndpoints, wallStyleOf } from '../model/geometry';
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import { flooringById } from '../model/flooring';
@@ -1052,15 +1052,42 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // cabinet depth, so a filled corner stopping dead at the wall end leaves
       // a step. Run on by that overhang to close the pair into one L.
       const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
+      // A corner partner that is an island WITH a seating overhang projects its
+      // slab past the shared corner point. The filling slab runs on past the
+      // wall end by that overhang so the two outlines meet instead of leaving
+      // a notch at the junction.
+      const partnerOverRun = (end: 'start' | 'end'): number => {
+        const my = wallEndpoints(f.wall);
+        const pt = end === 'start' ? my.p0 : my.p1;
+        for (const o of design.walls) {
+          if (o.id === f.wall.id || !o.ghost || !o.seatingOverhang) continue;
+          const oe = wallEndpoints(o);
+          const touches =
+            Math.hypot(oe.p0.x - pt.x, oe.p0.y - pt.y) <= CORNER_EPS || Math.hypot(oe.p1.x - pt.x, oe.p1.y - pt.y) <= CORNER_EPS;
+          if (!touches) continue;
+          const ds = design.items
+            .filter((i) => {
+              const c = catalogById(i.catalogId);
+              return i.wallId === o.id && c.lane === 'floor' && c.front !== 'filler' && c.category !== 'appliance';
+            })
+            .map((i) => i.d + i.outset);
+          if (ds.length) return Math.max(...ds) / 2;
+        }
+        return 0;
+      };
       // 'toFiller': stop at the corner filler's start (the owner's face
       // plane) so this slab meets the owner's extended slab edge to edge.
       const cfS = design.items.find((i) => i.id === `cf-${f.wall.id}-start`);
       const cfE = design.items.find((i) => i.id === `cf-${f.wall.id}-end`);
-      const x1 = fillStart ? (ext.start === 'toFiller' && cfS ? cfS.x : -cornerRunOn) : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
+      const x1 = fillStart
+        ? ext.start === 'toFiller' && cfS
+          ? cfS.x
+          : -Math.max(cornerRunOn, partnerOverRun('start'))
+        : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
       const x2 = fillEnd
         ? ext.end === 'toFiller' && cfE
           ? cfE.x + cfE.w
-          : f.wall.length + cornerRunOn
+          : f.wall.length + Math.max(cornerRunOn, partnerOverRun('end'))
         : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
       const slabMat = mats.counter.clone();
       slabMat.map = mats.counterTex.clone();
