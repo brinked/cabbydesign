@@ -781,6 +781,26 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       flush();
     }
 
+
+    // Owned dead corners: the kick band continues from the corner filler to
+    // the wall end, closing the open void under the corner (the counter above
+    // it is already extended by the corner fill).
+    for (const cEnd of ['start', 'end'] as const) {
+      const cf = wallItems.find((i) => i.id === `cf-${f.wall.id}-${cEnd}`);
+      if (!cf) continue;
+      const nb = floorItems.find(
+        (i) => !i.auto && Math.abs(cEnd === 'start' ? i.x - (cf.x + cf.w) : cf.x - (i.x + footprintW(i))) < 1
+      );
+      const kPlane = (nb ? nb.d + nb.outset : cf.d) - 2;
+      const kd = Math.max(1, kPlane - 0.75);
+      const x1 = cEnd === 'start' ? 0 : cf.x + cf.w;
+      const x2 = cEnd === 'start' ? cf.x : f.wall.length;
+      if (x2 - x1 < 0.25) continue;
+      const km = box(x2 - x1, TOEKICK_H, kd, mats.kick);
+      km.castShadow = km.receiveShadow = true;
+      place(km, (x1 + x2) / 2, 0.75 + kd / 2, TOEKICK_H / 2);
+    }
+
     for (const it of wallItems) {
       const cat = catalogById(it.catalogId);
       // Orientation a lazy susan keeps in its corner is set by which wall end it

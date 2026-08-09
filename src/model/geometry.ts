@@ -342,7 +342,13 @@ export function cornerCounterExtend(
         // BOTH runs extend, split so the slabs meet without overlapping: the
         // owner covers the dead square to the wall end, the other stops at
         // its corner filler's start — the owner's face plane.
-        const mode: CornerFillMode = wall.id < other.id ? 'full' : 'toFiller';
+        // The SOLID wall owns the corner fill: its extension slab carries its
+        // own sink/grill cutouts along with it. Ownership used to fall to
+        // whichever wall had the lower generated id — when an ISLAND won, its
+        // hole-less extension swept across the perpendicular run and covered
+        // that run's sink basin. Islands own only against other islands.
+        const mode: CornerFillMode =
+          (!wall.ghost && other.ghost) || (!wall.ghost === !other.ghost && wall.id < other.id) ? 'full' : 'toFiller';
         if (out[myEnd] === false || (out[myEnd] === 'toFiller' && mode === 'full')) out[myEnd] = mode;
       }
     }
