@@ -1362,9 +1362,36 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     // Appliance housings only build up to the unit height (gap above).
     const ch2 = isApplianceHousing ? bodyH : carcassH;
     const boxD = steel ? d : Math.max(2, d - FRONT_T);
-    const carcass = box(w, ch2, boxD, steel ? mats.steel : mats.carcass);
-    carcass.position.set(0, kick + ch2 / 2, boxD / 2);
-    g.add(carcass);
+    if (isSinkFront(cat.front)) {
+      // The bowl drops THROUGH the box: a plain carcass box left its white
+      // top face crossing the basin interior, so from above the sink read as
+      // a solid white slab. Extrude the footprint with the bowl cut out.
+      const { bw, bd, zc } = sinkBasin(w, d);
+      const shape = new THREE.Shape();
+      shape.moveTo(-w / 2, 0);
+      shape.lineTo(w / 2, 0);
+      shape.lineTo(w / 2, boxD);
+      shape.lineTo(-w / 2, boxD);
+      shape.closePath();
+      const bowl = new THREE.Path();
+      const hz = Math.min(zc, boxD - bd / 2 - 0.5);
+      bowl.moveTo(-bw / 2, hz - bd / 2);
+      bowl.lineTo(bw / 2, hz - bd / 2);
+      bowl.lineTo(bw / 2, hz + bd / 2);
+      bowl.lineTo(-bw / 2, hz + bd / 2);
+      bowl.closePath();
+      shape.holes.push(bowl);
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: ch2, bevelEnabled: false });
+      geo.rotateX(-Math.PI / 2); // shape XZ plane -> extrude up Y
+      geo.translate(0, kick, 0);
+      const carcass = new THREE.Mesh(geo, mats.carcass);
+      carcass.castShadow = carcass.receiveShadow = true;
+      g.add(carcass);
+    } else {
+      const carcass = box(w, ch2, boxD, steel ? mats.steel : mats.carcass);
+      carcass.position.set(0, kick + ch2 / 2, boxD / 2);
+      g.add(carcass);
+    }
     if (kick > 0) {
       // Full cabinet width and finish-matched: kicks are applied as long strips,
       // so adjacent cabinets read as one seamless band. The face follows the
@@ -2321,8 +2348,10 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     // the top view; the rim stays bright stainless for contrast.
     const { bw, bd, zc, bowlH } = sinkBasin(w, d);
     const stl = mats.steel;
-    const basinWall = new THREE.MeshStandardMaterial({ color: 0x6c7176, roughness: 0.75, metalness: 0.25 });
-    const basinFloor = new THREE.MeshStandardMaterial({ color: 0x3c4044, roughness: 0.82, metalness: 0.2 });
+    // Brushed stainless bowl: bright enough to read as steel from above,
+    // walls a touch darker than the floor so the recess still has depth.
+    const basinWall = new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.42, metalness: 0.85 });
+    const basinFloor = new THREE.MeshStandardMaterial({ color: 0xaeb4ba, roughness: 0.38, metalness: 0.85 });
     const T = 0.4;
     const botY = counterTop - bowlH;
     const midY = counterTop - bowlH / 2;

@@ -610,9 +610,13 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
               // (the wall length defines it, not the cabinets), and a filled
               // corner runs on by the seating overhang so the pair closes.
               const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
-              const x1 = fillStart ? -cornerRunOn : Math.max(r.x1 - COUNTER_OVERHANG, 0);
+              const cfS = design.items.find((i) => i.id === `cf-${f.wall.id}-start`);
+              const cfE = design.items.find((i) => i.id === `cf-${f.wall.id}-end`);
+              const x1 = fillStart ? (ext.start === 'toFiller' && cfS ? cfS.x : -cornerRunOn) : Math.max(r.x1 - COUNTER_OVERHANG, 0);
               const x2 = fillEnd
-                ? f.wall.length + cornerRunOn
+                ? ext.end === 'toFiller' && cfE
+                  ? cfE.x + cfE.w
+                  : f.wall.length + cornerRunOn
                 : Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
               // island seating overhang: the counter extends past the back by
               // half the cabinet depth

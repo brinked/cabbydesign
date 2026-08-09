@@ -976,6 +976,39 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         const lastG = groups[groups.length - 1];
         if (lastG && wrB.end > 0 && lastG.x2 >= f.wall.length - wrB.end - 2) lastG.x2 = f.wall.length;
       }
+      // The base band follows the back: any stretch of a back group with no
+      // cabinet or filler kick under it (a full-length back, the dead-corner
+      // extension) gets its own kick strip, so the panel never floats on air.
+      // Shallow (2") on purpose: from behind it reads as the same continuous
+      // reveal line; from the front an open full-back stretch shows a tidy
+      // plinth instead of a 22"-deep slab.
+      {
+        const kicked = floorItems
+          .filter((o) => {
+            const oc = catalogById(o.catalogId);
+            return oc.category !== 'appliance' && oc.front !== 'corner' && oc.front !== 'susan';
+          })
+          .map((o) => [o.x, o.x + footprintW(o)] as [number, number])
+          .sort((a, b) => a[0] - b[0]);
+        for (const grp of groups) {
+          let cur = grp.x1;
+          const bare: Array<[number, number]> = [];
+          for (const [a, b] of kicked) {
+            if (b <= cur) continue;
+            if (a >= grp.x2) break;
+            if (a > cur) bare.push([cur, Math.min(a, grp.x2)]);
+            cur = Math.max(cur, b);
+            if (cur >= grp.x2) break;
+          }
+          if (cur < grp.x2) bare.push([cur, grp.x2]);
+          for (const [a, b] of bare) {
+            if (b - a < 0.5) continue;
+            const km = box(b - a, TOEKICK_H, 2, mats.kick);
+            km.castShadow = km.receiveShadow = true;
+            place(km, a + (b - a) / 2, 0.75 + 1, TOEKICK_H / 2);
+          }
+        }
+      }
       for (const grp of groups) {
         const W = grp.x2 - grp.x1;
         if (W < 2) continue;
@@ -1019,9 +1052,15 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // cabinet depth, so a filled corner stopping dead at the wall end leaves
       // a step. Run on by that overhang to close the pair into one L.
       const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
-      const x1 = fillStart ? -cornerRunOn : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
+      // 'toFiller': stop at the corner filler's start (the owner's face
+      // plane) so this slab meets the owner's extended slab edge to edge.
+      const cfS = design.items.find((i) => i.id === `cf-${f.wall.id}-start`);
+      const cfE = design.items.find((i) => i.id === `cf-${f.wall.id}-end`);
+      const x1 = fillStart ? (ext.start === 'toFiller' && cfS ? cfS.x : -cornerRunOn) : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
       const x2 = fillEnd
-        ? f.wall.length + cornerRunOn
+        ? ext.end === 'toFiller' && cfE
+          ? cfE.x + cfE.w
+          : f.wall.length + cornerRunOn
         : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
       const slabMat = mats.counter.clone();
       slabMat.map = mats.counterTex.clone();

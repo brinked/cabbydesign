@@ -323,33 +323,37 @@ export function cornerCounterExtend(
   walls: Wall[],
   items: PlacedItem[],
   overrides?: Record<string, CornerOverride>
-): { start: boolean; end: boolean } {
+): { start: CornerFillMode; end: CornerFillMode } {
   const me = wallEndpoints(wall);
   const qualifies = (wid: string, end: 'start' | 'end') =>
     items.some((it) => it.id === `cf-${wid}-${end}`) || overrides?.[cornerKey(wid, end)]?.off === true;
-  const out = { start: false, end: false };
+  const out: { start: CornerFillMode; end: CornerFillMode } = { start: false, end: false };
   for (const other of walls) {
     if (other.id === wall.id) continue;
-    // Only like meets like: an island butting a real wall keeps the old
-    // behaviour (no fill). Two islands meeting IS handled — see below.
-    if (!!wall.ghost !== !!other.ghost) continue;
+    // Mixed pairs (island meets a real wall) fill too now — corner fillers
+    // and reserves exist on ghost walls, so the machinery all applies.
     const bothIslands = !!wall.ghost && !!other.ghost;
     const oe = wallEndpoints(other);
     for (const [myEnd, myPt] of [['start', me.p0] as const, ['end', me.p1] as const]) {
       for (const [oEnd, oPt] of [['start', oe.p0] as const, ['end', oe.p1] as const]) {
         if (Math.hypot(myPt.x - oPt.x, myPt.y - oPt.y) > CORNER_EPS) continue;
-        // Islands never get corner fillers (autoCornerFillers skips ghost
-        // walls), so they could never qualify and their dead corner was left
-        // bare. Cover it unconditionally: the stone runs to the corner and
-        // carries the run's own seating overhang, which turns the cabinet
-        // beneath into a hidden box under a continuous top.
         const ok = bothIslands || (qualifies(wall.id, myEnd) && qualifies(other.id, oEnd));
-        if (ok && wall.id < other.id) out[myEnd] = true;
+        if (!ok) continue;
+        // BOTH runs extend, split so the slabs meet without overlapping: the
+        // owner covers the dead square to the wall end, the other stops at
+        // its corner filler's start — the owner's face plane.
+        const mode: CornerFillMode = wall.id < other.id ? 'full' : 'toFiller';
+        if (out[myEnd] === false || (out[myEnd] === 'toFiller' && mode === 'full')) out[myEnd] = mode;
       }
     }
   }
   return out;
 }
+
+/** How a run's counter fills its dead corner: 'full' runs to the wall end
+ *  (the owning run); 'toFiller' stops at the corner filler's start — the
+ *  perpendicular run's face plane — so the two slabs meet edge to edge. */
+export type CornerFillMode = false | 'full' | 'toFiller';
 
 /** Cabinet fronts allowed to occupy a reserved corner zone. */
 export function isCornerFront(cat: CatalogItem): boolean {
