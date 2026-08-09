@@ -52,7 +52,7 @@ const APPLIANCE_MODEL_URLS: Record<string, string> = {
   'xo-xlt-40': '/models/grills/xo-xlt-40.glb',
   'legriddle-commercial-75': '/models/grills/legriddle-commercial-75.glb',
   'legriddle-commercial-105': '/models/grills/legriddle-commercial-105.glb',
-  hood: '/models/hood.glb', // Proline 48" wall-canopy range hood
+  hood: '/models/hood.glb', // Proline PLJW 104 42" wall range hood
 };
 
 /**
