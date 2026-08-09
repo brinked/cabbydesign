@@ -881,13 +881,19 @@ function autoCornerFillers(design: Design): void {
           const id = `cf-${W.id}-${eW}`;
           if (seen.has(id)) continue;
           seen.add(id);
-          const x = eW === 'start' ? nW.it.x - gap : nW.it.x + footprintW(nW.it);
+          // The filler CLOSES the corner: it spans from the perpendicular
+          // run's face plane all the way to this run's cabinet. A fixed-width
+          // filler hugging the cabinet left a visible slot whenever the run
+          // parked a snap past its reserve (drag rounding, end-panel shifts).
+          const plane = nO && !(nO.corner && !nO.blind) ? nO.it.d + nO.it.outset : 0;
+          const span = Math.round(Math.max(0.5, nW.edge - plane) * 8) / 8;
+          const x = eW === 'start' ? nW.it.x - span : nW.it.x + footprintW(nW.it);
           add.push({
             id,
             wallId: W.id,
             catalogId: 'trim-basefiller',
-            x: Math.max(0, Math.min(x, W.length - gap)),
-            w: gap,
+            x: Math.max(0, Math.min(x, W.length - span)),
+            w: span,
             d: fillerCat.d,
             // match the cabinet it abuts so it isn't a different height
             h: nW.it.h,

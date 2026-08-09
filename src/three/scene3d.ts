@@ -965,6 +965,17 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         if (last && x1 <= last.x2 + 0.75 && Math.abs(last.topY - topY) < 0.01) last.x2 = Math.max(last.x2, x2);
         else groups.push({ x1, x2, topY });
       }
+      // A dead corner on an island closes from behind automatically: the
+      // finished back runs to the wall end across the corner reserve, without
+      // needing the full-length back switch. Guarded to the corner reserve so
+      // a back never grows over an intentionally open stretch of wall.
+      {
+        const wrB = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
+        const firstG = groups[0];
+        if (firstG && wrB.start > 0 && firstG.x1 <= wrB.start + 2) firstG.x1 = 0;
+        const lastG = groups[groups.length - 1];
+        if (lastG && wrB.end > 0 && lastG.x2 >= f.wall.length - wrB.end - 2) lastG.x2 = f.wall.length;
+      }
       for (const grp of groups) {
         const W = grp.x2 - grp.x1;
         if (W < 2) continue;
