@@ -784,17 +784,26 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
 
     // Owned dead corners: the kick band continues from the corner filler to
     // the wall end, closing the open void under the corner (the counter above
-    // it is already extended by the corner fill).
+    // it is already extended by the corner fill). It runs on the RUN's kick
+    // plane (not the neighbor's own depth) so it stays coplanar with the
+    // band, and the two walls split the square the way the counters do: the
+    // owning wall ('full') carries its band all the way in, the other wall's
+    // band stops flush at the owner's kick line so nothing pokes past it.
+    const extK = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
     for (const cEnd of ['start', 'end'] as const) {
       const cf = wallItems.find((i) => i.id === `cf-${f.wall.id}-${cEnd}`);
       if (!cf) continue;
       const nb = floorItems.find(
         (i) => !i.auto && Math.abs(cEnd === 'start' ? i.x - (cf.x + cf.w) : cf.x - (i.x + footprintW(i))) < 1
       );
-      const kPlane = (nb ? nb.d + nb.outset : cf.d) - 2;
+      const kPlane = nb ? (kickPlanes.get(nb.id) ?? nb.d - 2) + nb.outset : cf.d - 2;
       const kd = Math.max(1, kPlane - 0.75);
-      const x1 = cEnd === 'start' ? 0 : cf.x + cf.w;
-      const x2 = cEnd === 'start' ? cf.x : f.wall.length;
+      // The filler spans face plane -> cabinet, so its corner-side edge IS the
+      // perpendicular run's face plane; that run's kick line sits 2" behind it.
+      const perpFace = cEnd === 'start' ? cf.x : f.wall.length - (cf.x + cf.w);
+      const stop = (cEnd === 'start' ? extK.start : extK.end) === 'toFiller' ? Math.max(0, perpFace - 2) : 0;
+      const x1 = cEnd === 'start' ? stop : cf.x + cf.w;
+      const x2 = cEnd === 'start' ? cf.x : f.wall.length - stop;
       if (x2 - x1 < 0.25) continue;
       const km = box(x2 - x1, TOEKICK_H, kd, mats.kick);
       km.castShadow = km.receiveShadow = true;
@@ -1140,15 +1149,19 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         const cat = catalogById(it.catalogId);
         const cx = it.x + footprintW(it) / 2 - runCenter;
         if (isSinkFront(cat.front)) {
+          // The basin is drawn in cabinet-local z and the cabinet is placed
+          // with its outset — the hole must ride along, or an outset sink
+          // (fronts aligned with a deeper grill run) gets stone over the
+          // basin front and a bare deck where the faucet stands.
           const cut = sinkBasin(it.w, it.d);
-          holes.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: cut.zc - cut.bd / 2, z2: cut.zc + cut.bd / 2 });
+          holes.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: it.outset + cut.zc - cut.bd / 2, z2: it.outset + cut.zc + cut.bd / 2 });
           continue;
         }
         const cut = grillCutout(cat, it.w, it.d, modelWFor(it));
         if (!cut) continue;
         const front = it.d + it.outset + COUNTER_OVERHANG;
-        if (cut.zc + cut.bd / 2 >= front - 0.05) cuts.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2 });
-        else holes.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: cut.zc - cut.bd / 2, z2: cut.zc + cut.bd / 2 });
+        if (it.outset + cut.zc + cut.bd / 2 >= front - 0.05) cuts.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2 });
+        else holes.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: it.outset + cut.zc - cut.bd / 2, z2: it.outset + cut.zc + cut.bd / 2 });
       }
 
       // Break the run into stone pieces on either side of each grill/liner cut.
