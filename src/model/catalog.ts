@@ -150,6 +150,7 @@ const BASE_CATALOG: CatalogItem[] = [
   // to the 4-door version (and back). See store.autoFourDoor / FOUR_DOOR_AT.
   { id: 'out-grill', name: 'Grill Cabinet', category: 'outdoor', front: 'grill', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 12, formula: BOX, applianceCat: 'grill', note: 'Over 41″ wide it becomes the 4-door version automatically.' },
   { id: 'out-grill4', name: 'Large Grill Cabinet (4-Door)', category: 'outdoor', front: 'grill4', lane: 'floor', w: 48, d: 30, h: BASE_H, minW: 40, maxW: 60, stepW: 2, counter: true, topGearH: 12, formula: GRILL4, applianceCat: 'grill', hideFromAdd: true, note: 'At 41″ or under it becomes the 2-door version automatically.' },
+  { id: 'out-grill-drawers', name: 'Grill Cabinet (2-Drawer)', category: 'outdoor', front: 'grilldrawer', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 12, formula: BOX, applianceCat: 'grill', note: 'Two full-width stacked drawers under the grill instead of doors.' },
   { id: 'out-griddle', name: 'Griddle Cabinet', category: 'outdoor', front: 'griddle', lane: 'floor', w: 36, d: 27, h: BASE_H, minW: 30, maxW: 48, stepW: 2, counter: true, topGearH: 6, formula: BOX, applianceCat: 'griddle', note: 'Over 41″ wide it becomes the 4-door version automatically.' },
   { id: 'out-griddle4', name: 'Large Griddle Cabinet (4-Door)', category: 'outdoor', front: 'griddle4', lane: 'floor', w: 48, d: 27, h: BASE_H, minW: 40, maxW: 60, stepW: 2, counter: true, topGearH: 6, formula: GRILL4, applianceCat: 'griddle', hideFromAdd: true, note: 'At 41″ or under it becomes the 2-door version automatically.' },
   { id: 'out-burner', name: 'Side Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 18, d: 27, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, topGearH: 6, formula: BOX, applianceCat: 'sideburner' },
@@ -333,6 +334,8 @@ export function handleCount(cat: CatalogItem, w: number): number {
     case 'grill4':
     case 'griddle4':
       return 4;
+    case 'grilldrawer':
+      return 2;
     case 'drawers3':
       return 3;
     case 'drawers4':

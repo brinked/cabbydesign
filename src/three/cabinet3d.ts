@@ -482,7 +482,7 @@ function applianceFaceW(w: number): number {
  *  when the housing cabinet is widened — the cabinet's framing stiles widen
  *  instead. Capped to these per-type maxima; still shrinks to fit a narrow
  *  cabinet. (Undefined types fill the whole face, e.g. side/power burners.) */
-const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, grill4: 44, griddle: 30, griddle4: 36 };
+const APPLIANCE_MAX_W: Record<string, number> = { grill: 30, grill4: 44, grilldrawer: 30, griddle: 30, griddle4: 36 };
 /** The real grill model's true width (a 32″ Broilmaster head). Like a real
  *  grill it NEVER stretches — widening the cabinet only widens the framing. */
 export const GRILL_MODEL_REAL_W = 32;
@@ -491,7 +491,7 @@ function applianceOpeningW(front: string, w: number, modelW?: number): number {
   const max =
     modelW != null
       ? modelW + 1 // brand-accurate head + clearance
-      : (front === 'grill' || front === 'grill4') && hasModel('grill')
+      : (front === 'grill' || front === 'grill4' || front === 'grilldrawer') && hasModel('grill')
         ? GRILL_MODEL_REAL_W + 1 // fixed-size head + clearance
         : APPLIANCE_MAX_W[front];
   return max ? Math.min(faceW, max) : faceW;
@@ -1031,7 +1031,7 @@ export function grillCutout(cat: CatalogItem, w: number, d: number, modelW?: num
     const z2 = d - 3; // front stretcher stays covered
     return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
   }
-  if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'griddle' && cat.front !== 'griddle4' && cat.front !== 'burner') return null;
+  if (cat.front !== 'grill' && cat.front !== 'grill4' && cat.front !== 'grilldrawer' && cat.front !== 'griddle' && cat.front !== 'griddle4' && cat.front !== 'burner') return null;
   const bw = applianceOpeningW(cat.front, w, modelW) + 1; // small gap around the unit
   // Grills, griddles and side/power burners all drop in with an insulated
   // liner jacket whose face hangs over the counter nose — the cut-out runs
@@ -1496,13 +1496,14 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       }
       case 'grill':
       case 'grill4':
+      case 'grilldrawer':
       case 'griddle':
       case 'griddle4':
       case 'burner': {
         // The appliance face is recessed into the top of the cabinet. The
         // cabinet front picture-frames it: apron below, panel stiles wrapping
         // both sides, doors at the bottom.
-        const isGrill = cat.front === 'grill' || cat.front === 'grill4';
+        const isGrill = cat.front === 'grill' || cat.front === 'grill4' || cat.front === 'grilldrawer';
         const isBurner = cat.front === 'burner';
         // With the real grill model its own control panel fills the opening —
         // a shorter opening avoids a bare band under the panel. Side/power
@@ -1511,7 +1512,12 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         const applH = isGrill || isBurner ? (hasModel('grill') || (dims.modelKey && hasModel(dims.modelKey)) ? 6 : 9) : 7;
         const apronH = 4.5;
         const doorH = fh - applH - apronH - GAP * 2;
-        if (cat.front === 'grill4' || cat.front === 'griddle4') {
+        if (cat.front === 'grilldrawer') {
+          // two full-width stacked drawers fill the door zone
+          const rh = (doorH - GAP) / 2;
+          fronts.push({ dx: 0, dy: -fh / 2 + rh + GAP + rh / 2, w: fw, h: rh, handle: 'h-center' });
+          fronts.push({ dx: 0, dy: -fh / 2 + rh / 2, w: fw, h: rh, handle: 'h-center' });
+        } else if (cat.front === 'grill4' || cat.front === 'griddle4') {
           // two double-door pairs: handles meet in the middle of each pair
           const n = 4;
           const dw = (fw - GAP * (n - 1)) / n;
@@ -2190,7 +2196,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       g.add(post);
     }
   };
-  if ((cat.front === 'grill' || cat.front === 'grill4') && !isAppliance) {
+  if ((cat.front === 'grill' || cat.front === 'grill4' || cat.front === 'grilldrawer') && !isAppliance) {
     // Built-in grill set into the cabinet, fixed width (the cabinet frame
     // widens around it). Brand-accurate head for the selected appliance when
     // we carry its model (lazy-loaded), else the generic Broilmaster, else

@@ -437,7 +437,7 @@ export function WallElevationSvg({
         const gaps = floorItems
           .filter((it) => {
             const c = catalogById(it.catalogId);
-            const notched = c.front === 'grill' || c.front === 'grill4' || c.front === 'griddle' || c.front === 'griddle4' || c.front === 'burner';
+            const notched = c.front === 'grill' || c.front === 'grill4' || c.front === 'grilldrawer' || c.front === 'griddle' || c.front === 'griddle4' || c.front === 'burner';
             return notched && it.x >= r.x1 - 0.1 && it.x <= r.x2 + 0.1 && Math.abs(it.h - r.h) < 0.01;
           })
           .map((it) => {
