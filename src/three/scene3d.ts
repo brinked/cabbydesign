@@ -789,25 +789,26 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     // band, and the two walls split the square the way the counters do: the
     // owning wall ('full') carries its band all the way in, the other wall's
     // band stops flush at the owner's kick line so nothing pokes past it.
-    const extK = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
     for (const cEnd of ['start', 'end'] as const) {
       const cf = wallItems.find((i) => i.id === `cf-${f.wall.id}-${cEnd}`);
       if (!cf) continue;
       const nb = floorItems.find(
         (i) => !i.auto && Math.abs(cEnd === 'start' ? i.x - (cf.x + cf.w) : cf.x - (i.x + footprintW(i))) < 1
       );
-      const kPlane = nb ? (kickPlanes.get(nb.id) ?? nb.d - 2) + nb.outset : cf.d - 2;
+      const kPlane = nb ? (kickPlanes.get(nb.id) ?? nb.d - 2) + nb.outset : cf.d + cf.outset - 2;
       const kd = Math.max(1, kPlane - 0.75);
-      // The filler spans face plane -> cabinet, so its corner-side edge IS the
-      // perpendicular run's face plane; that run's kick line sits 2" behind it.
-      const perpFace = cEnd === 'start' ? cf.x : f.wall.length - (cf.x + cf.w);
-      const stop = (cEnd === 'start' ? extK.start : extK.end) === 'toFiller' ? Math.max(0, perpFace - 2) : 0;
-      const x1 = cEnd === 'start' ? stop : cf.x + cf.w;
-      const x2 = cEnd === 'start' ? cf.x : f.wall.length - stop;
+      const x1 = cEnd === 'start' ? 0 : cf.x + cf.w;
+      const x2 = cEnd === 'start' ? cf.x : f.wall.length;
       if (x2 - x1 < 0.25) continue;
-      const km = box(x2 - x1, TOEKICK_H, kd, mats.kick);
+      // Both walls of a corner draw their full strip: in a shared inside
+      // corner the overlap sits entirely inside the enclosed dead void, and
+      // on wrap-around corners (island heading away from the kitchen) the
+      // two zones are disjoint and each genuinely needs its own. The tiny
+      // per-wall height offset keeps the coincident top faces in the shared
+      // case from z-fighting.
+      const km = box(x2 - x1, TOEKICK_H - 0.05, kd, mats.kick);
       km.castShadow = km.receiveShadow = true;
-      place(km, (x1 + x2) / 2, 0.75 + kd / 2, TOEKICK_H / 2);
+      place(km, (x1 + x2) / 2, 0.75 + kd / 2, (TOEKICK_H - 0.05) / 2 - design.walls.indexOf(f.wall) * 0.013);
     }
 
     for (const it of wallItems) {
