@@ -537,7 +537,9 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
   const f = finishedEnds(it);
   const nFin = (f.l ? 1 : 0) + (f.r ? 1 : 0);
   const ends = nEnds * sqft(it.d) * rates.applied + nFin * sqft(it.d) * rates.finished;
-  const back = itemOnIsland(design, it) ? sqft(it.w) * rates.applied : 0;
+  // A hidden cabinet's doors ARE the back there - no finished back panel
+  // behind it, so no back-panel charge (its fronts price via the formula).
+  const back = itemOnIsland(design, it) && !cat.hidden ? sqft(it.w) * rates.applied : 0;
   const total = price + trays + ends + back;
   return {
     cabinet: round2(price),
@@ -831,7 +833,9 @@ function autoCornerFillers(design: Design): void {
     let best: { it: PlacedItem; edge: number; corner: boolean; blind: boolean; cooking: boolean } | null = null;
     for (const it of laneItems(design.items, wall.id, 'floor')) {
       const c = catalogById(it.catalogId);
-      if (c.front === 'filler') continue;
+      // Hidden cabinets LIVE inside the reserve facing backward - they are
+      // not the run the filler connects to.
+      if (c.front === 'filler' || c.hidden) continue;
       const fw = footprintW(it);
       const edge = atEnd === 'start' ? it.x : wall.length - (it.x + fw);
       if (!best || edge < best.edge) best = { it, edge, corner: isCornerFront(c), blind: isBlindFront(c), cooking: isCookingCat(c) };
@@ -1369,6 +1373,9 @@ export const useStore = create<AppState>()(
         if (!wall) return false;
         // Bar-height cabinets need the open seating overhang, so they're island only.
         if (cat.barHeight && !wall.ghost) return false;
+        // Hidden cabinets face out an island's finished back - meaningless on
+        // a solid wall.
+        if (cat.hidden && !wall.ghost) return false;
         const { minW } = effectiveDims(catalogId, s.dims);
         // find the largest opening (handles gaps next to pinned corner cabinets)
         const slot = openingFor(s.design, wallId, cat);
@@ -1393,6 +1400,7 @@ export const useStore = create<AppState>()(
           endR: false,
           trays: 0,
         };
+        if (cat.hidden) item.handleId = 'tab';
         set({ design: withPack({ ...s.design, items: [...s.design.items, item] }), selectedId: item.id });
         return true;
       },

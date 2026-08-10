@@ -376,7 +376,7 @@ export function isBlindFront(cat: CatalogItem): boolean {
 
 /** Items allowed to impede into a reserved corner zone (corner cabinets + fillers). */
 export function isReserveExempt(cat: CatalogItem): boolean {
-  return isCornerFront(cat) || cat.front === 'filler';
+  return isCornerFront(cat) || cat.front === 'filler' || cat.hidden === true;
 }
 
 /**

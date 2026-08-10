@@ -57,7 +57,18 @@ export default function Report() {
   // Spec summary values for the cover/report.
   const doorStyleLabel = DOOR_STYLE_LABELS[design.doorStyle] ?? design.doorStyle;
   const counterSqft = counterAreaSqft(design);
-  const totalHandles = design.items.reduce((n, it) => n + handleCount(catalogById(it.catalogId), it.w), 0);
+  const totalHandles = design.items.reduce((n, it) => {
+    // items with their OWN pull (hidden cabinets) bill on their own handle
+    // below; the built-in tab pull carries no hardware charge at all
+    if (it.handleId) return n;
+    return n + handleCount(catalogById(it.catalogId), it.w);
+  }, 0);
+  // Per-item pull overrides (hidden cabinets) grouped by inventory handle.
+  const ownPulls = new Map<string, number>();
+  for (const it of design.items) {
+    if (!it.handleId || it.handleId === 'tab') continue;
+    ownPulls.set(it.handleId, (ownPulls.get(it.handleId) ?? 0) + handleCount(catalogById(it.catalogId), it.w));
+  }
 
   // Pricing preferences. Default to showing marked-up pricing. Consumers
   // (guests + homeowner/company accounts) never see pricing on the report —
@@ -199,7 +210,12 @@ export default function Report() {
   // Retail (customer) in marked-up mode, dealer cost in cost mode.
   const handle = mergedHandles(handles, catalogPrefs).find((h) => h.id === design.handleId);
   const handleUnit = handle ? (isMarkedUp ? handle.retail : handle.dealer) : 0;
-  const handleSubtotal = handle ? totalHandles * handleUnit : 0;
+  // pulls chosen per cabinet (hidden cabinets) add at their own handle price
+  const ownPullsCost = [...ownPulls.entries()].reduce((sum, [hid, count]) => {
+    const h = handles.find((x) => x.id === hid);
+    return sum + (h ? count * (isMarkedUp ? h.retail : h.dealer) : 0);
+  }, 0);
+  const handleSubtotal = (handle ? totalHandles * handleUnit : 0) + ownPullsCost;
 
   // Marked-up subtotals (percent factor, plus a flat $ on each priced cabinet).
   const cabinetSubtotalMk = cabinetSubtotalDisplayed;

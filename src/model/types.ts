@@ -116,6 +116,8 @@ export type ApplianceBrands = Record<string, { discountPct: number }>;
 export interface PanelRates {
   applied: number;
   finished: number;
+  /** Toe kick, billed per LINEAR foot of kick (not per sq ft). */
+  toeKick?: number;
 }
 
 /** Per-model 3D placement override, tuned in the admin Appliance Aligner and
@@ -222,6 +224,10 @@ export interface CatalogItem {
    *  from `category` (e.g. fridges behave as outdoor cabinets but are picked
    *  from the Appliances tab). */
   displayCategory?: Category;
+  /** Hidden cabinet: mounts REVERSED on an island so its doors sit flush with
+   *  the finished back plane - storage reclaimed from a dead corner. Exempt
+   *  from corner reserves; the finished back panels part around it. */
+  hidden?: boolean;
 }
 
 /** User override of a cabinet's allowed size range (Settings). */
@@ -322,6 +328,9 @@ export interface PlacedItem {
   /** Per-cabinet series/door-finish override (NewAge units) — a finish id from
    *  the NewAge palette. Unset = follow the design's default finish. */
   finish?: string;
+  /** Per-cabinet pull override (hidden cabinets): 'tab' = built-in top tab
+   *  pull (their default), a handle-inventory id, or absent = the job handle. */
+  handleId?: string;
 }
 
 export type LayoutKind = 'linear' | 'l' | 'u';

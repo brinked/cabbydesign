@@ -437,6 +437,9 @@ export interface CabDims {
    *  on this cabinet is that product at its true size instead of the generic
    *  bar family sized to the front. */
   handleModel?: string | null;
+  /** Built-in top tab pull instead of mounted hardware (hidden cabinets'
+   *  default): a low-profile lip across the door's top edge. */
+  handleTab?: boolean;
   /** Local z of the RUN's toe-kick face. A fridge/ice-maker housing is often
    *  deeper than its neighbours, and a kick following its own depth broke the
    *  continuous base band — pass the run's plane so kicks line up. */
@@ -1662,7 +1665,15 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
     for (const fr of fronts) {
       const fg = doorFace(fr.w, fr.h, fr.slab ? 'flat' : style, mats);
-      if (fr.handle !== 'none') {
+      if (fr.handle !== 'none' && dims.handleTab) {
+        // Built-in top tab pull: a low-profile steel lip across the door's
+        // top edge - reads as an integrated finger pull, no drilled hardware.
+        const len = Math.min(10, fr.w * 0.55);
+        const tab = new THREE.Mesh(new THREE.BoxGeometry(len, 0.7, 1.3), mats.steel);
+        tab.position.set(0, fr.h / 2 - 0.35, 0.55 + frameLift(fr.slab ? 'flat' : style));
+        tab.castShadow = true;
+        fg.add(tab);
+      } else if (fr.handle !== 'none') {
         let isV = fr.handle !== 'h-center';
         // NewAge handle styles (per product photos): drawers & flip-up doors
         // take slim horizontal top/bottom-edge pulls; Classic (flat metal)

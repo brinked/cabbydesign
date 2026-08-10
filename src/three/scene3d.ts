@@ -770,7 +770,9 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const kickable = floorItems
         .filter((o) => {
           const oc = catalogById(o.catalogId);
-          return oc.category !== 'appliance' && oc.front !== 'corner' && oc.front !== 'susan' && !oc.barHeight;
+          // hidden cabinets face backward - their kick lives on the back
+          // plane, not the run's front band
+          return oc.category !== 'appliance' && oc.front !== 'corner' && oc.front !== 'susan' && !oc.barHeight && !oc.hidden;
         })
         .sort((a, b) => a.x - b.x);
       for (const o of kickable) {
@@ -793,7 +795,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const cf = wallItems.find((i) => i.id === `cf-${f.wall.id}-${cEnd}`);
       if (!cf) continue;
       const nb = floorItems.find(
-        (i) => !i.auto && Math.abs(cEnd === 'start' ? i.x - (cf.x + cf.w) : cf.x - (i.x + footprintW(i))) < 1
+        (i) => !i.auto && !catalogById(i.catalogId).hidden && Math.abs(cEnd === 'start' ? i.x - (cf.x + cf.w) : cf.x - (i.x + footprintW(i))) < 1
       );
       const kPlane = nb ? (kickPlanes.get(nb.id) ?? nb.d - 2) + nb.outset : cf.d + cf.outset - 2;
       const kd = Math.max(1, kPlane - 0.75);
@@ -805,10 +807,26 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // on wrap-around corners (island heading away from the kitchen) the
       // two zones are disjoint and each genuinely needs its own. The tiny
       // per-wall height offset keeps the coincident top faces in the shared
-      // case from z-fighting.
-      const km = box(x2 - x1, TOEKICK_H - 0.05, kd, mats.kick);
-      km.castShadow = km.receiveShadow = true;
-      place(km, (x1 + x2) / 2, 0.75 + kd / 2, (TOEKICK_H - 0.05) / 2 - design.walls.indexOf(f.wall) * 0.013);
+      // case from z-fighting. A hidden cabinet living in the reserve carves
+      // its span out - its own reversed body (and kick) stands there.
+      let stripSegs = [[x1, x2]] as Array<[number, number]>;
+      for (const o of floorItems) {
+        if (!catalogById(o.catalogId).hidden) continue;
+        const ha = o.x;
+        const hb = o.x + footprintW(o);
+        stripSegs = stripSegs.flatMap(([sa, sb]) => {
+          const out: Array<[number, number]> = [];
+          if (ha > sa) out.push([sa, Math.min(ha, sb)]);
+          if (hb < sb) out.push([Math.max(hb, sa), sb]);
+          return out;
+        });
+      }
+      for (const [sa, sb] of stripSegs) {
+        if (sb - sa < 0.25) continue;
+        const km = box(sb - sa, TOEKICK_H - 0.05, kd, mats.kick);
+        km.castShadow = km.receiveShadow = true;
+        place(km, (sa + sb) / 2, 0.75 + kd / 2, (TOEKICK_H - 0.05) / 2 - design.walls.indexOf(f.wall) * 0.013);
+      }
     }
 
     for (const it of wallItems) {
@@ -824,15 +842,36 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
           : cat.front === 'hood'
             ? { key: 'hood', w: it.w }
             : null;
+      // Hidden cabinets carry their own pull ('tab' built-in default, or a
+      // specific inventory handle) instead of the job handle, and a mirrored
+      // hinge so the editor's choice matches what you see from the back.
+      const ownHandle = it.handleId && it.handleId !== 'tab' ? useStore.getState().handles.find((h) => h.id === it.handleId) : undefined;
+      const itemHandleModel = it.handleId
+        ? it.handleId === 'tab'
+          ? null
+          : ownHandle?.model && ownHandle.model !== 'bar'
+            ? ownHandle.model
+            : namedHandleKey(ownHandle?.name)
+        : handleModel;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style: design.doorStyle, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel, kickFrontZ: kickPlanes.get(it.id) },
+        { w: it.w, d: it.d, h: it.h, hinge: cat.hidden ? (it.hinge === 'left' ? 'right' : 'left') : it.hinge, style: design.doorStyle, endL: cat.hidden ? false : it.endL, endR: cat.hidden ? false : it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel: itemHandleModel, handleTab: it.handleId === 'tab', kickFrontZ: cat.hidden ? undefined : kickPlanes.get(it.id) },
         matsFor(resolveItemFinish(fin.id, it, cat))
       );
-      const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;
-      cab.position.copy(origin).addScaledVector(dir, it.x + exL + it.w / 2).addScaledVector(nrm, it.outset);
-      cab.position.y = it.mount;
-      cab.rotation.y = yaw;
+      const exL = cat.category !== 'appliance' && !cat.hidden && it.endL ? 0.75 : 0;
+      if (cat.hidden) {
+        // Reversed mount: rotate the box 180 degrees and slide it so the door
+        // faces land exactly on the finished back plane (panels sit
+        // END_PANEL_T out from the wall line; door slabs end flush at the
+        // nominal depth).
+        cab.position.copy(origin).addScaledVector(dir, it.x + it.w / 2).addScaledVector(nrm, it.d - END_PANEL_T);
+        cab.position.y = it.mount;
+        cab.rotation.y = yaw + Math.PI;
+      } else {
+        cab.position.copy(origin).addScaledVector(dir, it.x + exL + it.w / 2).addScaledVector(nrm, it.outset);
+        cab.position.y = it.mount;
+        cab.rotation.y = yaw;
+      }
       group.add(cab);
 
       // Connecting bar riser: a fridge flush between two bar-height cabinets
@@ -969,6 +1008,8 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         if (!o) return null;
         const oc = catalogById(o.catalogId);
         if (!takesAppliedEnds(oc) || oc.lane !== 'floor') return null;
+        // Hidden cabinets' doors ARE the back where they stand.
+        if (oc.hidden) return null;
         return o.h + (oc.barHeight ? BAR_RISE : 0);
       };
       for (let i = 0; i < sortedBack.length; i++) {
@@ -1005,6 +1046,31 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         if (firstG && wrB.start > 0 && firstG.x1 <= wrB.start + 2) firstG.x1 = 0;
         const lastG = groups[groups.length - 1];
         if (lastG && wrB.end > 0 && lastG.x2 >= f.wall.length - wrB.end - 2) lastG.x2 = f.wall.length;
+      }
+      // Hidden cabinets face their doors out the back: the finished back
+      // panels (dead-corner extensions and full-length backs included) part
+      // around their spans - the doors are the finish there.
+      {
+        const hiddenSpans = floorItems
+          .filter((o) => catalogById(o.catalogId).hidden)
+          .map((o) => [o.x, o.x + footprintW(o)] as [number, number]);
+        if (hiddenSpans.length) {
+          const cut: BackGroup[] = [];
+          for (const g of groups) {
+            let segs = [[g.x1, g.x2]] as Array<[number, number]>;
+            for (const [ha, hb] of hiddenSpans) {
+              segs = segs.flatMap(([sa, sb]) => {
+                const out: Array<[number, number]> = [];
+                if (ha > sa) out.push([sa, Math.min(ha, sb)]);
+                if (hb < sb) out.push([Math.max(hb, sa), sb]);
+                return out;
+              });
+            }
+            for (const [sa, sb] of segs) if (sb - sa > 0.6) cut.push({ x1: sa, x2: sb, topY: g.topY });
+          }
+          groups.length = 0;
+          groups.push(...cut);
+        }
       }
       // The base band follows the back: any stretch of a back group with no
       // cabinet or filler kick under it (a full-length back, the dead-corner

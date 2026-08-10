@@ -926,6 +926,9 @@ export function CabinetTop({ cat, w, d, fin, hinge = 'left' }: { cat: CatalogIte
         return <circle cx={w / 2} cy={d / 2} r={r} fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth={0.5} />;
       }
       default:
+        // Hidden cabinets face the island back: mark the door line on the
+        // wall-side edge so the plan reads the reversed orientation.
+        if (cat.hidden) return <rect x={3} y={1.4} width={w - 6} height={1.6} fill={STEEL_DK} />;
         return null;
     }
   })();

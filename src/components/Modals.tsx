@@ -563,6 +563,8 @@ export function EditItemModal() {
   // end. Editing a side slides the cabinet, giving exact control over its
   // distance from the wall edge or the neighbouring cabinet.
   const laneMates = laneItems(design.items, it.wallId, cat.lane).filter((o) => o.id !== it.id);
+  // Hidden cabinets pick their own pull; active inventory handles offered.
+  const hiddenPulls = useStore((st) => st.handles).filter((h) => h.active !== false);
   const fpw = footprintW(it);
   const leftEdge = laneMates.reduce((m, o) => {
     const e = o.x + footprintW(o);
@@ -762,6 +764,27 @@ export function EditItemModal() {
                   {cat.front === 'blind' ? 'Door right' : 'Right'}
                 </button>
               </div>
+            </div>
+          )}
+          {cat.hidden && (
+            <div className="stepper-row">
+              <span className="stepper-label">
+                Pull style
+                <span className="stepper-note">this cabinet only - independent of the job handle</span>
+              </span>
+              <select
+                className="select-input"
+                value={it.handleId ?? 'tab'}
+                onChange={(e) => updateItem(it.id, { handleId: e.target.value || undefined })}
+              >
+                <option value="tab">Top tab pull (default)</option>
+                <option value="">Job handle</option>
+                {hiddenPulls.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>
