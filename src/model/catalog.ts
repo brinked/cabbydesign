@@ -111,12 +111,6 @@ const BASE_CATALOG: CatalogItem[] = [
   // ---------- Standard base cabinets ----------
   { id: 'base-1door', name: '1-Door Base', category: 'base', front: 'door1', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 9, maxW: 24, stepW: 3, counter: true, formula: BOX, maxTrays: 2 },
   { id: 'base-2door', name: '2-Door Base', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, maxTrays: 2 },
-  // Hidden cabinets mount REVERSED on an island: their doors sit flush with
-  // the finished back plane, reclaiming a dead corner as storage. Reserve
-  // exempt, no counter of their own (the corner fill covers them), and they
-  // default to the built-in top tab pull instead of the job handle.
-  { id: 'base-hidden1', name: 'Hidden 1-Door (Dead Corner)', category: 'base', front: 'door1', hidden: true, lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 9, maxW: 24, stepW: 3, counter: false, formula: BOX, maxTrays: 2, note: 'Faces the island back - fills a dead corner with real storage.' },
-  { id: 'base-hidden2', name: 'Hidden 2-Door (Dead Corner)', category: 'base', front: 'door2', hidden: true, lane: 'floor', w: 24, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: false, formula: BOX, maxTrays: 2, note: 'Faces the island back - fills a dead corner with real storage.' },
   { id: 'base-1door1drawer', name: '1-Door 1-Drawer Base', category: 'base', front: 'doordrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 24, stepW: 3, counter: true, formula: DRAWER1, maxTrays: 2 },
   { id: 'base-2door1drawer', name: '2-Door 1-Drawer Base', category: 'base', front: 'door2drawer', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: DRAWER1, maxTrays: 2 },
   { id: 'base-drawer3', name: '3-Drawer Base', category: 'base', front: 'drawers3', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 36, stepW: 3, counter: true, formula: DRAWER3 },
@@ -190,6 +184,12 @@ const BASE_CATALOG: CatalogItem[] = [
 
   // ---------- NewAge Products modular lines (fixed factory sizes) ----------
   ...NEWAGE_CATALOG,
+  // Hidden cabinets mount REVERSED on an island: their doors sit flush with
+  // the finished back plane, reclaiming a dead corner as storage. Reserve
+  // exempt, no counter of their own (the corner fill covers them), and they
+  // default to the built-in top tab pull instead of the job handle.
+  { id: 'base-hidden1', name: 'Hidden 1-Door (Dead Corner)', category: 'base', front: 'door1', hidden: true, lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 9, maxW: 24, stepW: 3, counter: false, formula: BOX, maxTrays: 2, note: 'Faces the island back - fills a dead corner with real storage.' },
+  { id: 'base-hidden2', name: 'Hidden 2-Door (Dead Corner)', category: 'base', front: 'door2', hidden: true, lane: 'floor', w: 24, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: false, formula: BOX, maxTrays: 2, note: 'Faces the island back - fills a dead corner with real storage.' },
 ];
 
 // Fronts that get an auto-generated bar-height variant: plain floor cabinets
@@ -220,7 +220,7 @@ export const CATALOG: CatalogItem[] = [
   ...BASE_CATALOG,
   ...BASE_CATALOG.filter(
     // No bar twins for NewAge modular units — factory-fixed sizes can't grow the bar tier.
-    (c) => c.lane === 'floor' && (c.category === 'base' || c.category === 'outdoor') && !c.hideFromAdd && !c.barHeight && !c.line && !c.fixed && BAR_FRONTS.has(c.front),
+    (c) => c.lane === 'floor' && (c.category === 'base' || c.category === 'outdoor') && !c.hideFromAdd && !c.barHeight && !c.line && !c.fixed && !c.hidden && BAR_FRONTS.has(c.front),
   ).map(barVariant),
 ];
 

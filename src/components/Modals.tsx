@@ -564,7 +564,9 @@ export function EditItemModal() {
   // distance from the wall edge or the neighbouring cabinet.
   const laneMates = laneItems(design.items, it.wallId, cat.lane).filter((o) => o.id !== it.id);
   // Hidden cabinets pick their own pull; active inventory handles offered.
-  const hiddenPulls = useStore((st) => st.handles).filter((h) => h.active !== false);
+  // (getState, not a hook: this sits below a conditional return, where a
+  // subscription would change the hook order between renders and crash React)
+  const hiddenPulls = useStore.getState().handles.filter((h) => h.active !== false);
   const fpw = footprintW(it);
   const leftEdge = laneMates.reduce((m, o) => {
     const e = o.x + footprintW(o);
