@@ -301,6 +301,8 @@ export function bridgesCounter(cat: CatalogItem): boolean {
  *  real cabinets — including grill/griddle/burner/kamado cabinets — can. */
 export function takesAppliedEnds(cat: CatalogItem): boolean {
   if (cat.category === 'appliance') return false;
+  // Fillers are bare trim strips — no applied/finished ends (end CAPS do take them).
+  if (cat.front === 'filler') return false;
   if (cat.line) return false; // NewAge metal units are factory-finished on all sides
   if (cat.applianceCat && APPLIANCE_OPENING_CATS.includes(cat.applianceCat)) return false;
   return true;
