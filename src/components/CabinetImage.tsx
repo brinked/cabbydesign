@@ -36,10 +36,10 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
       : cat.front === 'hood'
         ? { key: 'hood', w: it.w }
         : null;
-  const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, cornerSide, applianceH, counterT, modelKey: mref?.key, modelW: mref?.w };
+  const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, cornerSide, applianceH, counterT, modelKey: mref?.key, modelW: mref?.w, topRowH: it.topRowH };
   const url = useMemo(
     () => cabinetSprite(cat, dims, fin, 'front'),
-    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, it.finL, it.finR, style, fin, cornerSide, applianceH, counterT, mref?.key, mref?.w, modelsReady]
+    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, it.finL, it.finR, style, fin, cornerSide, applianceH, counterT, mref?.key, mref?.w, it.topRowH, modelsReady]
   );
   if (!url) return <CabinetFront cat={cat} w={it.w} h={it.h} fin={fin} hinge={it.hinge} />;
   const top = spriteTopY(cat, it.h);

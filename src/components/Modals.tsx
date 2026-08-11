@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BASE_H, CATALOG, COUNTER_T, catalogById, catalogForDesign, categoryLabelsForLine, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
+import { NumberField } from './NumberField';
 import { NEWAGE_FINISHES, itemFinishId, naClosestFinish, naVariantFor } from '../model/newage';
 import { companyFinishes } from '../model/companyCatalog';
 import { money, tryFormula } from '../model/pricing';
@@ -563,6 +564,10 @@ export function EditItemModal() {
   // end. Editing a side slides the cabinet, giving exact control over its
   // distance from the wall edge or the neighbouring cabinet.
   const laneMates = laneItems(design.items, it.wallId, cat.lane).filter((o) => o.id !== it.id);
+  // Advanced settings: fronts carrying a TOP drawer row / false front
+  // whose height can be overridden per cabinet.
+  const topRowFront = ['sink', 'sink1f', 'sinkdrawer', 'drawers3', 'drawers4', 'doordrawer', 'door2drawer', 'trashdrawer', 'propanedrawer', 'cooktop'].includes(cat.front);
+  const sinkFalse = cat.front === 'sink' || cat.front === 'sink1f' || cat.front === 'sinkdrawer';
   // Hidden cabinets pick their own pull; active inventory handles offered.
   // (getState, not a hook: this sits below a conditional return, where a
   // subscription would change the hook order between renders and crash React)
@@ -791,6 +796,31 @@ export function EditItemModal() {
           )}
         </div>
       </div>
+      {topRowFront && (
+        <details className="report-price-controls" style={{ marginTop: 6 }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Advanced settings</summary>
+          <div className="stepper-row" style={{ marginTop: 6 }}>
+            <span className="stepper-label">
+              {sinkFalse ? 'False front height' : 'Top drawer height'}
+              <span className="stepper-note">inches - 0 goes back to automatic</span>
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+              <NumberField
+                value={it.topRowH ?? 0}
+                min={0}
+                max={18}
+                step={0.25}
+                onCommit={(v) => updateItem(it.id, { topRowH: v > 0 ? v : undefined })}
+              />
+              {it.topRowH != null && (
+                <button className="seg-btn" onClick={() => updateItem(it.id, { topRowH: undefined })}>
+                  Auto
+                </button>
+              )}
+            </span>
+          </div>
+        </details>
+      )}
       {cat.applianceCat && <ApplianceSection it={it} cat={cat} />}
       {island && cat.category !== 'appliance' && (
         <div className="price-line" style={{ marginTop: 4 }}>

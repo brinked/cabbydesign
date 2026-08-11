@@ -333,6 +333,10 @@ export interface PlacedItem {
   /** Per-cabinet pull override (hidden cabinets): 'tab' = built-in top tab
    *  pull (their default), a handle-inventory id, or absent = the job handle. */
   handleId?: string;
+  /** Height override (inches) for the TOP drawer row / false front on fronts
+   *  that carry one (drawer stacks, door+drawer combos, sink false fronts,
+   *  blind-corner top drawers). Absent = the automatic height. */
+  topRowH?: number;
 }
 
 export type LayoutKind = 'linear' | 'l' | 'u';

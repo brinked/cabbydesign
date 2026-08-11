@@ -440,6 +440,8 @@ export interface CabDims {
   /** Built-in top tab pull instead of mounted hardware (hidden cabinets'
    *  default): a low-profile lip across the door's top edge. */
   handleTab?: boolean;
+  /** Height override for the top drawer row / false front (inches). */
+  topRowH?: number;
   /** Local z of the RUN's toe-kick face. A fridge/ice-maker housing is often
    *  deeper than its neighbours, and a kick following its own depth broke the
    *  continuous base band — pass the run's plane so kicks line up. */
@@ -1470,7 +1472,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       case 'sink1f': {
         const twoDoor = (cat.front === 'sink' || cat.front === 'sink2') && w >= 24;
         const falseFront = cat.front === 'sink' || cat.front === 'sink1f';
-        const top = falseFront ? fh * 0.2 : 0;
+        const top = falseFront ? (dims.topRowH != null ? Math.max(3, Math.min(dims.topRowH, fh * 0.6)) : fh * 0.2) : 0;
         if (falseFront) fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'h-center' });
         const doorH = fh - (falseFront ? top + GAP : 0);
         const doorDy = falseFront ? -top / 2 - GAP / 2 : 0;
@@ -1488,9 +1490,10 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         // shared run. The top row is a false front - the basin sits behind
         // it - carrying a pull to match but no billing.
         const bandH = hasModel('grill') ? 6 : 9;
-        const zoneH = fh - bandH - 4.5 - GAP * 2;
-        const rh = (zoneH - GAP) / 2;
-        const falseH = fh - 2 * (rh + GAP);
+        const autoZone = fh - bandH - 4.5 - GAP * 2;
+        const autoRh = (autoZone - GAP) / 2;
+        const falseH = dims.topRowH != null ? Math.max(3, Math.min(dims.topRowH, fh - 8)) : fh - 2 * (autoRh + GAP);
+        const rh = (fh - falseH - GAP * 2 - GAP) / 2;
         fronts.push({ dx: 0, dy: fh / 2 - falseH / 2, w: fw, h: falseH, handle: 'h-center' });
         fronts.push({ dx: 0, dy: -fh / 2 + rh + GAP + rh / 2, w: fw, h: rh, handle: 'h-center' });
         fronts.push({ dx: 0, dy: -fh / 2 + rh / 2, w: fw, h: rh, handle: 'h-center' });
@@ -1579,7 +1582,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         break;
       }
       case 'drawers3': {
-        const top = fh * 0.24;
+        const top = dims.topRowH != null ? Math.max(3, Math.min(dims.topRowH, fh * 0.6)) : fh * 0.24;
         const rest = (fh - top) / 2;
         fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'h-center' });
         fronts.push({ dx: 0, dy: fh / 2 - top - rest / 2, w: fw, h: rest - GAP, handle: 'h-center' });
@@ -1588,7 +1591,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       }
       case 'cooktop': {
         // false front up top (no pull — the cooktop sits above), doors below
-        const top = fh * 0.2;
+        const top = dims.topRowH != null ? Math.max(3, Math.min(dims.topRowH, fh * 0.6)) : fh * 0.2;
         fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'none' });
         const doorH = fh - top - GAP;
         const doorDy = -top / 2 - GAP / 2;
@@ -1607,13 +1610,13 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         }
         break;
       case 'doordrawer': {
-        const top = fh * 0.28;
+        const top = dims.topRowH != null ? Math.max(3, Math.min(dims.topRowH, fh * 0.6)) : fh * 0.28;
         fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'h-center' });
         fronts.push({ dx: 0, dy: -top / 2 - GAP / 2, w: fw, h: fh - top - GAP, handle: oneDoorHandle });
         break;
       }
       case 'door2drawer': {
-        const top = fh * 0.2;
+        const top = dims.topRowH != null ? Math.max(3, Math.min(dims.topRowH, fh * 0.6)) : fh * 0.2;
         const doorH = fh - top - GAP;
         const doorHalf = (fw - GAP) / 2;
         fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'h-center' });
@@ -1623,7 +1626,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       }
       case 'trashdrawer':
       case 'propanedrawer': {
-        const top = fh * 0.2;
+        const top = dims.topRowH != null ? Math.max(3, Math.min(dims.topRowH, fh * 0.6)) : fh * 0.2;
         fronts.push({ dx: 0, dy: fh / 2 - top / 2, w: fw, h: top - GAP, handle: 'h-center' });
         fronts.push({
           dx: 0,
