@@ -6,7 +6,7 @@ import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, COOKING_CORNER_FILLER, CORNER_FILLER, isCookingCat, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, wallEndJoined, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, COOKING_CORNER_FILLER, CORNER_FILLER, isCookingCat, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, squareCorner, wallEndJoined, wallEndpoints } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot.
  *  Default only — the admin-managed rates live in store.panelRates. */
@@ -849,6 +849,8 @@ function autoCornerFillers(design: Design): void {
     for (let j = i + 1; j < design.walls.length; j++) {
       const A = design.walls[i];
       const B = design.walls[j];
+      // Angled joins (45° walls) get no auto corner fillers.
+      if (!squareCorner(A, B)) continue;
       // island walls form corners too — see cornerReserves
       const a = ep(A);
       const b = ep(B);

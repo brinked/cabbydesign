@@ -225,6 +225,15 @@ export function cornerGapFor(
  * store.autoCornerFillers). Corner cabinets are exempt and may occupy their
  * own reserve.
  */
+/** Whether two walls meet SQUARELY (~90°). The dead-corner machinery —
+ *  reserves, auto corner fillers, corner fills, kick bands — models a
+ *  perpendicular join. Angled joins (e.g. a 45° transition wall) get none of
+ *  it: the runs simply meet, and any trim there is placed by hand. */
+export function squareCorner(a: Wall, b: Wall): boolean {
+  const d = Math.abs((((a.angle - b.angle) % 180) + 180) % 180);
+  return Math.abs(d - 90) < 20;
+}
+
 export function cornerReserves(
   walls: Wall[],
   items: PlacedItem[],
@@ -268,6 +277,8 @@ export function cornerReserves(
 
   for (let i = 0; i < walls.length; i++) {
     for (let j = i + 1; j < walls.length; j++) {
+      // Angled joins (45° walls) carry no dead-corner treatment at all.
+      if (!squareCorner(walls[i], walls[j])) continue;
       const a = wallEndpoints(walls[i]);
       const b = wallEndpoints(walls[j]);
       const combos: Array<['start' | 'end', 'start' | 'end', number]> = [
@@ -330,6 +341,8 @@ export function cornerCounterExtend(
   const out: { start: CornerFillMode; end: CornerFillMode } = { start: false, end: false };
   for (const other of walls) {
     if (other.id === wall.id) continue;
+    // Angled joins (45° walls) never extend counters over the corner.
+    if (!squareCorner(wall, other)) continue;
     // Mixed pairs (island meets a real wall) fill too now — corner fillers
     // and reserves exist on ghost walls, so the machinery all applies.
     const bothIslands = !!wall.ghost && !!other.ghost;
