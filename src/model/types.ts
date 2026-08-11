@@ -46,6 +46,7 @@ export type FrontKind =
   | 'grill'
   | 'grill4'
   | 'grilldrawer'
+  | 'sinkdrawer'
   | 'griddle'
   | 'griddle4'
   | 'burner'

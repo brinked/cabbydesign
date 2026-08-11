@@ -117,6 +117,7 @@ const BASE_CATALOG: CatalogItem[] = [
   { id: 'base-drawer4', name: '4-Drawer Base', category: 'base', front: 'drawers4', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 30, stepW: 3, counter: true, formula: DRAWER4 },
   { id: 'base-sink', name: '2-Door Sink Base (False Front)', category: 'base', front: 'sink', lane: 'floor', w: 33, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
   { id: 'base-sink2', name: '2-Door Sink Base', category: 'base', front: 'sink2', lane: 'floor', w: 33, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
+  { id: 'base-sink-drawers', name: 'Sink Base (2-Drawer)', category: 'base', front: 'sinkdrawer', lane: 'floor', w: 33, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, note: 'Two stacked drawers aligned with the 2-drawer grill cabinet; the top row is a false front under the basin.' },
   { id: 'base-sink1', name: '1-Door Sink Base', category: 'base', front: 'sink1', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
   { id: 'base-sink1f', name: '1-Door Sink Base (False Front)', category: 'base', front: 'sink1f', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
   { id: 'base-cooktop', name: 'Cooktop Base', category: 'base', front: 'cooktop', lane: 'floor', w: 33, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, topGearH: 1, formula: BOX, note: 'False front + doors, built to carry a drop-in cooktop. Cooktop should be narrower than the cabinet.' },
@@ -349,6 +350,8 @@ export function handleCount(cat: CatalogItem, w: number): number {
     case 'sink':
     case 'sink2':
       return 2; // false front carries no pull
+    case 'sinkdrawer':
+      return 2; // two working drawers; the false top pull is decorative
     case 'sink1':
     case 'sink1f':
     case 'fridgep':

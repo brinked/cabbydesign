@@ -1008,7 +1008,7 @@ function boxAt(w: number, h: number, d: number, x: number, y: number, z: number,
 
 /** Fronts that carry a dropped-in sink basin + faucet. */
 export function isSinkFront(front: CatalogItem['front']): boolean {
-  return front === 'sink' || front === 'sink2' || front === 'sink1' || front === 'sink1f';
+  return front === 'sink' || front === 'sink2' || front === 'sink1' || front === 'sink1f' || front === 'sinkdrawer';
 }
 
 /** Basin opening (in cabinet-local inches): width, depth, center-from-wall, bowl depth.
@@ -1480,6 +1480,20 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         } else {
           fronts.push({ dx: 0, dy: doorDy, w: fw, h: doorH, handle: oneDoorHandle });
         }
+        break;
+      }
+      case 'sinkdrawer': {
+        // Drawer rows sized EXACTLY like the 2-drawer grill cabinet's (same
+        // appliance-band + apron arithmetic), so the pulls line up across a
+        // shared run. The top row is a false front - the basin sits behind
+        // it - carrying a pull to match but no billing.
+        const bandH = hasModel('grill') ? 6 : 9;
+        const zoneH = fh - bandH - 4.5 - GAP * 2;
+        const rh = (zoneH - GAP) / 2;
+        const falseH = fh - 2 * (rh + GAP);
+        fronts.push({ dx: 0, dy: fh / 2 - falseH / 2, w: fw, h: falseH, handle: 'h-center' });
+        fronts.push({ dx: 0, dy: -fh / 2 + rh + GAP + rh / 2, w: fw, h: rh, handle: 'h-center' });
+        fronts.push({ dx: 0, dy: -fh / 2 + rh / 2, w: fw, h: rh, handle: 'h-center' });
         break;
       }
       case 'kamadoinsert': {

@@ -642,6 +642,9 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
       front = drawers(2, 0, fh, false);
       gear = <GrillHead w={w} counter={cat.counter} />;
       break;
+    case 'sinkdrawer':
+      front = drawers(3, 0, fh, true);
+      break;
     case 'griddle':
     case 'griddle4':
       front = doors(cat.front === 'griddle4' ? 4 : 2);
@@ -860,6 +863,7 @@ export function CabinetTop({ cat, w, d, fin, hinge = 'left' }: { cat: CatalogIte
       case 'sink2':
       case 'sink1':
       case 'sink1f':
+      case 'sinkdrawer':
         return (
           <g>
             <rect x={w / 2 - Math.min(11, w / 2 - 3)} y={d * 0.2} width={Math.min(22, w - 6)} height={d * 0.55} rx={2} fill="#fff" stroke={STEEL_LN} strokeWidth={0.4} />
