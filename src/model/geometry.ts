@@ -234,6 +234,59 @@ export function squareCorner(a: Wall, b: Wall): boolean {
   return Math.abs(d - 90) < 20;
 }
 
+/** Mitre slope for a counter run end at an ANGLED wall join (e.g. a 45°
+ *  transition wall). Square (~90°) corners keep the dead-corner machinery;
+ *  angled runs instead meet on the corner's angle bisector — the classic
+ *  fabricator's mitre — so the seam closes with no wedge hole and the front
+ *  edges of both slabs land on the same line. Returns inches of run-x per
+ *  inch of depth for the end edge (x = corner + slope·z), or null when the
+ *  end has no angled partner bringing cabinetry to the corner. */
+export function counterMiter(
+  wall: Wall,
+  walls: Wall[],
+  items: PlacedItem[],
+  catFor: (id: string) => CatalogItem,
+  end: 'start' | 'end'
+): number | null {
+  const f = frameForWall(wall);
+  const me = wallEndpoints(wall);
+  const pt = end === 'start' ? me.p0 : me.p1;
+  for (const other of walls) {
+    if (other.id === wall.id) continue;
+    const oe = wallEndpoints(other);
+    const atStart = Math.hypot(oe.p0.x - pt.x, oe.p0.y - pt.y) <= CORNER_EPS;
+    const atEnd = Math.hypot(oe.p1.x - pt.x, oe.p1.y - pt.y) <= CORNER_EPS;
+    if (!atStart && !atEnd) continue;
+    if (squareCorner(wall, other)) return null;
+    // The partner run must actually bring counter-topped cabinetry near the
+    // corner — otherwise this run keeps its plain overhung end.
+    const near = items.some((it) => {
+      const c = catFor(it.catalogId);
+      if (it.wallId !== other.id || c.lane !== 'floor' || c.front === 'filler' || !c.counter || c.barHeight) return false;
+      const fw = it.w + (it.endL ? 0.75 : 0) + (it.endR ? 0.75 : 0);
+      const edge = atStart ? it.x : other.length - (it.x + fw);
+      return edge < 30;
+    });
+    if (!near) return null;
+    const of = frameForWall(other);
+    // Partner's direction pointing AWAY from the shared corner…
+    const bx = atStart ? of.dx : -of.dx;
+    const by = atStart ? of.dy : -of.dy;
+    // …in this wall's local frame (x along the run, z into the room).
+    const vx = bx * f.dx + by * f.dy;
+    const vz = bx * f.nx + by * f.ny;
+    // Bisector of the interior angle between the two inner faces (both unit
+    // vectors, so the sum bisects). ux points from the corner into this run.
+    const ux = end === 'end' ? -1 : 1;
+    const wx = ux + vx;
+    const wz = vz;
+    if (Math.abs(wx) < 0.02 && Math.abs(wz) < 0.02) return 0; // collinear continuation → square seam
+    if (wz < 0.02) return null; // outside corner — the runs diverge, nothing to close
+    return wx / wz;
+  }
+  return null;
+}
+
 export function cornerReserves(
   walls: Wall[],
   items: PlacedItem[],

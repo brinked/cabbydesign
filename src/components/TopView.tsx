@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ALL_FINISHES, COUNTER_OVERHANG, catalogById, frontExtraD } from '../model/catalog';
 import { resolveItemFinish } from '../model/newage';
 import { PERGOLA_COLORS, PERGOLA_MODELS, defaultPergola, pergolaAreaSqft, pergolaColorHex, pergolaColumns, pergolaModelInfo, pergolaRateFor, snapPergolaToWalls } from '../model/pergola';
-import { CORNER_EPS, WALL_T, cornerCounterExtend, cornerNeedsFlip, frameForWall, isCornerFront, isFenceStyle, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints, wallStyleOf } from '../model/geometry';
+import { CORNER_EPS, WALL_T, cornerCounterExtend, cornerNeedsFlip, counterMiter, frameForWall, isCornerFront, isFenceStyle, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints, wallStyleOf } from '../model/geometry';
 import type { MeasureEnd, Measurement, PergolaAttach, PlacedItem, Wall, WallStyle } from '../model/types';
 import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, uid, useStore } from '../state/store';
 import { NumberField } from './NumberField';
@@ -648,6 +648,22 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
               // island seating overhang: the counter extends past the back by
               // half the cabinet depth
               const backExt = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
+              // Angled (non-square) wall joins: mitre the run end on the
+              // corner's bisector so the two walls' counters close edge to
+              // edge (mirrors the 3D slabs).
+              const mS = counterMiter(f.wall, design.walls, design.items, catalogById, 'start');
+              const mE = counterMiter(f.wall, design.walls, design.items, catalogById, 'end');
+              const zF = r.d + COUNTER_OVERHANG;
+              const miterS = mS !== null && x1 <= Math.max(0, mS * zF) + 0.5;
+              const miterE = mE !== null && x2 >= f.wall.length + Math.min(0, mE * zF) - 0.5;
+              if (miterS || miterE) {
+                const sL = miterS && mS !== null ? mS : 0;
+                const sR = miterE && mE !== null ? mE : 0;
+                const xA = miterS ? 0 : x1;
+                const xB = miterE ? f.wall.length : x2;
+                const pts = `${xA + sL * -backExt},${-backExt} ${xB + sR * -backExt},${-backExt} ${xB + sR * zF},${zF} ${xA + sL * zF},${zF}`;
+                return <polygon key={i} points={pts} fill={fin.counter} stroke="rgba(0,0,0,0.3)" strokeWidth={0.4} />;
+              }
               return (
                 <rect key={i} x={x1} y={-backExt} width={x2 - x1} height={r.d + COUNTER_OVERHANG + backExt} fill={fin.counter} stroke="rgba(0,0,0,0.3)" strokeWidth={0.4} />
               );

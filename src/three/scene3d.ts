@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ALL_FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, takesAppliedEnds } from '../model/catalog';
-import { CORNER_EPS, cornerCounterExtend, frameForWall, isFenceStyle, planBounds, wallEndpoints, wallStyleOf } from '../model/geometry';
+import { CORNER_EPS, cornerCounterExtend, counterMiter, frameForWall, isFenceStyle, planBounds, squareCorner, wallEndpoints, wallStyleOf } from '../model/geometry';
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import { flooringById } from '../model/flooring';
@@ -402,16 +402,22 @@ function counterRunSlab(
   mat: THREE.Material,
   cT: number,
   restH: number = BASE_H,
-  backZ = 0 // negative = seating overhang past the island's back
+  backZ = 0, // negative = seating overhang past the island's back
+  // Mitred run ends (angled wall joins): the end edge is a straight cut on the
+  // corner's angle bisector — x shifts by slope·z going from back to front.
+  slopeL = 0,
+  slopeR = 0
 ): THREE.Mesh {
   const xL = segs[0].x1;
+  const xR = segs[segs.length - 1].x2;
   const s = new THREE.Shape();
-  s.moveTo(xL, backZ);
-  s.lineTo(segs[segs.length - 1].x2, backZ); // back edge (wall, or overhang)
+  s.moveTo(xL + slopeL * backZ, backZ);
+  s.lineTo(xR + slopeR * backZ, backZ); // back edge (wall, or overhang)
   // Up the right side, then walk the stepped front right → left.
-  s.lineTo(segs[segs.length - 1].x2, segs[segs.length - 1].z);
+  s.lineTo(xR + slopeR * segs[segs.length - 1].z, segs[segs.length - 1].z);
   for (let i = segs.length - 1; i >= 0; i--) {
-    s.lineTo(segs[i].x1, segs[i].z); // across this segment's front
+    // across this segment's front (the leftmost front corner sits on the mitre)
+    s.lineTo(segs[i].x1 + (i === 0 ? slopeL * segs[i].z : 0), segs[i].z);
     if (i > 0) s.lineTo(segs[i].x1, segs[i - 1].z); // step to the left neighbour's depth
   }
   s.closePath(); // down the left side back to (xL, 0)
@@ -1125,6 +1131,9 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
 
     const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
     const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
+    // Angled (non-square) wall joins: the runs meet on the corner's bisector.
+    const mS = counterMiter(f.wall, design.walls, design.items, catalogById, 'start');
+    const mE = counterMiter(f.wall, design.walls, design.items, catalogById, 'end');
     const runs3d = counterRuns3d(floorItems, true);
     for (let ri = 0; ri < runs3d.length; ri++) {
       const r = runs3d[ri];
@@ -1185,10 +1194,21 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
           ? cfE.x + cfE.w
           : f.wall.length + Math.max(cornerRunOn, partnerOverRun('end'))
         : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
+      // Mitre a run end that reaches into an angled corner: the back edge runs
+      // to the wall corner and the end edge is cut on the bisector, so this
+      // slab and the partner wall's slab close edge-to-edge (no wedge hole,
+      // front edges meeting on the seam).
+      const zFront = r.d + COUNTER_OVERHANG;
+      const miterS = mS !== null && x1 <= Math.max(0, mS * zFront) + 0.5;
+      const miterE = mE !== null && x2 >= f.wall.length + Math.min(0, mE * zFront) - 0.5;
+      const slopeL = miterS && mS !== null ? mS : 0;
+      const slopeR = miterE && mE !== null ? mE : 0;
+      const xA = miterS ? 0 : x1;
+      const xB = miterE ? f.wall.length : x2;
       const slabMat = mats.counter.clone();
       slabMat.map = mats.counterTex.clone();
       slabMat.map.repeat.set(1 / mats.counterTile, 1 / mats.counterTile);
-      const runCenter = (x1 + x2) / 2;
+      const runCenter = (xA + xB) / 2;
       const modelWFor = (it: PlacedItem) => appliance3dModel(it.appliance, appliances)?.w;
 
       // Cabinets in this run (the corner/susan units carry their own tops).
@@ -1232,7 +1252,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       }
 
       // Break the run into stone pieces on either side of each grill/liner cut.
-      const L = x1 - runCenter, R = x2 - runCenter;
+      const L = xA - runCenter, R = xB - runCenter;
       cuts.sort((a, b) => a.x1 - b.x1);
       const pieces: Array<{ a: number; b: number }> = [];
       let cursor = L;
@@ -1249,7 +1269,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         // island seating overhang: extend the slab past the back by half
         // the cabinet depth (24″ deep → 12″)
         const backExt = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
-        const slab = counterRunSlab(profile, pcHoles, slabMat, cT, r.h, -backExt);
+        const slab = counterRunSlab(profile, pcHoles, slabMat, cT, r.h, -backExt, pc.a <= L + 0.01 ? slopeL : 0, pc.b >= R - 0.01 ? slopeR : 0);
         slab.position.copy(origin).addScaledVector(dir, runCenter);
         slab.position.y = 0;
         slab.rotation.y = yaw;
