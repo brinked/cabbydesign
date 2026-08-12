@@ -440,6 +440,8 @@ export interface CabDims {
   /** Built-in top tab pull instead of mounted hardware (hidden cabinets'
    *  default): a low-profile lip across the door's top edge. */
   handleTab?: boolean;
+  /** No hardware at all — the customer skips handles or supplies their own. */
+  handleNone?: boolean;
   /** Height override for the top drawer row / false front (inches). */
   topRowH?: number;
   /** Local z of the RUN's toe-kick face. A fridge/ice-maker housing is often
@@ -1688,7 +1690,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
     for (const fr of fronts) {
       const fg = doorFace(fr.w, fr.h, fr.slab ? 'flat' : style, mats);
-      if (fr.handle !== 'none' && dims.handleTab) {
+      if (fr.handle !== 'none' && dims.handleNone) {
+        // 'None' hardware: door stays bare — no tab, no pull.
+      } else if (fr.handle !== 'none' && dims.handleTab) {
         // Built-in top tab pull: a low-profile steel lip across the door's
         // top edge - reads as an integrated finger pull, no drilled hardware.
         const len = Math.min(10, fr.w * 0.55);

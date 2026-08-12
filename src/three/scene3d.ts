@@ -861,7 +861,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         : handleModel;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: cat.hidden ? (it.hinge === 'left' ? 'right' : 'left') : it.hinge, style: design.doorStyle, endL: cat.hidden ? false : it.endL, endR: cat.hidden ? false : it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel: itemHandleModel, handleTab: it.handleId === 'tab', topRowH: it.topRowH, kickFrontZ: cat.hidden ? undefined : kickPlanes.get(it.id) },
+        { w: it.w, d: it.d, h: it.h, hinge: cat.hidden ? (it.hinge === 'left' ? 'right' : 'left') : it.hinge, style: design.doorStyle, endL: cat.hidden ? false : it.endL, endR: cat.hidden ? false : it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel: itemHandleModel, handleTab: it.handleId === 'tab', handleNone: it.handleId ? it.handleId === 'none' : design.handleId === 'none', topRowH: it.topRowH, kickFrontZ: cat.hidden ? undefined : kickPlanes.get(it.id) },
         matsFor(resolveItemFinish(fin.id, it, cat))
       );
       const exL = cat.category !== 'appliance' && !cat.hidden && it.endL ? 0.75 : 0;

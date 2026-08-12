@@ -66,7 +66,7 @@ export default function Report() {
   // Per-item pull overrides (hidden cabinets) grouped by inventory handle.
   const ownPulls = new Map<string, number>();
   for (const it of design.items) {
-    if (!it.handleId || it.handleId === 'tab') continue;
+    if (!it.handleId || it.handleId === 'tab' || it.handleId === 'none') continue;
     ownPulls.set(it.handleId, (ownPulls.get(it.handleId) ?? 0) + handleCount(catalogById(it.catalogId), it.w));
   }
 
@@ -589,7 +589,7 @@ export default function Report() {
                       {handle.name || 'Cabinet handle'}
                     </span>
                   ) : (
-                    'Cabinet handles (no handle selected)'
+                    design.handleId === 'none' ? 'No handles — customer supplying their own' : 'Cabinet handles (no handle selected)'
                   )}
                 </td>
                 <td className="num">{totalHandles}</td>

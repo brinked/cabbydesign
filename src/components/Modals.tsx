@@ -786,6 +786,7 @@ export function EditItemModal() {
               >
                 <option value="tab">Top tab pull (default)</option>
                 <option value="">Job handle</option>
+                <option value="none">No pull</option>
                 {hiddenPulls.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.name}

@@ -17,6 +17,9 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
   const counterT = useStore((s) => s.design.counterThickness);
   const appliances = useStore((s) => s.appliances);
   const modelsReady = useStore((s) => s.modelsReady);
+  const jobHandleId = useStore((s) => s.design.handleId);
+  // 'None' hardware (job-wide or per-cabinet) renders bare doors in elevations too.
+  const handleNone = it.handleId ? it.handleId === 'none' : jobHandleId === 'none';
   // corner & lazy-susan cabinets keep their orientation from placement (which
   // wall end they sit at); hinge only moves the single handle — matching the 3D
   // and plan views, so moving a corner cabinet never flips it the wrong way.
@@ -36,10 +39,10 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
       : cat.front === 'hood'
         ? { key: 'hood', w: it.w }
         : null;
-  const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, cornerSide, applianceH, counterT, modelKey: mref?.key, modelW: mref?.w, topRowH: it.topRowH };
+  const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, cornerSide, applianceH, counterT, modelKey: mref?.key, modelW: mref?.w, topRowH: it.topRowH, handleNone };
   const url = useMemo(
     () => cabinetSprite(cat, dims, fin, 'front'),
-    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, it.finL, it.finR, style, fin, cornerSide, applianceH, counterT, mref?.key, mref?.w, it.topRowH, modelsReady]
+    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, it.finL, it.finR, style, fin, cornerSide, applianceH, counterT, mref?.key, mref?.w, it.topRowH, handleNone, modelsReady]
   );
   if (!url) return <CabinetFront cat={cat} w={it.w} h={it.h} fin={fin} hinge={it.hinge} />;
   const top = spriteTopY(cat, it.h);

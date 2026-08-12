@@ -193,6 +193,14 @@ export default function DesignPanel({ onClose }: { onClose: () => void }) {
         {handleOptions.length > 0 && (
           <Section title="Handles" hint="Fitted to every door and drawer">
             <div className="dp-cards dp-cards-sm">
+              <button
+                className={design.handleId === 'none' ? 'dp-card active' : 'dp-card'}
+                onClick={() => set({ handleId: 'none' })}
+                title="No handles — customer skips or supplies their own"
+              >
+                <span className="dp-card-bar" style={{ visibility: 'hidden' }} />
+                <span className="dp-card-name">None</span>
+              </button>
               {handleOptions.map((h) => (
                 <button
                   key={h.id}
