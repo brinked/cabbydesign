@@ -1268,6 +1268,14 @@ button:disabled {
 }
 
 .appliance-row .select,
+/* Duplicate brand+model in the appliance inventory — a stale copy with a
+   different cutout size is usually wired to the grills instead of the row
+   the admin edited. */
+.dup-model {
+  border-color: #d9534f !important;
+  background: #fff5f5;
+}
+
 .appliance-row .dim-input {
   width: 100%;
 }

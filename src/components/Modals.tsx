@@ -1355,11 +1355,15 @@ function ApplianceRow({
   liners,
   onChange,
   onRemove,
+  dup,
 }: {
   a: ApplianceItem;
   liners: ApplianceItem[];
   onChange: (patch: Partial<ApplianceItem>) => void;
   onRemove: () => void;
+  /** Another inventory row shares this brand + model — flag it so stale
+   *  copies (with different cutout sizes) get cleaned up. */
+  dup?: boolean;
 }) {
   const [brand, setBrand] = useState(a.brand);
   const [model, setModel] = useState(a.model);
@@ -1400,7 +1404,14 @@ function ApplianceRow({
         ))}
       </select>
       <input className="dim-input" value={brand} placeholder="Brand" onChange={(e) => setBrand(e.target.value)} onBlur={() => onChange({ brand: brand.trim() })} />
-      <input className="dim-input" value={model} placeholder="Model #" onChange={(e) => setModel(e.target.value)} onBlur={() => onChange({ model: model.trim() })} />
+      <input
+        className={`dim-input${dup ? ' dup-model' : ''}`}
+        value={model}
+        placeholder="Model #"
+        title={dup ? 'DUPLICATE: another inventory row has this same brand + model. Appliances may be wired to the other copy (with a different cutout size) — delete one and re-select its liner on the affected rows.' : undefined}
+        onChange={(e) => setModel(e.target.value)}
+        onBlur={() => onChange({ model: model.trim() })}
+      />
       <input className="dim-input" value={name} placeholder="Description" onChange={(e) => setName(e.target.value)} onBlur={() => onChange({ name: name.trim() })} />
       <input
         className="dim-input"
@@ -1531,6 +1542,17 @@ export function AppliancesModal() {
     return [...s].sort((x, y) => x.localeCompare(y));
   }, [brands, appliances]);
   const liners = useMemo(() => appliances.filter((a) => a.category === 'liner'), [appliances]);
+  // Brand+model pairs that appear on MORE than one row — stale copies with
+  // different cutout sizes cause "I edited the liner but the grill still uses
+  // the old size" confusion, so flag them loudly.
+  const dupKeys = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const a of appliances) {
+      const k = `${a.brand} ${a.model}`.trim().toLowerCase();
+      if (k) count.set(k, (count.get(k) ?? 0) + 1);
+    }
+    return new Set([...count.entries()].filter(([, n]) => n > 1).map(([k]) => k));
+  }, [appliances]);
 
   if (!open) return null;
 
@@ -1664,7 +1686,7 @@ export function AppliancesModal() {
           <span></span>
         </div>
         {appliances.map((a) => (
-          <ApplianceRow key={a.id} a={a} liners={liners} onChange={(patch) => updateAppliance(a.id, patch)} onRemove={() => removeRow(a.id)} />
+          <ApplianceRow key={a.id} a={a} liners={liners} dup={dupKeys.has(`${a.brand} ${a.model}`.trim().toLowerCase())} onChange={(patch) => updateAppliance(a.id, patch)} onRemove={() => removeRow(a.id)} />
         ))}
         {appliances.length === 0 && <p className="card-sub">No appliances yet. Add a row or import a CSV.</p>}
       </div>
@@ -1840,7 +1862,14 @@ export function MyAppliancesModal() {
           <span></span>
         </div>
         {own.map((a) => (
-          <ApplianceRow key={a.id} a={a} liners={liners} onChange={(patch) => updateOwn(a.id, patch)} onRemove={() => removeRow(a.id)} />
+          <ApplianceRow
+            key={a.id}
+            a={a}
+            liners={liners}
+            dup={[...visible, ...own].filter((x) => `${x.brand} ${x.model}`.trim().toLowerCase() === `${a.brand} ${a.model}`.trim().toLowerCase() && `${a.brand}${a.model}`.trim() !== '').length > 1}
+            onChange={(patch) => updateOwn(a.id, patch)}
+            onRemove={() => removeRow(a.id)}
+          />
         ))}
         {own.length === 0 && <p className="card-sub">You haven't added any appliances yet. Click “Add appliance”.</p>}
       </div>
