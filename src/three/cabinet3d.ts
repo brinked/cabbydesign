@@ -338,6 +338,8 @@ export interface CabMats {
   /** Double-sided panel material for the routed V-groove channel walls. */
   grooveWall: THREE.Material;
   steel: THREE.Material;
+  /** Warm brushed brass for brass-family hardware models. */
+  brass: THREE.Material;
   /** Matte brushed-steel for appliance filler panels (won't blow out white). */
   steelMatte: THREE.Material;
   dark: THREE.Material;
@@ -431,6 +433,7 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
     counterTile: ct.texScale ?? 48,
     counter,
     steel: new THREE.MeshStandardMaterial({ color: STEEL_3D, metalness: 0.9, roughness: 0.28 }),
+    brass: new THREE.MeshPhysicalMaterial({ color: 0xb08d57, metalness: 0.92, roughness: 0.3, clearcoat: 0.4, clearcoatRoughness: 0.3 }),
     steelMatte: new THREE.MeshStandardMaterial({ color: 0x9a9ea3, metalness: 0.45, roughness: 0.5 }),
     dark: new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.6 }),
     egg: new THREE.MeshPhysicalMaterial({ color: 0x1f3a2e, roughness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.2 }),
@@ -1776,9 +1779,14 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
           // Stretch only along X — a real handle family keeps bar diameter
           // fixed and just moves the posts apart. Named products don't stretch.
           if (!named) hm.obj.scale.x = len / hm.len;
+          // Hardware finish comes from the model family, not the baked
+          // materials (product exports often carry dark AO-baked textures
+          // that render near-black): brass-* models take the brass PBR,
+          // everything else the shared steel.
+          const hwMat = dims.handleModel?.startsWith('brass-') ? mats.brass : mats.steel;
           hm.obj.traverse((o) => {
             if ((o as THREE.Mesh).isMesh) {
-              (o as THREE.Mesh).material = mats.steel;
+              (o as THREE.Mesh).material = hwMat;
               o.castShadow = true;
             }
           });

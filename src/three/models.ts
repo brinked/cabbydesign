@@ -93,6 +93,13 @@ const HANDLE_MODEL_URLS: Record<string, string> = {
  *  sizes), and are chosen by matching the design's selected handle name. */
 const NAMED_HANDLE_MODELS: Record<string, string> = {
   'charlotte-316': '/models/handles/charlotte-316.glb',
+  'brass-elysium': '/models/handles/brass-elysium.glb',
+  'brass-quinzel': '/models/handles/brass-quinzel.glb',
+  'brass-remi': '/models/handles/brass-remi.glb',
+  'brass-roxi': '/models/handles/brass-roxi.glb',
+  'brass-vivian': '/models/handles/brass-vivian.glb',
+  'ss-aria': '/models/handles/ss-aria.glb',
+  'ss-nyx': '/models/handles/ss-nyx.glb',
 };
 
 /** The scanned HDPE surface normal map — the real molded-poly grain instead
@@ -141,6 +148,13 @@ export function libTexture(file: string, data = false): THREE.Texture | null {
 export const HANDLE_3D_MODELS: Array<{ key: string; label: string }> = [
   { key: 'bar', label: 'Bar pull (auto-sized)' },
   { key: 'charlotte-316', label: 'Charlotte 316' },
+  { key: 'brass-elysium', label: 'Brass Elysium' },
+  { key: 'brass-quinzel', label: 'Brass Quinzel' },
+  { key: 'brass-remi', label: 'Brass Remi' },
+  { key: 'brass-roxi', label: 'Brass Roxi' },
+  { key: 'brass-vivian', label: 'Brass Vivian' },
+  { key: 'ss-aria', label: 'SS Aria' },
+  { key: 'ss-nyx', label: 'SS Nyx' },
 ];
 
 interface HandleTemplate {
