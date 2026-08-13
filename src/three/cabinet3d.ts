@@ -36,8 +36,15 @@ const WG_SHEET = 18;
 function wgBoxUV(geo: THREE.BoxGeometry, w: number, h: number, d: number): void {
   const uv = geo.attributes.uv as THREE.BufferAttribute;
   const dims: Array<[number, number]> = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
-  const ou = ((w * 13 + h * 7) % WG_SHEET) / WG_SHEET;
-  const ov = ((h * 17 + w * 3) % WG_SHEET) / WG_SHEET;
+  // Pseudo-random but deterministic from the part's dimensions: different
+  // sizes land on decorrelated patches of the sheet, while matched pairs
+  // (two equal doors) stay identical - and nothing shifts between rebuilds.
+  const rnd = (a: number, b: number) => {
+    const x = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  const ou = rnd(w, h);
+  const ov = rnd(h, w + d);
   for (let f = 0; f < 6; f++) {
     const [fu, fv] = dims[f];
     for (let i = f * 4; i < f * 4 + 4; i++) {
