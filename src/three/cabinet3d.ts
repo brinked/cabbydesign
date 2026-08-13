@@ -370,6 +370,9 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
   if (tl) {
     tl.center.set(0.5, 0.5);
     tl.rotation = fin.texUpright ? 0 : Math.PI / 2;
+    // Mirror at every repeat: the swatch photos aren't seamless tiles, and a
+    // hard wrap seam reads as a board joint in the wrong place.
+    tl.wrapS = tl.wrapT = THREE.MirroredRepeatWrapping;
     tl.needsUpdate = true;
   }
   const grain = tl ?? (fin.wood ? woodTexture(fin.id, fin.body) : null);
