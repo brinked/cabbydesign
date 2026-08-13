@@ -27,8 +27,30 @@ export const FRONT_T = 1;
 
 export const STEEL_3D = 0xc9ced2;
 
+/** Inches of material one woodgrain swatch tile spans. Box UVs are 0-1 per
+ *  face, which stretches the grain across wide fronts; woodgrain-flagged
+ *  materials get their UVs remapped to sheet units so the grain density is
+ *  the same on a 15" door and a 34" drawer front. The per-size offset keeps
+ *  neighbouring parts from repeating the exact same patch. */
+const WG_SHEET = 18;
+function wgBoxUV(geo: THREE.BoxGeometry, w: number, h: number, d: number): void {
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  const dims: Array<[number, number]> = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  const ou = ((w * 13 + h * 7) % WG_SHEET) / WG_SHEET;
+  const ov = ((h * 17 + w * 3) % WG_SHEET) / WG_SHEET;
+  for (let f = 0; f < 6; f++) {
+    const [fu, fv] = dims[f];
+    for (let i = f * 4; i < f * 4 + 4; i++) {
+      uv.setXY(i, uv.getX(i) * (fu / WG_SHEET) + ou, uv.getY(i) * (fv / WG_SHEET) + ov);
+    }
+  }
+  uv.needsUpdate = true;
+}
+
 export function box(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  const geo = new THREE.BoxGeometry(w, h, d);
+  if (mat.userData?.wgUV) wgBoxUV(geo, w, h, d);
+  const m = new THREE.Mesh(geo, mat);
   m.castShadow = true;
   m.receiveShadow = true;
   return m;
@@ -351,6 +373,9 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
     tl.needsUpdate = true;
   }
   const grain = tl ?? (fin.wood ? woodTexture(fin.id, fin.body) : null);
+  // Photo woodgrains carry inch-true box UVs (see wgBoxUV); the procedural
+  // indoor wood keeps the plain 0-1 mapping it was tuned for.
+  const wgFlag = tl ? { userData: { wgUV: true } } : {};
   // NewAge door faces: louvered slats are wood-look (Grove) or painted (White)
   // — not bare metal; glass doors get a tinted pane inside the metal frame.
   const louvered = fin.naDoor === 'louvered';
@@ -361,19 +386,19 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
   const hdpe = nrm ? { normalMap: nrm, normalScale: new THREE.Vector2(0.9, 0.9) } : {};
   return {
     body: grain
-      ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: grain, roughness: 0.52, clearcoat: 0.25, clearcoatRoughness: 0.4 })
+      ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: grain, roughness: 0.52, clearcoat: 0.25, clearcoatRoughness: 0.4, ...wgFlag })
       : metal
         ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), ...metal })
         : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), roughness: 0.55, clearcoat: 0.06, clearcoatRoughness: 0.6, ...hdpe }),
     panel: grain
-      ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: grain, roughness: 0.5, clearcoat: 0.28, clearcoatRoughness: 0.38 })
+      ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: grain, roughness: 0.5, clearcoat: 0.28, clearcoatRoughness: 0.38, ...wgFlag })
       : louvered
         ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.58, metalness: 0.08, clearcoat: 0.1, clearcoatRoughness: 0.6 })
         : metal
           ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), ...metal })
           : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), roughness: 0.5, clearcoat: 0.08, clearcoatRoughness: 0.55, ...hdpe }),
     inner: grain
-      ? new THREE.MeshPhysicalMaterial({ color: 0xd6d2cc, map: grain, roughness: 0.58, clearcoat: 0.15, clearcoatRoughness: 0.5 })
+      ? new THREE.MeshPhysicalMaterial({ color: 0xd6d2cc, map: grain, roughness: 0.58, clearcoat: 0.15, clearcoatRoughness: 0.5, ...wgFlag })
       : louvered
         ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.inner), roughness: 0.7, metalness: 0.05 })
         : metal
@@ -383,9 +408,9 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
     // channel interior: same surface, slightly shadow-darkened so the groove
     // still reads in the WebGL viewport (no ambient occlusion there)
     grooveWall: grain
-      ? new THREE.MeshPhysicalMaterial({ color: 0xb9b3ac, map: grain, roughness: 0.55, side: THREE.DoubleSide })
+      ? new THREE.MeshPhysicalMaterial({ color: 0xb9b3ac, map: grain, roughness: 0.55, side: THREE.DoubleSide, ...wgFlag })
       : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel).multiplyScalar(0.6), roughness: 0.55, clearcoat: 0.05, clearcoatRoughness: 0.6, side: THREE.DoubleSide, ...hdpe }),
-    kick: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.kick ?? fin.body), roughness: 0.75, metalness: fin.kick ? 0.35 : metal ? metal.metalness : 0, ...hdpe }),
+    kick: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.kick ?? fin.body), roughness: 0.75, metalness: fin.kick ? 0.35 : metal ? metal.metalness : 0, ...hdpe, ...(tl ? { map: tl, color: 0xdddddd, userData: { wgUV: true } } : {}) }),
     naDoor: fin.naDoor,
     naBar: !!fin.line,
     glassPane:
