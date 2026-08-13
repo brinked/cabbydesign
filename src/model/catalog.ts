@@ -31,6 +31,21 @@ export const FINISHES: FinishOption[] = [
   { id: 'sanshade', name: 'Sanshade', body: '#e9ddc2', panel: '#e9ddc2', inner: '#d5c7a7', counter: '#3b3f44' },
   { id: 'seafoam', name: 'Seafoam', body: '#f2ecdb', panel: '#f2ecdb', inner: '#ded6bf', counter: '#3b3f44' },
   { id: 'white', name: 'White/White', body: '#f7f6f3', panel: '#f7f6f3', inner: '#e5e3de', counter: '#3b3f44' },
+  // Timberline woodgrains — photo textures under /textures/timberline, grain
+  // run vertically in 3D. body/panel are each swatch's average color (used by
+  // the plan/elevation glyphs and as the pre-load fallback).
+  { id: 'tl-aspen', name: 'Aspen Woodgrain', woodgrain: true, tex: 'timberline/aspen.jpg', body: '#deddd5', panel: '#deddd5', inner: '#b6b5ae', counter: '#3b3f44' },
+  { id: 'tl-coastal-gray', name: 'Coastal Gray Woodgrain', woodgrain: true, tex: 'timberline/coastal-gray.jpg', body: '#6e6c66', panel: '#6e6c66', inner: '#5a5853', counter: '#e3e0da' },
+  { id: 'tl-dark-ash', name: 'Dark Ash Woodgrain', woodgrain: true, tex: 'timberline/dark-ash.jpg', body: '#757671', panel: '#757671', inner: '#5f605c', counter: '#e3e0da' },
+  { id: 'tl-elm', name: 'Elm Woodgrain', woodgrain: true, tex: 'timberline/elm.jpg', body: '#aaa396', panel: '#aaa396', inner: '#8b857a', counter: '#3b3f44' },
+  { id: 'tl-hickory', name: 'Hickory Woodgrain', woodgrain: true, tex: 'timberline/hickory.jpg', body: '#322b23', panel: '#322b23', inner: '#29231c', counter: '#e3e0da' },
+  { id: 'tl-ironwood', name: 'Ironwood Woodgrain', woodgrain: true, tex: 'timberline/ironwood.jpg', body: '#2b2c2a', panel: '#2b2c2a', inner: '#232422', counter: '#e3e0da' },
+  { id: 'tl-kona', name: 'Kona Woodgrain', woodgrain: true, tex: 'timberline/kona.jpg', body: '#462a25', panel: '#462a25', inner: '#39221e', counter: '#e3e0da' },
+  { id: 'tl-mahogany', name: 'Mahogany Woodgrain', woodgrain: true, tex: 'timberline/mahogany.jpg', body: '#553732', panel: '#553732', inner: '#452d29', counter: '#e3e0da' },
+  { id: 'tl-maple', name: 'Maple Woodgrain', woodgrain: true, tex: 'timberline/maple.jpg', body: '#a0784c', panel: '#a0784c', inner: '#83623e', counter: '#e3e0da' },
+  { id: 'tl-teak', name: 'Teak Woodgrain', woodgrain: true, tex: 'timberline/teak.jpg', body: '#9d784e', panel: '#9d784e', inner: '#80623f', counter: '#e3e0da' },
+  { id: 'tl-weatherwood', name: 'Weatherwood Woodgrain', woodgrain: true, tex: 'timberline/weatherwood.jpg', body: '#adaca1', panel: '#adaca1', inner: '#8d8d84', counter: '#3b3f44' },
+  { id: 'tl-whitewash', name: 'Whitewash Woodgrain', woodgrain: true, tex: 'timberline/whitewash.jpg', body: '#e1e0d9', panel: '#e1e0d9', inner: '#b8b7b1', counter: '#3b3f44' },
 ];
 
 // Indoor cabinet colors & finishes: painted + wood-stained (satin lacquer).

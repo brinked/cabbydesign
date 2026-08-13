@@ -118,6 +118,9 @@ export type ApplianceBrands = Record<string, { discountPct: number }>;
 export interface PanelRates {
   applied: number;
   finished: number;
+  /** Upcharge added to EVERY cabinet box when a woodgrain finish is
+   *  selected for the job (fillers and appliances excluded). */
+  woodgrainPerCab?: number;
   /** Toe kick, billed per LINEAR foot of kick (not per sq ft). */
   toeKick?: number;
 }
@@ -344,6 +347,13 @@ export type LayoutKind = 'linear' | 'l' | 'u';
 export interface FinishOption {
   id: string;
   name: string;
+  /** Woodgrain finishes: photo texture under /textures (e.g.
+   *  'timberline/aspen.jpg'), applied with the grain running VERTICALLY.
+   *  body/panel stay as fallback colors for swatches, plan/elevation
+   *  glyphs, and the moment before the texture loads. */
+  tex?: string;
+  /** Timberline woodgrain — carries the admin per-cabinet upcharge. */
+  woodgrain?: boolean;
   /** Cabinet body color */
   body: string;
   /** Door/drawer panel color (slightly lighter/darker) */

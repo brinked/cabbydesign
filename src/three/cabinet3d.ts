@@ -339,7 +339,18 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
   // the boxes read as brushed metal rather than painted HDPE.
   const metal = fin.metal ? { metalness: fin.metal === 'stainless' ? 0.85 : 0.65, roughness: fin.metal === 'stainless' ? 0.32 : 0.45 } : null;
   // Wood-stained indoor finishes: satin lacquer over a subtle grain texture.
-  const grain = fin.wood ? woodTexture(fin.id, fin.body) : null;
+  // Timberline woodgrains use the real swatch photo instead, rotated so the
+  // grain runs VERTICALLY (the source photos are shot horizontal); until the
+  // file arrives the flat fallback colors render and the scene rebuilds on
+  // load (libTexture fires onModelsLoaded).
+  const tlSrc = fin.tex ? libTexture(fin.tex) : null;
+  const tl = tlSrc ? tlSrc.clone() : null;
+  if (tl) {
+    tl.center.set(0.5, 0.5);
+    tl.rotation = Math.PI / 2;
+    tl.needsUpdate = true;
+  }
+  const grain = tl ?? (fin.wood ? woodTexture(fin.id, fin.body) : null);
   // NewAge door faces: louvered slats are wood-look (Grove) or painted (White)
   // — not bare metal; glass doors get a tinted pane inside the metal frame.
   const louvered = fin.naDoor === 'louvered';

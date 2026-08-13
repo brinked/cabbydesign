@@ -1142,7 +1142,7 @@ export function PricingModal() {
   const rows = useMemo(() => CATALOG.filter((c) => c.category !== 'appliance' && !c.perInch && !c.line), []);
 
   if (!open) return null;
-  const rateField = (label: string, note: string, key: 'applied' | 'finished') => (
+  const rateField = (label: string, note: string, key: 'applied' | 'finished' | 'woodgrainPerCab') => (
     <label className="stepper-row" style={{ alignItems: 'center' }}>
       <span className="stepper-label">
         {label}
@@ -1173,6 +1173,7 @@ export function PricingModal() {
       <div className="stepper-list" style={{ marginBottom: 12 }}>
         {rateField('Applied end / island back panels', 'separate ¾″ finished panel', 'applied')}
         {rateField('Finished ends', 'cabinet side built in finished material', 'finished')}
+        {rateField('Woodgrain finish', 'added to every cabinet box when a Timberline woodgrain is the job finish', 'woodgrainPerCab')}
       </div>
       <div className="pricing-table">
         <div className="pricing-row pricing-head">

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, Pergola, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
-import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
+import { FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
@@ -540,7 +540,11 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
   // A hidden cabinet's doors ARE the back there - no finished back panel
   // behind it, so no back-panel charge (its fronts price via the formula).
   const back = itemOnIsland(design, it) && !cat.hidden ? sqft(it.w) * rates.applied : 0;
-  const total = price + trays + ends + back;
+  const wg =
+    FINISHES.find((f) => f.id === design.finishId)?.woodgrain && cat.front !== 'filler'
+      ? (rates.woodgrainPerCab ?? 0)
+      : 0;
+  const total = price + wg + trays + ends + back;
   return {
     cabinet: round2(price),
     trays: round2(trays),

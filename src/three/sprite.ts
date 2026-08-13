@@ -3,7 +3,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { BASE_H } from '../model/catalog';
 import type { CatalogItem, FinishOption } from '../model/types';
 import { END_PANEL_T, buildCabinetLocal, createMats, gearAbove, type CabDims, type CabMats } from './cabinet3d';
-import { hasModel } from './models';
+import { libTexture, hasModel } from './models';
 
 /**
  * Offscreen "product shot" renderer. Each cabinet is rendered once per
@@ -70,7 +70,7 @@ export function cabinetSprite(cat: CatalogItem, dims: CabDims, fin: FinishOption
     dims.modelKey && hasModel(dims.modelKey) ? 'M' : '',
     (cat.applianceCat === 'griddle' && hasModel('griddle')) || ((cat.front === 'grill' || cat.front === 'grill4') && hasModel('grill')) ? 'G' : '',
   ].join('~');
-  const key = `${cat.id}|${dims.w}x${dims.d}x${dims.h}|${dims.hinge}|${dims.cornerSide ?? ''}|${dims.style}|${dims.endL ? 'L' : ''}${dims.endR ? 'R' : ''}${dims.finL ? 'l' : ''}${dims.finR ? 'r' : ''}|${dims.applianceH ?? ''}|${dims.counterT ?? ''}|${dims.topRowH ?? ''}|${dims.handleNone ? 'NH' : ''}|${modelTag}|${fin.id}|${view}`;
+  const key = `${cat.id}|${dims.w}x${dims.d}x${dims.h}|${dims.hinge}|${dims.cornerSide ?? ''}|${dims.style}|${dims.endL ? 'L' : ''}${dims.endR ? 'R' : ''}${dims.finL ? 'l' : ''}${dims.finR ? 'r' : ''}|${dims.applianceH ?? ''}|${dims.counterT ?? ''}|${dims.topRowH ?? ''}|${dims.handleNone ? 'NH' : ''}|${modelTag}|${fin.id}${fin.tex && libTexture(fin.tex) ? 'W' : ''}|${view}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
 
