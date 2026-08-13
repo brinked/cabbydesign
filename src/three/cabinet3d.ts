@@ -347,7 +347,7 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
   const tl = tlSrc ? tlSrc.clone() : null;
   if (tl) {
     tl.center.set(0.5, 0.5);
-    tl.rotation = Math.PI / 2;
+    tl.rotation = fin.texUpright ? 0 : Math.PI / 2;
     tl.needsUpdate = true;
   }
   const grain = tl ?? (fin.wood ? woodTexture(fin.id, fin.body) : null);

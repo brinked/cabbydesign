@@ -352,8 +352,12 @@ export interface FinishOption {
    *  body/panel stay as fallback colors for swatches, plan/elevation
    *  glyphs, and the moment before the texture loads. */
   tex?: string;
-  /** Timberline woodgrain — carries the admin per-cabinet upcharge. */
+  /** Woodgrain finish — carries the admin per-cabinet upcharge. */
   woodgrain?: boolean;
+  /** The swatch photo already shows the grain running vertically (King
+   *  StarBoard shots) — skip the 90-degree rotation the horizontal-shot
+   *  Timberline photos need. */
+  texUpright?: boolean;
   /** Cabinet body color */
   body: string;
   /** Door/drawer panel color (slightly lighter/darker) */

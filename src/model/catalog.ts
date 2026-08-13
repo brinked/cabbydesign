@@ -31,6 +31,12 @@ export const FINISHES: FinishOption[] = [
   { id: 'sanshade', name: 'Sanshade', body: '#e9ddc2', panel: '#e9ddc2', inner: '#d5c7a7', counter: '#3b3f44' },
   { id: 'seafoam', name: 'Seafoam', body: '#f2ecdb', panel: '#f2ecdb', inner: '#ded6bf', counter: '#3b3f44' },
   { id: 'white', name: 'White/White', body: '#f7f6f3', panel: '#f7f6f3', inner: '#e5e3de', counter: '#3b3f44' },
+  // King StarBoard woodgrains — photos already shot with vertical grain.
+  { id: 'sb-mocha', name: 'Mocha Woodgrain', woodgrain: true, texUpright: true, tex: 'starboard/mocha.jpg', body: '#513e37', panel: '#513e37', inner: '#42322d', counter: '#e3e0da' },
+  { id: 'sb-nutmeg', name: 'Nutmeg Woodgrain', woodgrain: true, texUpright: true, tex: 'starboard/nutmeg.jpg', body: '#827a70', panel: '#827a70', inner: '#6a645b', counter: '#e3e0da' },
+  { id: 'sb-indigo', name: 'Indigo Woodgrain', woodgrain: true, texUpright: true, tex: 'starboard/indigo.jpg', body: '#283542', panel: '#283542', inner: '#202b36', counter: '#e3e0da' },
+  { id: 'sb-charcoal', name: 'Charcoal Woodgrain', woodgrain: true, texUpright: true, tex: 'starboard/charcoal.jpg', body: '#3d4144', panel: '#3d4144', inner: '#323537', counter: '#e3e0da' },
+  { id: 'sb-slate', name: 'Slate Woodgrain', woodgrain: true, texUpright: true, tex: 'starboard/slate.jpg', body: '#6f6c67', panel: '#6f6c67', inner: '#5b5854', counter: '#e3e0da' },
   // Timberline woodgrains — photo textures under /textures/timberline, grain
   // run vertically in 3D. body/panel are each swatch's average color (used by
   // the plan/elevation glyphs and as the pre-load fallback).
