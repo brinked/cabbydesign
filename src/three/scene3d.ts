@@ -1129,6 +1129,87 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       }
     }
 
+    // ---- Bar-height corner connector ------------------------------------
+    // When BOTH walls at a square corner bring bar-height cabinets toward
+    // that corner, the raised bar runs continuously around it: body, kick,
+    // step splash and the stone bar top (seating overhang included) extend
+    // from each run's last bar cabinet through the dead corner. The wall
+    // with the smaller id OWNS the shared corner square — it builds through
+    // the square and wraps the outer overhang corner; the partner holds back
+    // so the pieces butt edge to edge instead of z-fighting.
+    for (const bEnd of ['start', 'end'] as const) {
+      const me = wallEndpoints(f.wall);
+      const pt = bEnd === 'start' ? me.p0 : me.p1;
+      let partner: { wall: (typeof design.walls)[number]; end: 'start' | 'end' } | null = null;
+      for (const o of design.walls) {
+        if (o.id === f.wall.id) continue;
+        const oe = wallEndpoints(o);
+        if (Math.hypot(oe.p0.x - pt.x, oe.p0.y - pt.y) <= CORNER_EPS) partner = { wall: o, end: 'start' };
+        else if (Math.hypot(oe.p1.x - pt.x, oe.p1.y - pt.y) <= CORNER_EPS) partner = { wall: o, end: 'end' };
+        if (partner) break;
+      }
+      if (!partner || !squareCorner(f.wall, partner.wall)) continue;
+      // The floor cabinet nearest the corner on each wall must be bar height.
+      const nearestBar = (wallId: string, wallLen: number, atEnd: 'start' | 'end'): { edge: number; h: number } | null => {
+        let best: { edge: number; h: number; bar: boolean } | null = null;
+        for (const o of design.items) {
+          const oc = catalogById(o.catalogId);
+          if (o.wallId !== wallId || oc.lane !== 'floor' || oc.front === 'filler') continue;
+          const edge = atEnd === 'start' ? o.x : wallLen - (o.x + footprintW(o));
+          if (!best || edge < best.edge) best = { edge, h: o.h, bar: !!oc.barHeight };
+        }
+        return best && best.bar ? { edge: best.edge, h: best.h } : null;
+      };
+      const mine = nearestBar(f.wall.id, f.wall.length, bEnd);
+      const theirs = nearestBar(partner.wall.id, partner.wall.length, partner.end);
+      // Connect across a real dead corner only — when a cabinet sits closer
+      // than the band itself the runs already meet.
+      const minGap = BAR_DEPTH + BAR_NOSE + 0.5;
+      if (!mine || !theirs || mine.edge > 40 || theirs.edge > 40 || mine.edge < minGap || theirs.edge < minGap) continue;
+      const own = f.wall.id < partner.wall.id;
+      const topH = mine.h;
+      const topY = topH + BAR_RISE;
+      const cX = bEnd === 'end' ? f.wall.length : 0;
+      const sgn = bEnd === 'end' ? 1 : -1;
+      // spans measured from the corner point, positive = into this run
+      const seg = (near: number, far: number) => ({ c: cX - sgn * ((near + far) / 2), w: far - near });
+      const stoneMat = (wSeg: number, bd: number) => {
+        const m = mats.counter.clone();
+        m.map = mats.counterTex.clone();
+        m.map.repeat.set(Math.max(1, wSeg / mats.counterTile), Math.max(1, bd / mats.counterTile));
+        return m;
+      };
+      // body + kick: to the corner (owner) or held back one band depth
+      const bodyNear = own ? 0 : BAR_DEPTH;
+      if (mine.edge - bodyNear > 0.05) {
+        const s = seg(bodyNear, mine.edge);
+        const body = box(s.w, topY - TOEKICK_H, BAR_DEPTH - 0.1, mats.carcass);
+        body.castShadow = body.receiveShadow = true;
+        place(body, s.c, 0.1 + (BAR_DEPTH - 0.1) / 2, TOEKICK_H + (topY - TOEKICK_H) / 2);
+        const k = box(s.w, TOEKICK_H, BAR_DEPTH - 0.75, mats.kick);
+        k.castShadow = k.receiveShadow = true;
+        place(k, s.c, 0.75 + (BAR_DEPTH - 0.75) / 2, TOEKICK_H / 2);
+      }
+      // step splash on the working side, stopping at the partner band's face
+      // so the two splashes close the inside corner
+      if (mine.edge - BAR_DEPTH > 0.05) {
+        const s = seg(BAR_DEPTH, mine.edge);
+        const splash = box(s.w, BAR_RISE, 0.75, stoneMat(s.w, 0.75));
+        splash.castShadow = splash.receiveShadow = true;
+        place(splash, s.c, BAR_DEPTH + 0.375, topH + cT + BAR_RISE / 2);
+      }
+      // continuous stone bar top; the owner runs past the corner to wrap the
+      // outer seating-overhang square, the partner butts against it
+      const barD = BAR_OVERHANG + BAR_DEPTH + BAR_NOSE;
+      const stoneNear = own ? -BAR_OVERHANG : BAR_DEPTH + BAR_NOSE;
+      if (mine.edge - stoneNear > 0.05) {
+        const s = seg(stoneNear, mine.edge);
+        const barStone = box(s.w, cT, barD, stoneMat(s.w, barD));
+        barStone.castShadow = barStone.receiveShadow = true;
+        place(barStone, s.c, BAR_DEPTH + BAR_NOSE - barD / 2, topY + cT / 2);
+      }
+    }
+
     const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
     const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
     // Angled (non-square) wall joins: the runs meet on the corner's bisector.
