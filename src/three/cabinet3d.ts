@@ -2019,8 +2019,23 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
     }
   }
 
+  // A real manufacturer fridge model (selected in the appliance picker and
+  // loaded) replaces the procedural stainless front: mounted at true size,
+  // standing on the housing floor, its door face flush with the housing front.
+  const fridgeModel = steelFridge && dims.modelKey ? (requestModel(dims.modelKey), hasModel(dims.modelKey) ? dims.modelKey : null) : null;
+  if (fridgeModel) {
+    const info = applianceModelInfo(fridgeModel);
+    const realW = info?.realWIn ?? w;
+    const realD = info?.realDIn ?? d;
+    const unit = fitModel(fridgeModel, realW);
+    if (unit) {
+      unit.position.set(0, 0, d - realD / 2);
+      g.add(unit);
+    }
+  }
+
   // stainless fridge — proud door/drawer fronts, tubular handles, bottom vent grille
-  if (steelFridge) {
+  if (steelFridge && !fridgeModel) {
     const ffw = w - REVEAL * 2;
     const yB = kick + REVEAL;
     const yT = kick + bodyH - REVEAL;

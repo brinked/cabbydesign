@@ -507,5 +507,12 @@ export function appliance3dModel(sel: ApplianceSelection | undefined, appliances
     return null;
   }
 
+  if (a.category === 'fridge') {
+    // Summit SPR627OS2D: the manufacturer's model at true size, mounted in
+    // the fridge housing in place of the procedural stainless front.
+    if (has('summit') && has('spr627', 'spr627os', 'spr627os2d')) return { key: 'summit-spr627os2d', w: 23.63 };
+    return null;
+  }
+
   return null;
 }

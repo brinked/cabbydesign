@@ -53,6 +53,8 @@ const APPLIANCE_MODEL_URLS: Record<string, string> = {
   'legriddle-commercial-75': '/models/grills/legriddle-commercial-75.glb',
   'legriddle-commercial-105': '/models/grills/legriddle-commercial-105.glb',
   hood: '/models/hood.glb', // Proline PLJW 104 42" wall range hood
+  // Summit SPR627OS2D 24" outdoor undercounter fridge (stainless, 1 door)
+  'summit-spr627os2d': '/models/appliances/summit-spr627os2d.glb',
 };
 
 /**
@@ -341,12 +343,12 @@ export function loadModels(): void {
 /** Physical facts about a loaded appliance model, in inches at real size:
  *  overall width, and (when it carries an insulated jacket) the height of
  *  the jacket's flange above the model base. Null until loaded. */
-export function applianceModelInfo(key: string): { realWIn: number; jacketTopIn?: number; ctrlRecessFrac?: number } | null {
+export function applianceModelInfo(key: string): { realWIn: number; realDIn: number; jacketTopIn?: number; ctrlRecessFrac?: number } | null {
   const t = templates.get(key);
   if (!t || t.size.x <= 0) return null;
   // model files are authored in real-world meters; report inches
   const IN = 0.0254;
-  return { realWIn: t.size.x / IN, jacketTopIn: t.jacketTop != null ? t.jacketTop / IN : undefined, ctrlRecessFrac: t.ctrlRecessFrac };
+  return { realWIn: t.size.x / IN, realDIn: t.size.z / IN, jacketTopIn: t.jacketTop != null ? t.jacketTop / IN : undefined, ctrlRecessFrac: t.ctrlRecessFrac };
 }
 
 /**
