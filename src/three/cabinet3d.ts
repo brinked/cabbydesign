@@ -506,6 +506,10 @@ export interface CabDims {
   handleNone?: boolean;
   /** Height override for the top drawer row / false front (inches). */
   topRowH?: number;
+  /** The selected appliance is panel-ready AND the designer chose matching
+   *  panels: a stainless fridge/ice-maker housing renders with cabinet-
+   *  finish fronts (the panels are the visible face) instead of the unit. */
+  paneled?: boolean;
   /** Local z of the RUN's toe-kick face. A fridge/ice-maker housing is often
    *  deeper than its neighbours, and a kick following its own depth broke the
    *  continuous base band — pass the run's plane so kicks line up. */
@@ -1268,7 +1272,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   const isAppliance = cat.category === 'appliance';
   const isFridge = cat.front === 'fridge' || cat.front === 'fridge2' || cat.front === 'fridgep' || cat.front === 'fridgep2';
   const fridgeDrawers = cat.front === 'fridge2' || cat.front === 'fridgep2';
-  const fridgePanel = cat.front === 'fridgep' || cat.front === 'fridgep2'; // cabinet-matched fronts
+  const fridgePanel = cat.front === 'fridgep' || cat.front === 'fridgep2' || (isFridge && !!dims.paneled); // cabinet-matched fronts
   const steelFridge = isFridge && !fridgePanel; // stainless fridge
   const isIcemaker = cat.front === 'icemaker';
   const steel = isAppliance || steelFridge || isIcemaker;
@@ -1530,10 +1534,12 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
           fronts.push({ dx: half / 2 + GAP / 2, dy: 0, w: half, h: fh, handle: 'v-left' });
         } else fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: oneDoorHandle });
         break;
+      case 'fridge': // paneled stainless housing (dims.paneled)
       case 'fridgep':
         // panel-ready fridge: one cabinet-matched door
         fronts.push({ dx: 0, dy: 0, w: fw, h: fh, handle: oneDoorHandle });
         break;
+      case 'fridge2': // paneled stainless housing (dims.paneled)
       case 'fridgep2': {
         // panel-ready fridge: two cabinet-matched drawer fronts
         const rh = (fh - GAP) / 2;

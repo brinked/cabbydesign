@@ -33,16 +33,22 @@ export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogIte
   // shorter unit shows a gap under the counter.
   const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
   // brand-accurate 3D head for the selected grill/griddle appliance
+  const paneled = (() => {
+    const sel = it.appliance;
+    if (!sel || sel.mode !== 'inventory' || !sel.applianceId || sel.withPanel === false) return false;
+    const a = appliances.find((x) => x.id === sel.applianceId);
+    return !!a && (a.panelCharge ?? 0) > 0;
+  })();
   const mref =
     cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' || cat.applianceCat === 'fridge'
       ? appliance3dModel(it.appliance, appliances)
       : cat.front === 'hood'
         ? { key: 'hood', w: it.w }
         : null;
-  const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, cornerSide, applianceH, counterT, modelKey: mref?.key, modelW: mref?.w, topRowH: it.topRowH, handleNone };
+  const dims: CabDims = { w: it.w, d: it.d, h: it.h, hinge: it.hinge, style, endL: it.endL, endR: it.endR, finL: it.finL, finR: it.finR, cornerSide, applianceH, counterT, modelKey: mref?.key, modelW: mref?.w, topRowH: it.topRowH, handleNone, paneled };
   const url = useMemo(
     () => cabinetSprite(cat, dims, fin, 'front'),
-    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, it.finL, it.finR, style, fin, cornerSide, applianceH, counterT, mref?.key, mref?.w, it.topRowH, handleNone, modelsReady]
+    [cat, it.w, it.d, it.h, it.hinge, it.endL, it.endR, it.finL, it.finR, style, fin, cornerSide, applianceH, counterT, mref?.key, mref?.w, it.topRowH, paneled, handleNone, modelsReady]
   );
   if (!url) return <CabinetFront cat={cat} w={it.w} h={it.h} fin={fin} hinge={it.hinge} />;
   const top = spriteTopY(cat, it.h);

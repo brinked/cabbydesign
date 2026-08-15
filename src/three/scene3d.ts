@@ -683,6 +683,15 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     return g2;
   };
 
+  // A stainless fridge/ice-maker housing whose selected inventory unit is
+  // panel-ready AND the designer chose matching panels renders with cabinet
+  // fronts (what the customer will actually see).
+  const paneledUnit = (it: PlacedItem): boolean => {
+    const sel = it.appliance;
+    if (!sel || sel.mode !== 'inventory' || !sel.applianceId || sel.withPanel === false) return false;
+    const a = appliances.find((x) => x.id === sel.applianceId);
+    return !!a && (a.panelCharge ?? 0) > 0;
+  };
   const frames = design.walls.map(frameForWall);
 
   for (const f of frames) {
@@ -861,7 +870,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         : handleModel;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: cat.hidden ? (it.hinge === 'left' ? 'right' : 'left') : it.hinge, style: design.doorStyle, endL: cat.hidden ? false : it.endL, endR: cat.hidden ? false : it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel: itemHandleModel, handleTab: it.handleId === 'tab', handleNone: it.handleId ? it.handleId === 'none' : design.handleId === 'none', topRowH: it.topRowH, kickFrontZ: cat.hidden ? undefined : kickPlanes.get(it.id) },
+        { w: it.w, d: it.d, h: it.h, hinge: cat.hidden ? (it.hinge === 'left' ? 'right' : 'left') : it.hinge, style: design.doorStyle, endL: cat.hidden ? false : it.endL, endR: cat.hidden ? false : it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel: itemHandleModel, handleTab: it.handleId === 'tab', handleNone: it.handleId ? it.handleId === 'none' : design.handleId === 'none', topRowH: it.topRowH, paneled: paneledUnit(it), kickFrontZ: cat.hidden ? undefined : kickPlanes.get(it.id) },
         matsFor(resolveItemFinish(fin.id, it, cat))
       );
       const exL = cat.category !== 'appliance' && !cat.hidden && it.endL ? 0.75 : 0;
