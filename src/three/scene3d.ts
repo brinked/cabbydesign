@@ -1098,31 +1098,25 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // Shallow (2") on purpose: from behind it reads as the same continuous
       // reveal line; from the front an open full-back stretch shows a tidy
       // plinth instead of a 22"-deep slab.
-      {
-        const kicked = floorItems
-          .filter((o) => {
-            const oc = catalogById(o.catalogId);
-            return oc.category !== 'appliance' && oc.front !== 'corner' && oc.front !== 'susan';
-          })
-          .map((o) => [o.x, o.x + footprintW(o)] as [number, number])
-          .sort((a, b) => a[0] - b[0]);
-        for (const grp of groups) {
-          let cur = grp.x1;
-          const bare: Array<[number, number]> = [];
-          for (const [a, b] of kicked) {
-            if (b <= cur) continue;
-            if (a >= grp.x2) break;
-            if (a > cur) bare.push([cur, Math.min(a, grp.x2)]);
-            cur = Math.max(cur, b);
-            if (cur >= grp.x2) break;
-          }
-          if (cur < grp.x2) bare.push([cur, grp.x2]);
-          for (const [a, b] of bare) {
-            if (b - a < 0.5) continue;
-            const km = box(b - a, TOEKICK_H, 2, mats.kick);
-            km.castShadow = km.receiveShadow = true;
-            place(km, a + (b - a) / 2, 0.75 + 1, TOEKICK_H / 2);
-          }
+      // ... and it runs the FULL length of every back group as ONE strip on
+      // the panel plane - not just the bare stretches. Cabinets pushed
+      // forward with an outset (a 24" base beside a 27" fridge housing) sit
+      // with their own kick recessed behind the back plane, which left the
+      // island's base line stepping in and out under a perfectly flat back.
+      // Coplanar with outset-0 cabinets' kicks (same finish, sits 0.05" inside).
+      for (const grp of groups) {
+        const W = grp.x2 - grp.x1;
+        if (W < 0.5) continue;
+        // Reach the strip 2" toward the front at each end so it tucks
+        // behind the end cabinet's own kick return instead of leaving a
+        // notch where the recessed kick shows through the panel-plane gap.
+        const km = box(W, TOEKICK_H - 0.02, 2, mats.kick);
+        km.castShadow = km.receiveShadow = true;
+        place(km, grp.x1 + W / 2, 0.75 + 1 - 0.05, (TOEKICK_H - 0.02) / 2);
+        for (const [ex, sgn] of [[grp.x1, 1], [grp.x2, -1]] as Array<[number, 1 | -1]>) {
+          const ret = box(2, TOEKICK_H - 0.02, 4, mats.kick);
+          ret.castShadow = ret.receiveShadow = true;
+          place(ret, ex + sgn * 1, 0.75 + 2, (TOEKICK_H - 0.02) / 2);
         }
       }
       for (const grp of groups) {
