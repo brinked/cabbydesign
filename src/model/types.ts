@@ -105,6 +105,10 @@ export interface ApplianceItem {
   /** Panel-ready fridge/ice maker: charge for the custom cabinet-matched door
    *  panel(s). Adds a separate line on the report when > 0. */
   panelCharge?: number;
+  /** Which 3D model represents this unit in the viewer and renders. Absent =
+   *  matched by brand/model name (or the procedural stand-in). Values are keys
+   *  from APPLIANCE_3D_MODELS. */
+  model3d?: string;
   /** Hidden from the dealer dropdowns when false. Defaults to true. */
   active?: boolean;
 }
@@ -170,6 +174,9 @@ export interface ApplianceSelection {
   applianceId?: string;
   /** Grill bundle: include the recommended insulated liner. */
   withLiner?: boolean;
+  /** Panel-ready unit: add the cabinet-matched panel(s) (bills the row's
+   *  panel charge). Absent = true when the row carries a panel charge. */
+  withPanel?: boolean;
   /** Free-text appliance description (mode 'own'). */
   ownText?: string;
 }

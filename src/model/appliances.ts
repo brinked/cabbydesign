@@ -18,6 +18,23 @@ export const APPLIANCE_CAT_LABELS: Record<ApplianceCat, string> = {
 };
 
 /** Order categories appear in the admin inventory editor. */
+/** Selectable 3D bodies for an inventory row (admin -> Appliances -> 3D
+ *  model). Keys are the model registry keys in three/models.ts. */
+export const APPLIANCE_3D_MODELS: Array<{ key: string; label: string; w: number; cats: ApplianceCat[] }> = [
+  { key: 'blaze-lte-32', label: 'Blaze LTE 32"', w: 32, cats: ['grill'] },
+  { key: 'blaze-lte-40', label: 'Blaze LTE 40"', w: 40, cats: ['grill'] },
+  { key: 'blaze-lte-pro-40', label: 'Blaze LTE PRO', w: 40, cats: ['grill'] },
+  { key: 'broilmaster-b-32', label: 'Broilmaster B-Series 32"', w: 32, cats: ['grill'] },
+  { key: 'napoleon-700-32', label: 'Napoleon 700 32"', w: 32, cats: ['grill'] },
+  { key: 'napoleon-700-38', label: 'Napoleon 700 38"', w: 38, cats: ['grill'] },
+  { key: 'napoleon-700-44', label: 'Napoleon 700 44"', w: 44, cats: ['grill'] },
+  { key: 'xo-xlt-32', label: 'XO XLT 32"', w: 32, cats: ['grill'] },
+  { key: 'xo-xlt-40', label: 'XO XLT 40"', w: 40, cats: ['grill'] },
+  { key: 'legriddle-commercial-75', label: 'Le Griddle Commercial 30"', w: 30, cats: ['griddle'] },
+  { key: 'legriddle-commercial-105', label: 'Le Griddle Commercial 41"', w: 41, cats: ['griddle'] },
+  { key: 'summit-spr627os2d', label: 'Summit SPR627OS2D 24" 2-drawer fridge', w: 23.63, cats: ['fridge', 'icemaker'] },
+];
+
 export const APPLIANCE_CATS: ApplianceCat[] = [
   'grill',
   'griddle',
@@ -106,7 +123,7 @@ export function appliancePrice(
   const applianceNet = netPrice(item.msrp, item.brand, brands);
   const linerMsrp = liner?.msrp ?? 0;
   const linerNet = liner ? netPrice(liner.msrp, liner.brand, brands) : 0;
-  const panelCharge = item.panelCharge && item.panelCharge > 0 ? round2(item.panelCharge) : 0;
+  const panelCharge = item.panelCharge && item.panelCharge > 0 && sel.withPanel !== false ? round2(item.panelCharge) : 0;
   const useMsrp = mode === 'marked_up';
   const total = round2((useMsrp ? applianceMsrp : applianceNet) + (useMsrp ? linerMsrp : linerNet) + panelCharge);
 
@@ -387,7 +404,7 @@ function parseBbqCsv(dataRows: string[]): CsvParseResult {
   return { items: [...appliances, ...liners.values()], errors };
 }
 
-const FLAT_HEADERS = ['category', 'brand', 'model', 'name', 'msrp', 'liner_model', 'cutout_w', 'cutout_d', 'cutout_h', 'panel_charge'] as const;
+const FLAT_HEADERS = ['category', 'brand', 'model', 'name', 'msrp', 'liner_model', 'cutout_w', 'cutout_d', 'cutout_h', 'panel_charge', 'model_3d'] as const;
 
 /** The internal flat format (what appliancesToCsv writes). */
 function parseFlatCsv(rows: string[], header: string[]): CsvParseResult {
@@ -419,6 +436,7 @@ function parseFlatCsv(rows: string[], header: string[]): CsvParseResult {
       cutoutD: parseInches(get('cutout_d')),
       cutoutH: parseInches(get('cutout_h')),
       panelCharge: parseMoneyCell(get('panel_charge')),
+      model3d: get('model_3d')?.trim() || undefined,
       active: true,
     };
     pending.push({ item, linerModel: get('liner_model') });
@@ -448,7 +466,7 @@ export function appliancesToCsv(items: ApplianceItem[]): string {
   for (const a of items) {
     const linerModel = a.linerId ? byId.get(a.linerId)?.model ?? '' : '';
     lines.push(
-      [a.category, a.brand, a.model, a.name, a.msrp, linerModel, a.cutoutW ?? '', a.cutoutD ?? '', a.cutoutH ?? '', a.panelCharge ?? '']
+      [a.category, a.brand, a.model, a.name, a.msrp, linerModel, a.cutoutW ?? '', a.cutoutD ?? '', a.cutoutH ?? '', a.panelCharge ?? '', a.model3d ?? '']
         .map(csvCell)
         .join(',')
     );
@@ -476,6 +494,12 @@ export function appliance3dModel(sel: ApplianceSelection | undefined, appliances
   if (!a) return null;
   const s = `${a.brand} ${a.model} ${a.name}`.toLowerCase();
   const has = (...terms: string[]) => terms.some((t) => s.includes(t));
+
+  // An explicit 3D model on the inventory row wins over name matching.
+  if (a.model3d) {
+    const lib = APPLIANCE_3D_MODELS.find((m) => m.key === a.model3d);
+    if (lib) return { key: lib.key, w: a.cutoutW && a.cutoutW > 0 ? a.cutoutW : lib.w };
+  }
 
   if (a.category === 'grill') {
     if (has('blaze')) {

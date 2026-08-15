@@ -1488,7 +1488,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const kickFace = Math.min(Math.max(dims.kickFrontZ ?? boxD - 1, 2), boxD - 1);
       const kickBack = 0.75;
       const kickD = Math.max(1, kickFace - kickBack);
-      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, kickD, steel ? mats.steel : mats.kick);
+      // A housing with a real unit mounted keeps the RUN's finish kick under
+      // it (the unit's own feet/grille sit in the opening above the band).
+      const kickMesh = box(w + (endL ? END_PANEL_T : 0) + (endR ? END_PANEL_T : 0), kick, kickD, steel && !fridgeModel ? mats.steel : mats.kick);
       kickMesh.position.set(((endR ? END_PANEL_T : 0) - (endL ? END_PANEL_T : 0)) / 2, kick / 2, kickBack + kickD / 2);
       g.add(kickMesh);
       // Cooking cabinets ventilate their gas through the kick, and fridge /

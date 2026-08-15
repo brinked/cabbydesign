@@ -1026,7 +1026,11 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         // A fridge/ice-maker opening flush between two paneled cabinets of the
         // same back height gets the finished back bridged across it — matching
         // the bar-riser behaviour (which covers the bar-height case itself).
-        if (topY == null && (c.applianceCat === 'fridge' || c.applianceCat === 'icemaker') && !barRiserFor(design, it)) {
+        // Fridge / ice-maker / kegerator HOUSINGS are real cabinets with a
+        // back: on an island they always carry a finished back at the
+        // housing height. Between two paneled neighbours of one height they
+        // take THAT height so the run's panels stay continuous.
+        if (topY == null && (c.applianceCat === 'fridge' || c.applianceCat === 'icemaker') && c.category !== 'appliance' && !barRiserFor(design, it)) {
           const lTop = paneled(i - 1);
           const rTop = paneled(i + 1);
           const prevIt = sortedBack[i - 1];
@@ -1034,6 +1038,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
           const flushL = prevIt && Math.abs(prevIt.x + footprintW(prevIt) - it.x) < 0.75;
           const flushR = nextIt && Math.abs(nextIt.x - (it.x + footprintW(it))) < 0.75;
           if (lTop != null && rTop != null && flushL && flushR && Math.abs(lTop - rTop) < 0.01) topY = lTop;
+          else topY = it.h + (c.barHeight ? BAR_RISE : 0);
         }
         if (topY == null) continue;
         const x1 = it.x;

@@ -214,6 +214,7 @@ const applianceSchema = z.object({
   cutoutD: z.number().min(0).max(200).optional(),
   cutoutH: z.number().min(0).max(200).optional(),
   panelCharge: z.number().min(0).max(1_000_000).optional(),
+  model3d: z.string().max(80).optional(),
   active: z.boolean().optional(),
 });
 // Exported so the dealer profile route can validate a dealer's own inventory.

@@ -6,6 +6,7 @@ import { companyFinishes } from '../model/companyCatalog';
 import { money, tryFormula } from '../model/pricing';
 import {
   APPLIANCE_CATS,
+  APPLIANCE_3D_MODELS,
   APPLIANCE_CAT_LABELS,
   applianceId,
   appliancesToCsv,
@@ -433,6 +434,20 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
               </button>
             </div>
           )}
+          {selected && (selected.panelCharge ?? 0) > 0 && (
+            <div className="seg appliance-liner" style={{ marginTop: 8 }}>
+              <button
+                className={sel?.withPanel !== false ? 'seg-btn active' : 'seg-btn'}
+                onClick={() => set({ ...sel!, withPanel: true })}
+                title={`Custom cabinet-matched panel(s) — ${money(selected.panelCharge ?? 0)}`}
+              >
+                + Matching panel(s)
+              </button>
+              <button className={sel?.withPanel === false ? 'seg-btn active' : 'seg-btn'} onClick={() => set({ ...sel!, withPanel: false })}>
+                Stainless (no panel)
+              </button>
+            </div>
+          )}
           {selected && (
             <div className="price-line" style={{ marginTop: 6 }}>
               {selected.brand} {selected.model}: <b>{money(selected.msrp)}</b>
@@ -442,7 +457,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
                   + liner {liner.model} {money(liner.msrp)}
                 </span>
               )}
-              {selected.panelCharge ? <span className="price-sub"> + panel {money(selected.panelCharge)}</span> : null}
+              {selected.panelCharge && sel?.withPanel !== false ? <span className="price-sub"> + panel {money(selected.panelCharge)}</span> : null}
               {liner?.cutoutW ? <span className="price-sub"> · liner cutout {fmtIn(liner.cutoutW)} W</span> : null}
               {(want === 'fridge' || want === 'icemaker') && it.h < BASE_H - 0.01 ? (
                 <span className="price-sub"> · {fmtIn(BASE_H - it.h)} gap under counter</span>
@@ -1394,6 +1409,7 @@ function ApplianceRow({
   // liners use a cutout opening; fridges/ice makers carry their own W×D×H.
   const sized = a.category === 'liner' || a.category === 'fridge' || a.category === 'icemaker';
   const panelReadyCat = a.category === 'fridge' || a.category === 'icemaker';
+  const modelChoices = APPLIANCE_3D_MODELS.filter((m) => m.cats.includes(a.category));
 
   return (
     <div className="appliance-row">
@@ -1454,6 +1470,18 @@ function ApplianceRow({
           onChange={(e) => setPanel(e.target.value)}
           onBlur={() => commitNum('panelCharge', panel)}
         />
+      ) : (
+        <span className="appliance-pad" />
+      )}
+      {modelChoices.length > 0 ? (
+        <select className="select" value={a.model3d ?? ''} onChange={(e) => onChange({ model3d: e.target.value || undefined })} title="3D body shown in the viewer and renders. Auto = matched by brand/model name (or the generic stand-in).">
+          <option value="">Auto</option>
+          {modelChoices.map((mm) => (
+            <option key={mm.key} value={mm.key}>
+              {mm.label}
+            </option>
+          ))}
+        </select>
       ) : (
         <span className="appliance-pad" />
       )}
@@ -1554,6 +1582,7 @@ export function AppliancesModal() {
     }
     return new Set([...count.entries()].filter(([, n]) => n > 1).map(([k]) => k));
   }, [appliances]);
+  const listRef = useRef<HTMLDivElement>(null);
 
   if (!open) return null;
 
@@ -1570,11 +1599,16 @@ export function AppliancesModal() {
     setAppliances(next);
   };
 
-  const addRow = () =>
-    setAppliances([
-      ...appliances,
-      { id: `new-${appliances.length + 1}-${Math.max(1, Math.round(Date.now() % 1e6))}`, category: 'grill', brand: '', model: '', name: '', msrp: 0, active: true },
-    ]);
+  // New rows go to the TOP of the list and the list scrolls back up - burying
+  // a blank row at the bottom of a long modal made it look like nothing happened.
+  const addRow = () => {
+    const id = `new-${appliances.length + 1}-${Math.max(1, Math.round(Date.now() % 1e6))}`;
+    setAppliances([{ id, category: 'grill', brand: '', model: '', name: '', msrp: 0, active: true }, ...appliances]);
+    requestAnimationFrame(() => {
+      listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      listRef.current?.querySelector<HTMLInputElement>('.appliance-row:not(.appliance-row-head) input')?.focus();
+    });
+  };
 
   const removeRow = (id: string) =>
     setAppliances(appliances.filter((a) => a.id !== id).map((a) => (a.linerId === id ? { ...a, linerId: undefined } : a)));
@@ -1672,10 +1706,13 @@ export function AppliancesModal() {
         </span>
       </div>
 
-      <h3 className="modal-h3" style={{ marginTop: 18 }}>
-        Inventory
-      </h3>
-      <div className="appliance-list">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18 }}>
+        <h3 className="modal-h3" style={{ margin: 0 }}>Inventory</h3>
+        <button className="btn-primary" onClick={addRow} style={{ marginLeft: 'auto' }}>
+          + Add appliance
+        </button>
+      </div>
+      <div className="appliance-list" ref={listRef}>
         <div className="appliance-row appliance-row-head">
           <span>Category</span>
           <span>Brand</span>
@@ -1684,6 +1721,7 @@ export function AppliancesModal() {
           <span>MSRP</span>
           <span>Liner / Size W×D×H</span>
           <span>Panel $</span>
+          <span>3D model</span>
           <span></span>
         </div>
         {appliances.map((a) => (
@@ -1860,6 +1898,7 @@ export function MyAppliancesModal() {
           <span>MSRP</span>
           <span>Liner / Size W×D×H</span>
           <span>Panel $</span>
+          <span>3D model</span>
           <span></span>
         </div>
         {own.map((a) => (
