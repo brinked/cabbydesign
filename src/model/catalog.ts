@@ -34,7 +34,7 @@ export const FINISHES: FinishOption[] = [
   // King StarBoard woodgrains — photos already shot with vertical grain.
   { id: 'sb-mocha', name: 'Mocha Woodgrain', woodgrain: true, texUpright: true, tex: 'starboard/mocha.jpg', body: '#513e37', panel: '#513e37', inner: '#42322d', counter: '#e3e0da' },
   { id: 'sb-nutmeg', name: 'Nutmeg Woodgrain', woodgrain: true, texUpright: true, tex: 'starboard/nutmeg.jpg', body: '#827a70', panel: '#827a70', inner: '#6a645b', counter: '#e3e0da' },
-  { id: 'sb-indigo', name: 'Indigo Woodgrain', woodgrain: true, texUpright: true, tex: 'starboard/indigo.jpg', body: '#283542', panel: '#283542', inner: '#202b36', counter: '#e3e0da' },
+  { id: 'sb-indigo', name: 'Indigo Woodgrain', woodgrain: true, texUpright: true, texPbr: true, tex: 'starboard/indigo.jpg', body: '#283542', panel: '#283542', inner: '#202b36', counter: '#e3e0da' },
   { id: 'sb-charcoal', name: 'Charcoal Woodgrain', woodgrain: true, texUpright: true, tex: 'starboard/charcoal.jpg', body: '#3d4144', panel: '#3d4144', inner: '#323537', counter: '#e3e0da' },
   { id: 'sb-slate', name: 'Slate Woodgrain', woodgrain: true, texUpright: true, tex: 'starboard/slate.jpg', body: '#6f6c67', panel: '#6f6c67', inner: '#5b5854', counter: '#e3e0da' },
   // Timberline woodgrains — photo textures under /textures/timberline, grain

@@ -375,19 +375,32 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
   // file arrives the flat fallback colors render and the scene rebuilds on
   // load (libTexture fires onModelsLoaded).
   const tlSrc = fin.tex ? libTexture(fin.tex) : null;
-  const tl = tlSrc ? tlSrc.clone() : null;
-  if (tl) {
-    tl.center.set(0.5, 0.5);
-    tl.rotation = fin.texUpright ? 0 : Math.PI / 2;
-    // Mirror at every repeat: the swatch photos aren't seamless tiles, and a
-    // hard wrap seam reads as a board joint in the wrong place.
-    tl.wrapS = tl.wrapT = THREE.MirroredRepeatWrapping;
-    tl.needsUpdate = true;
-  }
+  // Seamless PBR sets bring their own relief and roughness and tile with
+  // plain repeat - mirroring a seamless tile would just double every feature.
+  const pbrBase = fin.texPbr && fin.tex ? fin.tex.replace(/\.jpg$/, '') : null;
+  const wgWrap = fin.texPbr ? THREE.RepeatWrapping : THREE.MirroredRepeatWrapping;
+  const wgTex = (src: THREE.Texture) => {
+    const t = src.clone();
+    t.center.set(0.5, 0.5);
+    t.rotation = fin.texUpright ? 0 : Math.PI / 2;
+    // Mirror at every repeat for swatch PHOTOS (not seamless tiles): a hard
+    // wrap seam reads as a board joint in the wrong place.
+    t.wrapS = t.wrapT = wgWrap;
+    t.needsUpdate = true;
+    return t;
+  };
+  const tl = tlSrc ? wgTex(tlSrc) : null;
+  const wgNrmSrc = pbrBase ? libTexture(`${pbrBase}-normal.jpg`, true) : null;
+  const wgRoughSrc = pbrBase ? libTexture(`${pbrBase}-rough.jpg`, true) : null;
+  const wgAoSrc = pbrBase ? libTexture(`${pbrBase}-ao.jpg`, true) : null;
   const grain = tl ?? (fin.wood ? woodTexture(fin.id, fin.body) : null);
   // Photo woodgrains carry inch-true box UVs (see wgBoxUV); the procedural
   // indoor wood keeps the plain 0-1 mapping it was tuned for.
-  const wgFlag = tl ? { userData: { wgUV: true } } : {};
+  const wgPbr: Record<string, unknown> = {};
+  if (tl && wgNrmSrc) { wgPbr.normalMap = wgTex(wgNrmSrc); wgPbr.normalScale = new THREE.Vector2(0.7, 0.7); }
+  if (tl && wgRoughSrc) { wgPbr.roughnessMap = wgTex(wgRoughSrc); wgPbr.roughness = 1; }
+  if (tl && wgAoSrc) { wgPbr.aoMap = wgTex(wgAoSrc); wgPbr.aoMapIntensity = 0.6; }
+  const wgFlag = tl ? { userData: { wgUV: true }, ...wgPbr } : {};
   // NewAge door faces: louvered slats are wood-look (Grove) or painted (White)
   // — not bare metal; glass doors get a tinted pane inside the metal frame.
   const louvered = fin.naDoor === 'louvered';

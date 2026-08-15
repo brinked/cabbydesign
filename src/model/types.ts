@@ -358,6 +358,10 @@ export interface FinishOption {
    *  StarBoard shots) — skip the 90-degree rotation the horizontal-shot
    *  Timberline photos need. */
   texUpright?: boolean;
+  /** The texture is a genuinely seamless PBR set: `<tex>` is the base
+   *  color and sibling `-normal`, `-rough`, `-ao` maps sit beside it. Tiles
+   *  with plain repeat (no mirroring) and carries the real surface relief. */
+  texPbr?: boolean;
   /** Cabinet body color */
   body: string;
   /** Door/drawer panel color (slightly lighter/darker) */
