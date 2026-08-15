@@ -843,7 +843,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       const applianceH = cat.applianceCat ? selectedApplianceHeight(it.appliance, appliances) : undefined;
       // brand-accurate 3D head for the selected grill/griddle appliance
       const mref =
-        cat.applianceCat === 'grill' || cat.applianceCat === 'griddle'
+        cat.applianceCat === 'grill' || cat.applianceCat === 'griddle' || cat.applianceCat === 'fridge'
           ? appliance3dModel(it.appliance, appliances)
           : cat.front === 'hood'
             ? { key: 'hood', w: it.w }
