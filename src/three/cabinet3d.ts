@@ -1272,6 +1272,10 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   const steelFridge = isFridge && !fridgePanel; // stainless fridge
   const isIcemaker = cat.front === 'icemaker';
   const steel = isAppliance || steelFridge || isIcemaker;
+  // A real manufacturer fridge model (selected in the appliance picker and
+  // loaded) stands in for the unit: the housing then draws NO steel body of
+  // its own - the model IS the unit - only a dark cavity behind it.
+  const fridgeModel = steelFridge && dims.modelKey ? (requestModel(dims.modelKey), hasModel(dims.modelKey) ? dims.modelKey : null) : null;
   const kick = cat.lane === 'floor' && !isAppliance ? TOEKICK_H : 0;
   const carcassH = h - kick;
   // Fridge/ice-maker housings render the unit at the selected appliance's
@@ -1460,6 +1464,16 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       const carcass = new THREE.Mesh(geo, mats.carcass);
       carcass.castShadow = carcass.receiveShadow = true;
       g.add(carcass);
+    } else if (fridgeModel) {
+      // Dark cavity BEHIND the real unit (the housing's shadowed interior):
+      // it stops well short of the unit's front so it can never mask the
+      // model's door face - the unit's own body fills the rest.
+      const unitD = applianceModelInfo(fridgeModel)?.realDIn ?? d;
+      const cavD = Math.max(1, boxD - unitD + 2);
+      const cav = box(w, ch2, cavD, mats.dark);
+      cav.position.set(0, kick + ch2 / 2, cavD / 2);
+      cav.receiveShadow = true;
+      g.add(cav);
     } else {
       const carcass = box(w, ch2, boxD, steel ? mats.steel : mats.carcass);
       carcass.position.set(0, kick + ch2 / 2, boxD / 2);
@@ -2022,7 +2036,6 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   // A real manufacturer fridge model (selected in the appliance picker and
   // loaded) replaces the procedural stainless front: mounted at true size,
   // standing on the housing floor, its door face flush with the housing front.
-  const fridgeModel = steelFridge && dims.modelKey ? (requestModel(dims.modelKey), hasModel(dims.modelKey) ? dims.modelKey : null) : null;
   if (fridgeModel) {
     const info = applianceModelInfo(fridgeModel);
     const realW = info?.realWIn ?? w;
