@@ -299,6 +299,9 @@ export interface Wall {
   /** Island only: the counter overhangs the BACK by half the cabinet depth
    *  (24″ cabinets → 12″) for bar-stool seating. */
   seatingOverhang?: boolean;
+  /** Island only: number of counter-support corbels under the seating /
+   *  bar overhang, spaced evenly along the overhang span. 0/absent = none. */
+  corbels?: number;
 }
 
 export interface PlacedItem {

@@ -606,6 +606,14 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
             Seating overhang
           </label>
         )}
+        {wall.ghost && (wall.seatingOverhang || design.items.some((it) => it.wallId === wall.id && catalogById(it.catalogId).barHeight)) && (
+          <label className="wall-dim-field wall-island" title="Counter-support corbels under the overhang, spaced evenly">
+            Corbels
+            <button className="seg-btn" onClick={() => updateWall(wall.id, { corbels: Math.max(0, (wall.corbels ?? 0) - 1) || undefined })} disabled={!wall.corbels}>-</button>
+            <b style={{ minWidth: 16, textAlign: 'center' }}>{wall.corbels ?? 0}</b>
+            <button className="seg-btn" onClick={() => updateWall(wall.id, { corbels: Math.min(12, (wall.corbels ?? 0) + 1) })}>+</button>
+          </label>
+        )}
         <div className="zoom-ctl zoom-ctl-inline">
           <button title="Zoom out" onClick={() => setZoom((z) => Math.max(1, Math.round((z / 1.25) * 100) / 100))} disabled={zoom <= 1}>
             −

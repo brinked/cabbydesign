@@ -1218,6 +1218,65 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       }
     }
 
+    // Counter-support corbels under an island's seating / bar overhang: the
+    // chosen count spread evenly along the overhang span, each a finished
+    // bracket tucked against the back panel under the stone. Bar-height
+    // runs hang their bar top BAR_OVERHANG off the back; base seating
+    // overhangs half the cabinet depth.
+    if (f.wall.ghost && (f.wall.corbels ?? 0) > 0) {
+      const n = f.wall.corbels ?? 0;
+      const barCabs = floorItems.filter((o) => catalogById(o.catalogId).barHeight);
+      const seatCabs = f.wall.seatingOverhang ? floorItems.filter((o) => !catalogById(o.catalogId).barHeight && catalogById(o.catalogId).front !== 'filler') : [];
+      const spanOf = (list: PlacedItem[]) =>
+        list.length ? { x1: Math.min(...list.map((o) => o.x)), x2: Math.max(...list.map((o) => o.x + footprintW(o))) } : null;
+      const placeCorbels = (span: { x1: number; x2: number }, underY: number, reach: number) => {
+        // Corbel: a 3/4" finished bracket under the stone - a horizontal arm
+        // along the overhang, a vertical leg down the back panel, and a
+        // diagonal brace between them (a classic gusset profile), built from
+        // an extruded triangle-with-lip so it reads right from every angle.
+        // Local frame here: X along the run, Y up, Z toward the working side
+        // (the overhang is at negative Z, off the back).
+        const T = 0.75;
+        const depth = Math.max(4, reach - 1); // 1" setback from the stone edge
+        const height = Math.max(6, Math.min(12, depth * 0.85));
+        const shape = new THREE.Shape();
+        // profile in (u = outward reach, v = down): lip along the top, gusset
+        // toe angling back to the leg
+        shape.moveTo(0, 0);
+        shape.lineTo(depth, 0);
+        shape.lineTo(depth, -1.25);
+        shape.lineTo(1.5, -height);
+        shape.lineTo(0, -height);
+        shape.closePath();
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: T, bevelEnabled: false });
+        // Extrude runs +Z (thickness). Rotate so: profile u -> world -Z
+        // (outward past the back), profile v -> world Y (down is -Y already),
+        // thickness -> world X. rotateY(+90deg) maps (x,y,z) -> (z, y, -x).
+        geo.rotateY(Math.PI / 2);
+        const usable = span.x2 - span.x1;
+        for (let i = 0; i < n; i++) {
+          const cx = span.x1 + (usable * (i + 0.5)) / n;
+          const m = new THREE.Mesh(geo, mats.panel);
+          m.castShadow = m.receiveShadow = true;
+          // after rotate: thickness spans x in [0, T]; center it on cx.
+          // v (down) is already -Y from 0. u -> -z from 0: reaches out past
+          // the back plane (z=0) toward the seating side.
+          place(m, cx - T / 2, 0, underY);
+        }
+      };
+      const bs = spanOf(barCabs);
+      if (bs) {
+        const topH = Math.max(...barCabs.map((o) => o.h));
+        placeCorbels(bs, topH + BAR_RISE, BAR_OVERHANG);
+      }
+      const ss = spanOf(seatCabs);
+      if (ss) {
+        const restH = Math.max(...seatCabs.map((o) => (['fridge', 'icemaker', 'kegerator'].includes(catalogById(o.catalogId).applianceCat ?? '') ? Math.max(o.h, BASE_H) : o.h)));
+        const dMax = Math.max(...seatCabs.map((o) => o.d + o.outset));
+        placeCorbels(ss, restH, dMax / 2);
+      }
+    }
+
     const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
     const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
     // Angled (non-square) wall joins: the runs meet on the corner's bisector.
