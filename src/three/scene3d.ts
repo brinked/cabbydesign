@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ALL_FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, takesAppliedEnds } from '../model/catalog';
-import { CORNER_EPS, cornerCounterExtend, counterMiter, frameForWall, isFenceStyle, planBounds, squareCorner, wallEndpoints, wallStyleOf } from '../model/geometry';
+import { CORNER_EPS, cornerCounterExtend, counterMiter, frameForWall, isFenceStyle, planBounds, squareCorner, wallEndpoints, wallStyleOf, seatOverhang, sideCorbelOffsets, sideOverhang } from '../model/geometry';
 import { appliance3dModel, selectedApplianceHeight } from '../model/appliances';
 import { countertopById } from '../model/countertops';
 import { flooringById } from '../model/flooring';
@@ -870,7 +870,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         : handleModel;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: cat.hidden ? (it.hinge === 'left' ? 'right' : 'left') : it.hinge, style: design.doorStyle, endL: cat.hidden ? it.endR : it.endL, endR: cat.hidden ? it.endL : it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel: itemHandleModel, handleTab: it.handleId === 'tab', handleNone: it.handleId ? it.handleId === 'none' : design.handleId === 'none', topRowH: it.topRowH, paneled: paneledUnit(it), kickFrontZ: cat.hidden ? undefined : kickPlanes.get(it.id) },
+        { w: it.w, d: it.d, h: it.h, hinge: cat.hidden ? (it.hinge === 'left' ? 'right' : 'left') : it.hinge, style: it.doorStyle ?? design.doorStyle, endL: cat.hidden ? it.endR : it.endL, endR: cat.hidden ? it.endL : it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel: itemHandleModel, handleTab: it.handleId === 'tab', handleNone: it.handleId ? it.handleId === 'none' : design.handleId === 'none', topRowH: it.topRowH, paneled: paneledUnit(it), panelsToFloor: !!f.wall.panelsToFloor, kickFrontZ: cat.hidden ? undefined : kickPlanes.get(it.id) },
         matsFor(resolveItemFinish(fin.id, it, cat))
       );
       const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;
@@ -1014,7 +1014,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
           }
         } else {
           // seating-overhang islands: the waterfall runs under the overhang too
-          const wfBack = f.wall.ghost && f.wall.seatingOverhang && !cat.barHeight ? (it.d + it.outset) / 2 : 0;
+          const wfBack = f.wall.ghost && f.wall.seatingOverhang && !cat.barHeight ? seatOverhang(f.wall, it.d + it.outset) : 0;
           if (it.waterfallL) sideSlab(it.x - cT / 2, it.d + O, neighborTop('L'), wfBack);
           if (it.waterfallR) sideSlab(it.x + fpw + cT / 2, it.d + O, neighborTop('R'), wfBack);
         }
@@ -1134,7 +1134,9 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       for (const grp of groups) {
         const W = grp.x2 - grp.x1;
         if (W < 2) continue;
-        const colH = Math.max(1, grp.topY - TOEKICK_H);
+        const floorBack = !!f.wall.panelsToFloor;
+        const colBase = floorBack ? 0 : TOEKICK_H;
+        const colH = Math.max(1, grp.topY - colBase);
         const n = Math.max(1, Math.ceil(W / MAX_PANEL_W));
         const panelW = (W - RUN_GAP * (n - 1)) / n;
         for (let i = 0; i < n; i++) {
@@ -1144,7 +1146,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
           inner.rotation.y = Math.PI; // design faces out the back (-z)
           const wrap = new THREE.Group();
           wrap.add(inner);
-          place(wrap, grp.x1 + panelW / 2 + i * (panelW + RUN_GAP), -END_PANEL_T / 2, TOEKICK_H + colH / 2);
+          place(wrap, grp.x1 + panelW / 2 + i * (panelW + RUN_GAP), -END_PANEL_T / 2, colBase + colH / 2);
         }
       }
     }
@@ -1316,7 +1318,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // A seating overhang also projects past a shared corner point by half a
       // cabinet depth, so a filled corner stopping dead at the wall end leaves
       // a step. Run on by that overhang to close the pair into one L.
-      const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
+      const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, r.d) : 0;
       // A corner partner that is an island WITH a seating overhang projects its
       // slab past the shared corner point. The filling slab runs on past the
       // wall end by that overhang so the two outlines meet instead of leaving
@@ -1336,7 +1338,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
               return i.wallId === o.id && c.lane === 'floor' && c.front !== 'filler' && c.category !== 'appliance';
             })
             .map((i) => i.d + i.outset);
-          if (ds.length) return Math.max(...ds) / 2;
+          if (ds.length) return seatOverhang(o, Math.max(...ds));
         }
         return 0;
       };
@@ -1348,12 +1350,12 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         ? ext.start === 'toFiller' && cfS
           ? cfS.x
           : -Math.max(cornerRunOn, partnerOverRun('start'))
-        : Math.max(r.x1 - (leftAbut ? 0 : COUNTER_OVERHANG), 0);
+        : Math.max(r.x1 - (leftAbut ? 0 : sideOverhang(f.wall, COUNTER_OVERHANG)), f.wall.ghost ? -sideOverhang(f.wall, COUNTER_OVERHANG) : 0);
       const x2 = fillEnd
         ? ext.end === 'toFiller' && cfE
           ? cfE.x + cfE.w
           : f.wall.length + Math.max(cornerRunOn, partnerOverRun('end'))
-        : Math.min(r.x2 + (rightAbut ? 0 : COUNTER_OVERHANG), f.wall.length);
+        : Math.min(r.x2 + (rightAbut ? 0 : sideOverhang(f.wall, COUNTER_OVERHANG)), f.wall.ghost ? f.wall.length + sideOverhang(f.wall, COUNTER_OVERHANG) : f.wall.length);
       // Mitre a run end that reaches into an angled corner: the back edge runs
       // to the wall corner and the end edge is cut on the bisector, so this
       // slab and the partner wall's slab close edge-to-edge (no wedge hole,
@@ -1428,12 +1430,45 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         const pcHoles = holes.filter((h) => (h.x1 + h.x2) / 2 >= pc.a - 0.01 && (h.x1 + h.x2) / 2 <= pc.b + 0.01);
         // island seating overhang: extend the slab past the back by half
         // the cabinet depth (24″ deep → 12″)
-        const backExt = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
+        const backExt = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, r.d) : 0;
         const slab = counterRunSlab(profile, pcHoles, slabMat, cT, r.h, -backExt, pc.a <= L + 0.01 ? slopeL : 0, pc.b >= R - 0.01 ? slopeR : 0);
         slab.position.copy(origin).addScaledVector(dir, runCenter);
         slab.position.y = 0;
         slab.rotation.y = yaw;
         group.add(slab);
+      }
+      // Automatic side corbels: a side overhang past 12" gets 2.5"-wide
+      // brackets under it, 12"-24" apart, along the run's end (its full
+      // depth plus the back overhang). Only on exposed run ends.
+      {
+        const so = sideOverhang(f.wall, COUNTER_OVERHANG);
+        if (so > 12) {
+          const backExtC = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, r.d) : 0;
+          const depthSpan = r.d + backExtC; // back overhang edge -> front face
+          const T = 2.5;
+          const reach = so - 1;
+          const height = Math.max(6, Math.min(12, reach * 0.85));
+          const shape = new THREE.Shape();
+          shape.moveTo(0, 0);
+          shape.lineTo(reach, 0);
+          shape.lineTo(reach, -1.25);
+          shape.lineTo(1.5, -height);
+          shape.lineTo(0, -height);
+          shape.closePath();
+          for (const [atStart, exposed] of [[true, !leftAbut && !fillStart], [false, !rightAbut && !fillEnd]] as Array<[boolean, boolean]>) {
+            if (!exposed) continue;
+            const edgeX = atStart ? r.x1 : r.x2;
+            for (const off of sideCorbelOffsets(so, depthSpan)) {
+              // profile u = outward from the run end; extrusion (thickness) runs +z
+              const geo = new THREE.ExtrudeGeometry(shape, { depth: T, bevelEnabled: false });
+              if (atStart) geo.rotateY(Math.PI); // u -> -x, thickness -> -z
+              const m = new THREE.Mesh(geo, mats.panel);
+              m.castShadow = m.receiveShadow = true;
+              const zc = -backExtC + off - T / 2 + (atStart ? T : 0);
+              place(m, edgeX, zc, r.h);
+            }
+          }
+        }
       }
     }
 

@@ -2943,3 +2943,45 @@ button:disabled {
   padding: 10px 0 0;
   font-size: 13px;
 }
+
+/* Floating live 3D preview over the plan / walls views */
+.live-preview {
+  position: fixed;
+  z-index: 40;
+  min-width: 240px;
+  min-height: 170px;
+  background: #fff;
+  border: 1px solid #cfd3dc;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(20, 24, 40, 0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  resize: both;
+}
+.live-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2c3345;
+  background: #eef0f5;
+  cursor: move;
+  user-select: none;
+  flex: 0 0 auto;
+}
+.live-preview-btn {
+  border: 1px solid #cfd3dc;
+  background: #fff;
+  border-radius: 6px;
+  padding: 0 7px;
+  font-size: 12px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.live-preview-btn:hover { background: #e4e7ef; }
+.live-preview-body { flex: 1 1 auto; min-height: 0; position: relative; }
+.live-preview-body .view3d { position: absolute; inset: 0; }
+.live-preview-body .view3d-canvas { position: absolute; inset: 0; }

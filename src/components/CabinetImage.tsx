@@ -13,7 +13,8 @@ import { CabinetFront, CabinetIso } from './svg';
  * unavailable.
  */
 export function ElevationCabinet({ cat, it, fin, wallLength }: { cat: CatalogItem; it: PlacedItem; fin: FinishOption; wallLength: number }) {
-  const style = useStore((s) => s.design.doorStyle);
+  const jobStyle = useStore((s) => s.design.doorStyle);
+  const style = it.doorStyle ?? jobStyle;
   const counterT = useStore((s) => s.design.counterThickness);
   const appliances = useStore((s) => s.appliances);
   const modelsReady = useStore((s) => s.modelsReady);

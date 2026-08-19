@@ -7,7 +7,7 @@ import { buildDesignGroup, groundMaterial, skyTexture } from '../three/scene3d';
 import PhotoRender, { type PhotoCam } from './PhotoRender';
 import { useFinish } from './WallsView';
 
-export default function View3D() {
+export default function View3D({ mini = false }: { mini?: boolean } = {}) {
   const mount = useRef<HTMLDivElement>(null);
   const design = useStore((s) => s.design);
   const fin = useFinish(design.finishId);
@@ -165,6 +165,7 @@ export default function View3D() {
   return (
     <div className="view3d">
       <div className="view3d-canvas" ref={mount} />
+      {!mini && (
       <div className="view3d-bar">
         <span>Drag to orbit · scroll to zoom · right-drag to pan</span>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -192,6 +193,7 @@ export default function View3D() {
           </button>
         </div>
       </div>
+      )}
       {photoCam && <PhotoRender design={design} fin={fin} cam={photoCam} onClose={() => setPhotoCam(null)} />}
     </div>
   );

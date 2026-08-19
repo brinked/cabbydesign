@@ -3,6 +3,7 @@ import Toolbar from './components/Toolbar';
 import WallsView from './components/WallsView';
 import TopView from './components/TopView';
 import View3D from './components/View3D';
+import LivePreview from './components/LivePreview';
 import Report from './components/Report';
 import StartScreen from './components/StartScreen';
 import Login from './components/Login';
@@ -128,6 +129,7 @@ export default function App() {
           {tab === 'design' && <WallsView />}
           {tab === 'plan' && <TopView />}
           {tab === '3d' && <View3D />}
+          {(tab === 'plan' || tab === 'design') && <LivePreview />}
           {tab === 'report' && <Report />}
         </main>
       )}

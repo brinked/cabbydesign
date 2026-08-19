@@ -476,6 +476,9 @@ export interface CabDims {
   backPanel?: boolean;
   /** Applied end panels stay plain slabs (no routed design) — bar cabinets. */
   plainEnds?: boolean;
+  /** Applied ends / finished skins run to the floor (full cabinet height,
+   *  covering the kick) instead of stopping at the kick line. */
+  panelsToFloor?: boolean;
   /** Corner/susan footprint orientation, derived from placement so it stays
    *  fixed in its corner; when set, `hinge` is free to pick the handle side. */
   cornerSide?: 1 | -1;
@@ -1958,12 +1961,14 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
 
   // applied end panels — finished door-style panel on exposed run ends
   if (!isAppliance) {
+    const pH = dims.panelsToFloor ? carcassH + kick : carcassH;
+    const pY = dims.panelsToFloor ? pH / 2 : kick + carcassH / 2;
     const addPanel = (faceW: number, px: number, pz: number, rotY: number) => {
       const pg = new THREE.Group();
-      pg.add(box(faceW, carcassH, END_PANEL_T, mats.panel));
-      if (!plainEnds) pg.add(facePattern(faceW, carcassH, style, END_PANEL_T / 2, mats));
+      pg.add(box(faceW, pH, END_PANEL_T, mats.panel));
+      if (!plainEnds) pg.add(facePattern(faceW, pH, style, END_PANEL_T / 2, mats));
       pg.rotation.y = rotY; // local +z (panel face) rotated to point outward
-      pg.position.set(px, kick + carcassH / 2, pz);
+      pg.position.set(px, pY, pz);
       g.add(pg);
     };
     if (cat.front === 'susan') {
@@ -2019,9 +2024,9 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
       for (const side of [-1, 1] as const) {
         if ((side === -1 && !finL) || (side === 1 && !finR)) continue;
         if ((side === -1 && endL) || (side === 1 && endR)) continue; // applied end covers it
-        const skin = box(Math.max(2, d - FRONT_T), carcassH, 0.15, mats.panel);
+        const skin = box(Math.max(2, d - FRONT_T), pH, 0.15, mats.panel);
         skin.rotation.y = side * (Math.PI / 2);
-        skin.position.set(side * (w / 2 + 0.08), kick + carcassH / 2, (d - FRONT_T) / 2);
+        skin.position.set(side * (w / 2 + 0.08), pY, (d - FRONT_T) / 2);
         g.add(skin);
       }
     }

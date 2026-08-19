@@ -299,6 +299,15 @@ export interface Wall {
   /** Island only: the counter overhangs the BACK by half the cabinet depth
    *  (24″ cabinets → 12″) for bar-stool seating. */
   seatingOverhang?: boolean;
+  /** Island seating overhang depth (inches) off the back. Absent = half the
+   *  cabinet depth (24" deep -> 12"). */
+  overhangBack?: number;
+  /** Extra counter overhang past each EXPOSED run end (inches). Absent/0 =
+   *  the standard 1" nose. Over 12" gets automatic 2.5"-wide side corbels. */
+  overhangSides?: number;
+  /** Applied end panels and island finished backs on this wall run all the
+   *  way to the ground (no toe-kick reveal under them). */
+  panelsToFloor?: boolean;
   /** Island only: number of counter-support corbels under the seating /
    *  bar overhang, spaced evenly along the overhang span. 0/absent = none. */
   corbels?: number;
@@ -346,6 +355,9 @@ export interface PlacedItem {
   /** Per-cabinet pull override (hidden cabinets): 'tab' = built-in top tab
    *  pull (their default), a handle-inventory id, or absent = the job handle. */
   handleId?: string;
+  /** Per-cabinet door design override. Absent = the job's door style.
+   *  Hidden cabinets default to 'flat' (Euro). */
+  doorStyle?: DoorStyle;
   /** Height override (inches) for the TOP drawer row / false front on fronts
    *  that carry one (drawer stacks, door+drawer combos, sink false fronts,
    *  blind-corner top drawers). Absent = the automatic height. */

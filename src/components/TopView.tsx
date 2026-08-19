@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ALL_FINISHES, COUNTER_OVERHANG, catalogById, frontExtraD } from '../model/catalog';
 import { resolveItemFinish } from '../model/newage';
 import { PERGOLA_COLORS, PERGOLA_MODELS, defaultPergola, pergolaAreaSqft, pergolaColorHex, pergolaColumns, pergolaModelInfo, pergolaRateFor, snapPergolaToWalls } from '../model/pergola';
-import { CORNER_EPS, WALL_T, cornerCounterExtend, cornerNeedsFlip, counterMiter, frameForWall, isCornerFront, isFenceStyle, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints, wallStyleOf } from '../model/geometry';
+import { CORNER_EPS, WALL_T, cornerCounterExtend, cornerNeedsFlip, counterMiter, frameForWall, isCornerFront, isFenceStyle, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints, wallStyleOf, seatOverhang } from '../model/geometry';
 import type { MeasureEnd, Measurement, PergolaAttach, PlacedItem, Wall, WallStyle } from '../model/types';
 import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, uid, useStore } from '../state/store';
 import { NumberField } from './NumberField';
@@ -609,7 +609,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
               // Mirrors scene3d: an island's top spans the whole ghost wall
               // (the wall length defines it, not the cabinets), and a filled
               // corner runs on by the seating overhang so the pair closes.
-              const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
+              const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, r.d) : 0;
               // A corner partner that is an island WITH a seating overhang projects its
               // slab past the shared corner point. The filling slab runs on past the
               // wall end by that overhang so the two outlines meet instead of leaving
@@ -647,7 +647,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
                 : Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
               // island seating overhang: the counter extends past the back by
               // half the cabinet depth
-              const backExt = f.wall.ghost && f.wall.seatingOverhang ? r.d / 2 : 0;
+              const backExt = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, r.d) : 0;
               // Angled (non-square) wall joins: mitre the run end on the
               // corner's bisector so the two walls' counters close edge to
               // edge (mirrors the 3D slabs).

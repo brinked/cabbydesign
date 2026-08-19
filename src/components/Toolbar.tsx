@@ -14,6 +14,8 @@ const TABS: Array<{ id: Tab; label: string }> = [
 export default function Toolbar() {
   const tab = useStore((s) => s.tab);
   const setTab = useStore((s) => s.setTab);
+  const liveView = useStore((s) => s.liveView);
+  const setLiveView = useStore((s) => s.setLiveView);
   const design = useStore((s) => s.design);
   const setDesignMeta = useStore((s) => s.setDesignMeta);
   const newDesign = useStore((s) => s.newDesign);
@@ -92,6 +94,11 @@ export default function Toolbar() {
                 {t.label}
               </button>
             ))}
+            {(tab === 'plan' || tab === 'design') && (
+              <button className={liveView ? 'tab active' : 'tab'} title="Floating live 3D preview while you work in this view" onClick={() => setLiveView(!liveView)}>
+                ◱ Live 3D
+              </button>
+            )}
           </nav>
 
           <div className="toolbar-right">

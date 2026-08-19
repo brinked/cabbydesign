@@ -606,6 +606,24 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
             Seating overhang
           </label>
         )}
+        {wall.ghost && wall.seatingOverhang && (
+          <label className="wall-dim-field wall-island" title="How far the counter overhangs the island back for seating (blank = half the cabinet depth)">
+            Overhang
+            <input type="number" min={0} max={30} step={0.5} placeholder="auto" style={{ width: 56 }} value={wall.overhangBack ?? ''} onChange={(e) => updateWall(wall.id, { overhangBack: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)) })} />
+            in
+          </label>
+        )}
+        {wall.ghost && (
+          <label className="wall-dim-field wall-island" title="Counter overhang past each exposed run end (standard 1 in). Over 12 in adds automatic side corbels.">
+            Side overhang
+            <input type="number" min={0} max={30} step={0.5} placeholder="1" style={{ width: 56 }} value={wall.overhangSides ?? ''} onChange={(e) => updateWall(wall.id, { overhangSides: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)) })} />
+            in
+          </label>
+        )}
+        <label className="wall-dim-field" title="Applied end panels and island finished backs run all the way to the ground (no toe-kick reveal)">
+          <input type="checkbox" checked={!!wall.panelsToFloor} onChange={(e) => updateWall(wall.id, { panelsToFloor: e.target.checked || undefined })} />
+          Panels to floor
+        </label>
         {wall.ghost && (wall.seatingOverhang || design.items.some((it) => it.wallId === wall.id && catalogById(it.catalogId).barHeight)) && (
           <label className="wall-dim-field wall-island" title="Counter-support corbels under the overhang, spaced evenly">
             Corbels

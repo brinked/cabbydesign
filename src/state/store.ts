@@ -6,7 +6,7 @@ import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
-import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, COOKING_CORNER_FILLER, CORNER_FILLER, isCookingCat, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, squareCorner, wallEndJoined, wallEndpoints } from '../model/geometry';
+import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, COOKING_CORNER_FILLER, CORNER_FILLER, isCookingCat, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, squareCorner, wallEndJoined, wallEndpoints, seatOverhang } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot.
  *  Default only — the admin-managed rates live in store.panelRates. */
@@ -266,6 +266,8 @@ export function normalizeDesign(raw: Design): Design {
 interface AppState {
   design: Design;
   tab: Tab;
+  /** Floating live 3D preview shown over the plan / walls views. */
+  liveView: boolean;
   selectedId: string | null;
   editingId: string | null;
   editingRoughInId: string | null;
@@ -313,6 +315,7 @@ interface AppState {
   snapshot3d: string | null;
 
   setTab: (tab: Tab) => void;
+  setLiveView: (on: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setAppliancesOpen: (open: boolean) => void;
   setMyAppliancesOpen: (open: boolean) => void;
@@ -528,7 +531,9 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
   if (error) return { ...ZERO_PRICE, error };
   const hasKick = cat.lane === 'floor';
   // bar-height cabinets: end/back panels wrap the raised bar column too
-  const panelH = Math.max(0, it.h + (cat.barHeight ? BAR_RISE : 0) - (hasKick ? TOEKICK_H : 0));
+  const wallOfIt = design.walls.find((w) => w.id === it.wallId);
+  const kickOff = hasKick && !wallOfIt?.panelsToFloor ? TOEKICK_H : 0;
+  const panelH = Math.max(0, it.h + (cat.barHeight ? BAR_RISE : 0) - kickOff);
   const sqft = (wIn: number) => (wIn * panelH) / 144;
   const trays = (it.trays ?? 0) * DEFAULT_RATES.tray;
   const rates = panelRates();
@@ -773,7 +778,10 @@ export function counterAreaSqft(design: Design): number {
     // island seating overhang: the counter extends past the back by half the
     // cabinet depth, so that stone counts too.
     if (wall.ghost && wall.seatingOverhang) {
-      for (const r of runs) sqin += (r.x2 - r.x1) * (r.d / 2);
+      for (const r of runs) sqin += (r.x2 - r.x1) * seatOverhang(wall, r.d);
+    }
+    if (wall.ghost && (wall.overhangSides ?? 0) > 1) {
+      for (const r of runs) sqin += 2 * (wall.overhangSides! - 1) * (r.d + (wall.seatingOverhang ? seatOverhang(wall, r.d) : 0));
     }
     // bar-height cabinets carry their stone as three pieces (built in 3D, so
     // excluded from the runs above): the main working counter, the raised bar
@@ -1151,6 +1159,7 @@ export const useStore = create<AppState>()(
         historyRestoring = false;
       },
       tab: 'design',
+      liveView: false,
       selectedId: null,
       editingId: null,
       editingRoughInId: null,
@@ -1180,6 +1189,7 @@ export const useStore = create<AppState>()(
       snapshot3d: null,
 
       setTab: (tab) => set({ tab }),
+      setLiveView: (on) => set({ liveView: on }),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
       setAppliancesOpen: (open) => set({ appliancesOpen: open }),
       setMyAppliancesOpen: (open) => set({ myAppliancesOpen: open }),
@@ -1406,7 +1416,10 @@ export const useStore = create<AppState>()(
           endR: false,
           trays: 0,
         };
-        if (cat.hidden) item.handleId = 'tab';
+        if (cat.hidden) {
+          item.handleId = 'tab';
+          item.doorStyle = 'flat'; // Euro slab reads cleanest on a hidden back door
+        }
         set({ design: withPack({ ...s.design, items: [...s.design.items, item] }), selectedId: item.id });
         return true;
       },

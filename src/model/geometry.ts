@@ -19,6 +19,33 @@ export interface WallFrame {
 export const WALL_T = 5; // drawn wall thickness in plan view, inches
 export const CORNER_EPS = 2; // endpoints closer than this (inches) form a corner
 
+/** Island seating overhang depth off the back for a run of the given cabinet
+ *  depth: the wall's explicit setting, else half the depth (24" -> 12"). */
+export function seatOverhang(wall: Wall, d: number): number {
+  return wall.overhangBack != null && wall.overhangBack > 0 ? wall.overhangBack : d / 2;
+}
+
+/** Counter overhang past an exposed run END on this wall (the standard 1"
+ *  nose unless the wall sets a larger side overhang). */
+export function sideOverhang(wall: Wall, std: number): number {
+  return wall.overhangSides != null && wall.overhangSides > std ? wall.overhangSides : std;
+}
+
+/** Side corbel plan for an overhang: none up to 12"; beyond that 2.5"-wide
+ *  brackets spaced evenly, 12"-24" apart, across the overhang's `span`.
+ *  Returns center offsets along the span (0..span). */
+export function sideCorbelOffsets(overhang: number, span: number): number[] {
+  if (overhang <= 12 || span < 3) return [];
+  const W = 2.5;
+  const usable = span - W;
+  // fewest corbels keeping the gap <= 24" (min 12" gap when possible)
+  let n = Math.max(2, Math.ceil(usable / 24) + 1);
+  if (usable / (n - 1) < 12 && n > 2) n = Math.max(2, Math.floor(usable / 12) + 1);
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) out.push(W / 2 + (usable * i) / (n - 1));
+  return out;
+}
+
 export function frameForWall(wall: Wall): WallFrame {
   const rad = (wall.angle * Math.PI) / 180;
   const dx = Math.cos(rad);
