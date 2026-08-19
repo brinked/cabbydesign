@@ -1300,8 +1300,57 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     // off the island's DEEPEST run, so shallower runs don't step the back.
     const islandRunsForDepth = counterRuns3d(floorItems, true);
     const islandDeepest = islandRunsForDepth.length ? Math.max(...islandRunsForDepth.map((q) => q.d)) : 24;
+    // Manual countertop shape (plan counter editor): build the slab straight
+    // from the wall's polygons; sink / drop-in holes still cut through.
+    const manualShape = design.counterShapes?.[f.wall.id];
     const runs3d = counterRuns3d(floorItems, true);
-    for (let ri = 0; ri < runs3d.length; ri++) {
+    if (manualShape && runs3d.length) {
+      const rTall = runs3d.reduce((m, q) => (q.h > m.h ? q : m), runs3d[0]);
+      const slabMatM = mats.counter.clone();
+      slabMatM.map = mats.counterTex.clone();
+      slabMatM.map.repeat.set(1 / mats.counterTile, 1 / mats.counterTile);
+      const holesM: Array<{ x1: number; x2: number; z1: number; z2: number }> = [];
+      for (const it of floorItems) {
+        const cat = catalogById(it.catalogId);
+        const cx = it.x + footprintW(it) / 2;
+        if (isSinkFront(cat.front)) {
+          const cut = sinkBasin(it.w, it.d);
+          holesM.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: it.outset + cut.zc - cut.bd / 2, z2: it.outset + cut.zc + cut.bd / 2 });
+          continue;
+        }
+        const cut = grillCutout(cat, it.w, it.d, appliance3dModel(it.appliance, appliances)?.w);
+        if (cut) holesM.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: it.outset + cut.zc - cut.bd / 2, z2: it.outset + cut.zc + cut.bd / 2 });
+      }
+      for (const poly of manualShape.polys) {
+        if (poly.length < 3) continue;
+        const shp = new THREE.Shape();
+        shp.moveTo(poly[0].x, poly[0].z);
+        for (let i = 1; i < poly.length; i++) shp.lineTo(poly[i].x, poly[i].z);
+        shp.closePath();
+        const xs = poly.map((q) => q.x);
+        const zs = poly.map((q) => q.z);
+        for (const hle of holesM) {
+          if (hle.x1 < Math.min(...xs) - 0.1 || hle.x2 > Math.max(...xs) + 0.1) continue;
+          if (hle.z1 < Math.min(...zs) - 0.1 || hle.z2 > Math.max(...zs) + 0.1) continue;
+          const hp = new THREE.Path();
+          hp.moveTo(hle.x1, hle.z1);
+          hp.lineTo(hle.x2, hle.z1);
+          hp.lineTo(hle.x2, hle.z2);
+          hp.lineTo(hle.x1, hle.z2);
+          hp.closePath();
+          shp.holes.push(hp);
+        }
+        const geo = new THREE.ExtrudeGeometry(shp, { depth: cT, bevelEnabled: false });
+        geo.rotateX(Math.PI / 2);
+        geo.translate(0, rTall.h + cT, 0);
+        const slab = new THREE.Mesh(geo, slabMatM);
+        slab.castShadow = slab.receiveShadow = true;
+        slab.position.copy(origin);
+        slab.rotation.y = yaw;
+        group.add(slab);
+      }
+    }
+    for (let ri = 0; ri < (manualShape ? 0 : runs3d.length); ri++) {
       const r = runs3d[ri];
       // Overhang only exposed run ends. Where another cabinet abuts (e.g. a
       // shorter neighbour in its own run), keep the counter flush so it doesn't

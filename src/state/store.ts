@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, Pergola, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
 import { FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
+import { polyArea } from '../model/counterShape';
 import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
@@ -339,6 +340,7 @@ interface AppState {
   addWallAt: (placement: { x: number; y: number; angle: number; length: number }) => void;
   removeWall: (id: string) => void;
   updateWall: (id: string, patch: Partial<Omit<Wall, 'id'>>) => void;
+  setCounterShape: (wallId: string, shape: { polys: Array<Array<{ x: number; z: number }>> } | null) => void;
   flipWall: (id: string) => void;
   centerWallItems: (id: string) => void;
   rotateWall: (id: string, deltaDeg: number) => void;
@@ -743,6 +745,11 @@ export function counterAreaSqft(design: Design): number {
   let sqin = 0;
   const reserves = reservesFor(design);
   for (const wall of design.walls) {
+    const manual = design.counterShapes?.[wall.id];
+    if (manual) {
+      for (const poly of manual.polys) sqin += polyArea(poly);
+      continue;
+    }
     const floor = laneItems(design.items, wall.id, 'floor');
     const ext = cornerCounterExtend(wall, design.walls, design.items, design.cornerOverrides);
     const wr = reserves.get(wall.id) ?? { start: 0, end: 0 };
@@ -1284,6 +1291,13 @@ export const useStore = create<AppState>()(
           return { design: withPack({ ...s.design, walls, items }) };
         }),
 
+      setCounterShape: (wallId, shape) =>
+        set((st) => {
+          const next = { ...(st.design.counterShapes ?? {}) };
+          if (!shape || shape.polys.length === 0) delete next[wallId];
+          else next[wallId] = shape;
+          return { design: { ...st.design, counterShapes: Object.keys(next).length ? next : undefined } };
+        }),
       updateWall: (id, patch) =>
         set((s) => {
           let items = s.design.items;

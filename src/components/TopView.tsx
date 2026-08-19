@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { rectPoly, type CounterPt } from '../model/counterShape';
+import CounterEditor from './CounterEditor';
 import { ALL_FINISHES, COUNTER_OVERHANG, catalogById, frontExtraD } from '../model/catalog';
 import { resolveItemFinish } from '../model/newage';
 import { PERGOLA_COLORS, PERGOLA_MODELS, defaultPergola, pergolaAreaSqft, pergolaColorHex, pergolaColumns, pergolaModelInfo, pergolaRateFor, snapPergolaToWalls } from '../model/pergola';
 import { CORNER_EPS, WALL_T, cornerCounterExtend, cornerNeedsFlip, counterMiter, frameForWall, isCornerFront, isFenceStyle, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints, wallStyleOf, seatOverhang } from '../model/geometry';
-import type { MeasureEnd, Measurement, PergolaAttach, PlacedItem, Wall, WallStyle } from '../model/types';
+import type { Design, MeasureEnd, Measurement, PergolaAttach, PlacedItem, Wall, WallStyle } from '../model/types';
 import { footprintW, itemNumbers, laneItems, reservesFor, roughInConflict, uid, useStore } from '../state/store';
 import { NumberField } from './NumberField';
 import { useFinish } from './WallsView';
@@ -85,6 +87,84 @@ function planCounterRuns(items: PlacedItem[], bridge: boolean): Array<{ x1: numb
   return runs;
 }
 
+/** The AUTO countertop outline(s) for one wall, as wall-local polygons.
+ *  Mirrors scene3d's slab logic; the plan draws these and the counter
+ *  editor starts from them. */
+export function autoCounterPolys(design: Design, wall: Wall, runs: Array<{ x1: number; x2: number; d: number }>): CounterPt[][] {
+  const out: CounterPt[][] = [];
+  for (const r of runs) {
+    const ext = cornerCounterExtend(wall, design.walls, design.items, design.cornerOverrides);
+    const wr = reservesFor(design).get(wall.id) ?? { start: 0, end: 0 };
+    const fillStart = ext.start && r.x1 <= wr.start + 1;
+    const fillEnd = ext.end && r.x2 >= wall.length - wr.end - 1;
+    // Mirrors scene3d: an island's top spans the whole ghost wall
+    // (the wall length defines it, not the cabinets), and a filled
+    // corner runs on by the seating overhang so the pair closes.
+    const cornerRunOn = wall.ghost && wall.seatingOverhang ? seatOverhang(wall, r.d) : 0;
+    // A corner partner that is an island WITH a seating overhang projects its
+    // slab past the shared corner point. The filling slab runs on past the
+    // wall end by that overhang so the two outlines meet instead of leaving
+    // a notch at the junction.
+    const partnerOverRun = (end: 'start' | 'end'): number => {
+      const my = wallEndpoints(wall);
+      const pt = end === 'start' ? my.p0 : my.p1;
+      for (const o of design.walls) {
+        if (o.id === wall.id || !o.ghost || !o.seatingOverhang) continue;
+        const oe = wallEndpoints(o);
+        const touches =
+          Math.hypot(oe.p0.x - pt.x, oe.p0.y - pt.y) <= CORNER_EPS || Math.hypot(oe.p1.x - pt.x, oe.p1.y - pt.y) <= CORNER_EPS;
+        if (!touches) continue;
+        const ds = design.items
+          .filter((i) => {
+            const c = catalogById(i.catalogId);
+            return i.wallId === o.id && c.lane === 'floor' && c.front !== 'filler' && c.category !== 'appliance';
+          })
+          .map((i) => i.d + i.outset);
+        if (ds.length) return Math.max(...ds) / 2;
+      }
+      return 0;
+    };
+    const cfS = design.items.find((i) => i.id === `cf-${wall.id}-start`);
+    const cfE = design.items.find((i) => i.id === `cf-${wall.id}-end`);
+    const x1 = fillStart
+      ? ext.start === 'toFiller' && cfS
+        ? cfS.x
+        : -Math.max(cornerRunOn, partnerOverRun('start'))
+      : Math.max(r.x1 - COUNTER_OVERHANG, 0);
+    const x2 = fillEnd
+      ? ext.end === 'toFiller' && cfE
+        ? cfE.x + cfE.w
+        : wall.length + Math.max(cornerRunOn, partnerOverRun('end'))
+      : Math.min(r.x2 + COUNTER_OVERHANG, wall.length);
+    // island seating overhang: the counter extends past the back by
+    // half the cabinet depth
+    const backExt = wall.ghost && wall.seatingOverhang ? seatOverhang(wall, r.d) : 0;
+    // Angled (non-square) wall joins: mitre the run end on the
+    // corner's bisector so the two walls' counters close edge to
+    // edge (mirrors the 3D slabs).
+    const mS = counterMiter(wall, design.walls, design.items, catalogById, 'start');
+    const mE = counterMiter(wall, design.walls, design.items, catalogById, 'end');
+    const zF = r.d + COUNTER_OVERHANG;
+    const miterS = mS !== null && x1 <= Math.max(0, mS * zF) + 0.5;
+    const miterE = mE !== null && x2 >= wall.length + Math.min(0, mE * zF) - 0.5;
+    if (miterS || miterE) {
+      const sL = miterS && mS !== null ? mS : 0;
+      const sR = miterE && mE !== null ? mE : 0;
+      const xA = miterS ? 0 : x1;
+      const xB = miterE ? wall.length : x2;
+      out.push([
+        { x: xA + sL * -backExt, z: -backExt },
+        { x: xB + sR * -backExt, z: -backExt },
+        { x: xB + sR * zF, z: zF },
+        { x: xA + sL * zF, z: zF },
+      ]);
+      continue;
+    }
+    out.push(rectPoly(x1, x2, -backExt, r.d + COUNTER_OVERHANG + 0));
+  }
+  return out;
+}
+
 function svgPoint(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } {
   const ctm = svg.getScreenCTM();
   if (!ctm) return { x: 0, y: 0 };
@@ -94,7 +174,7 @@ function svgPoint(svg: SVGSVGElement, clientX: number, clientY: number): { x: nu
 
 type Draft = { x1: number; y1: number; x2: number; y2: number; len: number; angle: number };
 
-type Tool = 'select' | 'draw' | 'measure';
+type Tool = 'select' | 'draw' | 'measure' | 'counter';
 
 export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measureTarget, onToolDone }: { interactive?: boolean; tool?: Tool; measureTarget?: number; onToolDone?: () => void }) {
   const design = useStore((s) => s.design);
@@ -143,6 +223,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
   const viewRef = useRef(view);
   viewRef.current = view;
   const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null);
+  const planScale = svgEl ? vb.w / Math.max(1, svgEl.getBoundingClientRect().width) : 0.25;
   const panRef = useRef<{ clientX: number; clientY: number; view: { x: number; y: number; w: number; h: number }; scale: number } | null>(null);
 
   // native wheel listener — React's synthetic wheel can't preventDefault
@@ -600,74 +681,22 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
             ) : (
               <polygon points={slabPts} fill={isSel ? '#5b5bd6' : WALL_STYLE_PLAN_FILL[wallStyleOf(f.wall)] ?? f.wall.color ?? '#3f4754'} {...wallHandlers} />
             )}
-            {/* countertop runs — extended over an owned dead corner (matches 3D) */}
-            {runs.map((r, i) => {
-              const ext = cornerCounterExtend(f.wall, design.walls, design.items, design.cornerOverrides);
-              const wr = reservesFor(design).get(f.wall.id) ?? { start: 0, end: 0 };
-              const fillStart = ext.start && r.x1 <= wr.start + 1;
-              const fillEnd = ext.end && r.x2 >= f.wall.length - wr.end - 1;
-              // Mirrors scene3d: an island's top spans the whole ghost wall
-              // (the wall length defines it, not the cabinets), and a filled
-              // corner runs on by the seating overhang so the pair closes.
-              const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, r.d) : 0;
-              // A corner partner that is an island WITH a seating overhang projects its
-              // slab past the shared corner point. The filling slab runs on past the
-              // wall end by that overhang so the two outlines meet instead of leaving
-              // a notch at the junction.
-              const partnerOverRun = (end: 'start' | 'end'): number => {
-                const my = wallEndpoints(f.wall);
-                const pt = end === 'start' ? my.p0 : my.p1;
-                for (const o of design.walls) {
-                  if (o.id === f.wall.id || !o.ghost || !o.seatingOverhang) continue;
-                  const oe = wallEndpoints(o);
-                  const touches =
-                    Math.hypot(oe.p0.x - pt.x, oe.p0.y - pt.y) <= CORNER_EPS || Math.hypot(oe.p1.x - pt.x, oe.p1.y - pt.y) <= CORNER_EPS;
-                  if (!touches) continue;
-                  const ds = design.items
-                    .filter((i) => {
-                      const c = catalogById(i.catalogId);
-                      return i.wallId === o.id && c.lane === 'floor' && c.front !== 'filler' && c.category !== 'appliance';
-                    })
-                    .map((i) => i.d + i.outset);
-                  if (ds.length) return Math.max(...ds) / 2;
-                }
-                return 0;
-              };
-              const cfS = design.items.find((i) => i.id === `cf-${f.wall.id}-start`);
-              const cfE = design.items.find((i) => i.id === `cf-${f.wall.id}-end`);
-              const x1 = fillStart
-                ? ext.start === 'toFiller' && cfS
-                  ? cfS.x
-                  : -Math.max(cornerRunOn, partnerOverRun('start'))
-                : Math.max(r.x1 - COUNTER_OVERHANG, 0);
-              const x2 = fillEnd
-                ? ext.end === 'toFiller' && cfE
-                  ? cfE.x + cfE.w
-                  : f.wall.length + Math.max(cornerRunOn, partnerOverRun('end'))
-                : Math.min(r.x2 + COUNTER_OVERHANG, f.wall.length);
-              // island seating overhang: the counter extends past the back by
-              // half the cabinet depth
-              const backExt = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, r.d) : 0;
-              // Angled (non-square) wall joins: mitre the run end on the
-              // corner's bisector so the two walls' counters close edge to
-              // edge (mirrors the 3D slabs).
-              const mS = counterMiter(f.wall, design.walls, design.items, catalogById, 'start');
-              const mE = counterMiter(f.wall, design.walls, design.items, catalogById, 'end');
-              const zF = r.d + COUNTER_OVERHANG;
-              const miterS = mS !== null && x1 <= Math.max(0, mS * zF) + 0.5;
-              const miterE = mE !== null && x2 >= f.wall.length + Math.min(0, mE * zF) - 0.5;
-              if (miterS || miterE) {
-                const sL = miterS && mS !== null ? mS : 0;
-                const sR = miterE && mE !== null ? mE : 0;
-                const xA = miterS ? 0 : x1;
-                const xB = miterE ? f.wall.length : x2;
-                const pts = `${xA + sL * -backExt},${-backExt} ${xB + sR * -backExt},${-backExt} ${xB + sR * zF},${zF} ${xA + sL * zF},${zF}`;
-                return <polygon key={i} points={pts} fill={fin.counter} stroke="rgba(0,0,0,0.3)" strokeWidth={0.4} />;
-              }
-              return (
-                <rect key={i} x={x1} y={-backExt} width={x2 - x1} height={r.d + COUNTER_OVERHANG + backExt} fill={fin.counter} stroke="rgba(0,0,0,0.3)" strokeWidth={0.4} />
-              );
-            })}
+            {/* countertop runs - auto outline(s) (or the manual shape from the counter editor) */}
+            {(design.counterShapes?.[f.wall.id]?.polys ?? autoCounterPolys(design, f.wall, runs)).map((poly, i) => (
+              <polygon key={i} points={poly.map((p) => `${p.x},${p.z}`).join(' ')} fill={fin.counter} stroke="rgba(0,0,0,0.3)" strokeWidth={0.4} style={{ pointerEvents: 'none' }} />
+            ))}
+            {interactive && tool === 'counter' && svgEl && (
+              <CounterEditor
+                wallId={f.wall.id}
+                autoPolys={autoCounterPolys(design, f.wall, runs)}
+                scale={planScale}
+                toSvg={(cx2, cy2) => {
+                  const w = svgPoint(svgEl, cx2, cy2);
+                  const rx = w.x - f.ox, ry = w.y - f.oy;
+                  return { x: rx * f.dx + ry * f.dy, y: rx * f.nx + ry * f.ny };
+                }}
+              />
+            )}
             {/* L-shaped countertops for lazy-susan cabinets */}
             {floor
               .filter((it) => catalogById(it.catalogId).front === 'susan' && catalogById(it.catalogId).counter)
@@ -939,7 +968,7 @@ export default function TopView() {
   const pergolaSelected = useStore((s) => s.pergolaSelected);
   const setPergolaSel = useStore((s) => s.setPergolaSelected);
   const selectedPergola = pergola && pergolaSelected && !pergolaHidden ? pergola : null;
-  const [tool, setTool] = useState<'select' | 'draw' | 'measure'>('select');
+  const [tool, setTool] = useState<'select' | 'draw' | 'measure' | 'counter'>('select');
   const [measureTargetText, setMeasureTargetText] = useState('');
   const measureTarget = parseFloat(measureTargetText);
   const applyPreset = useStore((s) => s.applyPreset);
@@ -968,6 +997,9 @@ export default function TopView() {
           <div className="tool-group">
             <button className={tool === 'select' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('select')}>
               ▦ Select / Move
+            </button>
+            <button className={tool === 'counter' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('counter')} title="Reshape countertops by hand: drag corners, click a midpoint to add a corner, double-click a corner to remove it. Sizes snap to 1/2 in.">
+              ▱ Edit counters
             </button>
             <button className={tool === 'draw' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('draw')}>
               ✏ Draw wall

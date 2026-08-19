@@ -524,6 +524,9 @@ export interface Design {
   /** Per-corner overrides for the auto-added corner fillers, keyed
    *  `${wallId}:start|end` — a custom width, or removed entirely. */
   cornerOverrides?: Record<string, { w?: number; off?: boolean }>;
+  /** Manual countertop shapes per wall id (from the plan's counter editor):
+   *  closed polygons in the wall's local frame that REPLACE the auto slab. */
+  counterShapes?: Record<string, { polys: Array<Array<{ x: number; z: number }>> }>;
 }
 
 export interface PricedLine {

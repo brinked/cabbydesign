@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type React from 'react';
 import { useStore } from '../state/store';
 import View3D from './View3D';
 
@@ -14,7 +15,6 @@ export default function LivePreview() {
   const setOn = useStore((s) => s.setLiveView);
   const [pos, setPos] = useState({ x: 24, y: 96 });
   const [size, setSize] = useState({ w: 440, h: 300 });
-  const drag = useRef<{ dx: number; dy: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
   // Track user resizes (CSS resize handle) so the size persists across toggles.
@@ -29,22 +29,22 @@ export default function LivePreview() {
     return () => ro.disconnect();
   }, [on]);
 
-  useEffect(() => {
-    if (!drag.current) return;
-    const move = (e: MouseEvent) => {
-      if (!drag.current) return;
-      setPos({ x: Math.max(0, e.clientX - drag.current.dx), y: Math.max(56, e.clientY - drag.current.dy) });
-    };
+  // Drag the panel by its title bar: listeners are attached on mousedown
+  // (window-level, so a fast drag that leaves the bar keeps tracking) and
+  // removed on mouseup.
+  const startDrag = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const dx = e.clientX - pos.x;
+    const dy = e.clientY - pos.y;
+    const move = (ev: MouseEvent) => setPos({ x: Math.max(0, ev.clientX - dx), y: Math.max(56, ev.clientY - dy) });
     const up = () => {
-      drag.current = null;
-    };
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
-    return () => {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
     };
-  });
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
 
   if (!on) return null;
   return (
@@ -55,10 +55,7 @@ export default function LivePreview() {
     >
       <div
         className="live-preview-bar"
-        onMouseDown={(e) => {
-          drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
-          e.preventDefault();
-        }}
+        onMouseDown={startDrag}
       >
         <span>Live 3D</span>
         <span style={{ display: 'inline-flex', gap: 6 }}>
