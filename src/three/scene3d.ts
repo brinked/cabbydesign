@@ -870,18 +870,30 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         : handleModel;
       const cab = buildCabinetLocal(
         cat,
-        { w: it.w, d: it.d, h: it.h, hinge: cat.hidden ? (it.hinge === 'left' ? 'right' : 'left') : it.hinge, style: design.doorStyle, endL: cat.hidden ? false : it.endL, endR: cat.hidden ? false : it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel: itemHandleModel, handleTab: it.handleId === 'tab', handleNone: it.handleId ? it.handleId === 'none' : design.handleId === 'none', topRowH: it.topRowH, paneled: paneledUnit(it), kickFrontZ: cat.hidden ? undefined : kickPlanes.get(it.id) },
+        { w: it.w, d: it.d, h: it.h, hinge: cat.hidden ? (it.hinge === 'left' ? 'right' : 'left') : it.hinge, style: design.doorStyle, endL: cat.hidden ? it.endR : it.endL, endR: cat.hidden ? it.endL : it.endR, finL: it.finL, finR: it.finR, backPanel: false, cornerSide: cat.front === 'susan' || cat.front === 'corner' ? geomSide : undefined, applianceH, counterT: cT, modelKey: mref?.key, modelW: mref?.w, modelAlign: mref?.key ? modelAligns[mref.key] : undefined, handleModel: itemHandleModel, handleTab: it.handleId === 'tab', handleNone: it.handleId ? it.handleId === 'none' : design.handleId === 'none', topRowH: it.topRowH, paneled: paneledUnit(it), kickFrontZ: cat.hidden ? undefined : kickPlanes.get(it.id) },
         matsFor(resolveItemFinish(fin.id, it, cat))
       );
-      const exL = cat.category !== 'appliance' && !cat.hidden && it.endL ? 0.75 : 0;
+      const exL = cat.category !== 'appliance' && it.endL ? 0.75 : 0;
       if (cat.hidden) {
         // Reversed mount: rotate the box 180 degrees and slide it so the door
         // faces land exactly on the finished back plane (panels sit
         // END_PANEL_T out from the wall line; door slabs end flush at the
         // nominal depth).
-        cab.position.copy(origin).addScaledVector(dir, it.x + it.w / 2).addScaledVector(nrm, it.d - END_PANEL_T);
+        cab.position.copy(origin).addScaledVector(dir, it.x + exL + it.w / 2).addScaledVector(nrm, it.d - END_PANEL_T);
         cab.position.y = it.mount;
         cab.rotation.y = yaw + Math.PI;
+        // Its carcass back now faces the working side of the island. In a
+        // dead corner that face is buried behind the perpendicular run, but
+        // a hidden cabinet placed along an open stretch would show raw
+        // carcass to the kitchen - so it gets a finished panel there
+        // (billed like a finished back).
+        const fpw = footprintW(it);
+        const inward = new THREE.Group();
+        inward.add(box(fpw, it.h - TOEKICK_H, END_PANEL_T, mats.panel));
+        inward.add(facePattern(fpw, it.h - TOEKICK_H, design.doorStyle, END_PANEL_T / 2, mats));
+        place(inward, it.x + fpw / 2, it.d - END_PANEL_T + END_PANEL_T / 2 + 0.01, TOEKICK_H + (it.h - TOEKICK_H) / 2);
+        inward.rotation.y += 0; // design faces +z (into the kitchen)
+        group.add(inward);
       } else {
         cab.position.copy(origin).addScaledVector(dir, it.x + exL + it.w / 2).addScaledVector(nrm, it.outset);
         cab.position.y = it.mount;

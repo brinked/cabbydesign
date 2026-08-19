@@ -211,8 +211,8 @@ const BASE_CATALOG: CatalogItem[] = [
   // the finished back plane, reclaiming a dead corner as storage. Reserve
   // exempt, no counter of their own (the corner fill covers them), and they
   // default to the built-in top tab pull instead of the job handle.
-  { id: 'base-hidden1', name: 'Hidden 1-Door (Dead Corner)', category: 'base', front: 'door1', hidden: true, lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 9, maxW: 24, stepW: 3, counter: false, formula: BOX, maxTrays: 2, note: 'Faces the island back - fills a dead corner with real storage.' },
-  { id: 'base-hidden2', name: 'Hidden 2-Door (Dead Corner)', category: 'base', front: 'door2', hidden: true, lane: 'floor', w: 24, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: false, formula: BOX, maxTrays: 2, note: 'Faces the island back - fills a dead corner with real storage.' },
+  { id: 'base-hidden1', name: 'Hidden 1-Door (Dead Corner)', category: 'base', front: 'door1', hidden: true, lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 9, maxW: 24, stepW: 3, counter: true, formula: BOX, maxTrays: 2, note: 'Faces the island back - fills a dead corner with real storage.' },
+  { id: 'base-hidden2', name: 'Hidden 2-Door (Dead Corner)', category: 'base', front: 'door2', hidden: true, lane: 'floor', w: 24, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, maxTrays: 2, note: 'Faces the island back - fills a dead corner with real storage.' },
 ];
 
 // Fronts that get an auto-generated bar-height variant: plain floor cabinets
