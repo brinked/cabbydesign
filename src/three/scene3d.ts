@@ -1296,6 +1296,10 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     // Angled (non-square) wall joins: the runs meet on the corner's bisector.
     const mS = counterMiter(f.wall, design.walls, design.items, catalogById, 'start');
     const mE = counterMiter(f.wall, design.walls, design.items, catalogById, 'end');
+    // One straight seating-overhang edge per island: the overhang measures
+    // off the island's DEEPEST run, so shallower runs don't step the back.
+    const islandRunsForDepth = counterRuns3d(floorItems, true);
+    const islandDeepest = islandRunsForDepth.length ? Math.max(...islandRunsForDepth.map((q) => q.d)) : 24;
     const runs3d = counterRuns3d(floorItems, true);
     for (let ri = 0; ri < runs3d.length; ri++) {
       const r = runs3d[ri];
@@ -1318,7 +1322,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // A seating overhang also projects past a shared corner point by half a
       // cabinet depth, so a filled corner stopping dead at the wall end leaves
       // a step. Run on by that overhang to close the pair into one L.
-      const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, r.d) : 0;
+      const cornerRunOn = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, islandDeepest) : 0;
       // A corner partner that is an island WITH a seating overhang projects its
       // slab past the shared corner point. The filling slab runs on past the
       // wall end by that overhang so the two outlines meet instead of leaving
@@ -1392,7 +1396,10 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       // liner-jacket opening (a notch), so no stone runs over or behind the liner
       // — it splits the run into separate stone pieces. Sinks (and kamado
       // inserts) stay inner holes the stone frames.
-      const cuts: Array<{ x1: number; x2: number }> = [];
+      // Notches (drop-in units whose liner face hangs over the nose) split
+      // the run along x; `rear` is the stone strip that stays BEHIND the
+      // unit (wall/back edge up to the cut-out's back line).
+      const cuts: Array<{ x1: number; x2: number; rearZ: number }> = [];
       const holes: Array<{ x1: number; x2: number; z1: number; z2: number }> = [];
       for (const it of runCabs) {
         const cat = catalogById(it.catalogId);
@@ -1409,7 +1416,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         const cut = grillCutout(cat, it.w, it.d, modelWFor(it));
         if (!cut) continue;
         const front = it.d + it.outset + COUNTER_OVERHANG;
-        if (it.outset + cut.zc + cut.bd / 2 >= front - 0.05) cuts.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2 });
+        if (it.outset + cut.zc + cut.bd / 2 >= front - 0.05) cuts.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, rearZ: it.outset + cut.zc - cut.bd / 2 });
         else holes.push({ x1: cx - cut.bw / 2, x2: cx + cut.bw / 2, z1: it.outset + cut.zc - cut.bd / 2, z2: it.outset + cut.zc + cut.bd / 2 });
       }
 
@@ -1430,12 +1437,25 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
         const pcHoles = holes.filter((h) => (h.x1 + h.x2) / 2 >= pc.a - 0.01 && (h.x1 + h.x2) / 2 <= pc.b + 0.01);
         // island seating overhang: extend the slab past the back by half
         // the cabinet depth (24″ deep → 12″)
-        const backExt = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, r.d) : 0;
+        const backExt = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, islandDeepest) : 0;
         const slab = counterRunSlab(profile, pcHoles, slabMat, cT, r.h, -backExt, pc.a <= L + 0.01 ? slopeL : 0, pc.b >= R - 0.01 ? slopeR : 0);
         slab.position.copy(origin).addScaledVector(dir, runCenter);
         slab.position.y = 0;
         slab.rotation.y = yaw;
         group.add(slab);
+      }
+      // The stone strip behind each notched unit: from the back edge (or
+      // the seating overhang) up to the cut-out's back line. Without it the
+      // whole cabinet top behind a grill read as bare.
+      for (const c of cuts) {
+        const a = Math.max(c.x1, L), b = Math.min(c.x2, R);
+        if (b - a < 0.25 || c.rearZ < 0.5) continue;
+        const backExtN = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, islandDeepest) : 0;
+        const strip = counterRunSlab([{ x1: a, x2: b, z: c.rearZ }], [], slabMat, cT, r.h, -backExtN);
+        strip.position.copy(origin).addScaledVector(dir, runCenter);
+        strip.position.y = 0;
+        strip.rotation.y = yaw;
+        group.add(strip);
       }
       // Automatic side corbels: a side overhang past 12" gets 2.5"-wide
       // brackets under it, 12"-24" apart, along the run's end (its full
@@ -1443,7 +1463,7 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
       {
         const so = sideOverhang(f.wall, COUNTER_OVERHANG);
         if (so > 12) {
-          const backExtC = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, r.d) : 0;
+          const backExtC = f.wall.ghost && f.wall.seatingOverhang ? seatOverhang(f.wall, islandDeepest) : 0;
           const depthSpan = r.d + backExtC; // back overhang edge -> front face
           const T = 2.5;
           const reach = so - 1;

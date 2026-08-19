@@ -778,7 +778,8 @@ export function counterAreaSqft(design: Design): number {
     // island seating overhang: the counter extends past the back by half the
     // cabinet depth, so that stone counts too.
     if (wall.ghost && wall.seatingOverhang) {
-      for (const r of runs) sqin += (r.x2 - r.x1) * seatOverhang(wall, r.d);
+      const deepest = runs.length ? Math.max(...runs.map((q) => q.d)) : 24;
+      for (const r of runs) sqin += (r.x2 - r.x1) * seatOverhang(wall, deepest);
     }
     if (wall.ghost && (wall.overhangSides ?? 0) > 1) {
       for (const r of runs) sqin += 2 * (wall.overhangSides! - 1) * (r.d + (wall.seatingOverhang ? seatOverhang(wall, r.d) : 0));

@@ -1109,7 +1109,9 @@ export function grillCutout(cat: CatalogItem, w: number, d: number, modelW?: num
   // Grills, griddles and side/power burners all drop in with an insulated
   // liner jacket whose face hangs over the counter nose — the cut-out runs
   // through the counter's front edge (a notch, not a hole).
-  const z1 = 2.5; // stone strip left behind the unit
+  // Assume a typical 20" deep drop-in so a strip of stone still runs behind
+  // the unit (not the whole top left bare).
+  const z1 = Math.max(1, Math.min(d - 20.5, d - 4));
   const z2 = d + 6; // safely past any run's front overhang
   return { bw, bd: z2 - z1, zc: (z1 + z2) / 2 };
 }
