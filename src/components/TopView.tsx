@@ -176,7 +176,7 @@ type Draft = { x1: number; y1: number; x2: number; y2: number; len: number; angl
 
 type Tool = 'select' | 'draw' | 'measure' | 'counter';
 
-export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measureTarget, onToolDone }: { interactive?: boolean; tool?: Tool; measureTarget?: number; onToolDone?: () => void }) {
+export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measureTarget, onToolDone, onCounterSelect }: { interactive?: boolean; tool?: Tool; measureTarget?: number; onToolDone?: () => void; onCounterSelect?: (sel: { wallId: string; poly: number } | null) => void }) {
   const design = useStore((s) => s.design);
   const openEditor = useStore((s) => s.openEditor);
   const openRoughIn = useStore((s) => s.openRoughIn);
@@ -687,6 +687,7 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
             ))}
             {interactive && tool === 'counter' && svgEl && (
               <CounterEditor
+                onSelect={(pi) => onCounterSelect?.(pi == null ? null : { wallId: f.wall.id, poly: pi })}
                 wallId={f.wall.id}
                 autoPolys={autoCounterPolys(design, f.wall, runs)}
                 scale={planScale}
@@ -958,6 +959,44 @@ export function TopViewSvg({ interactive = false, tool = 'select' as Tool, measu
   );
 }
 
+/** Toolbar panel for the counter editor's selected piece: shows its overall
+ *  W x D and commits typed sizes by scaling the polygon about its back-left
+ *  corner (1/2" rounding). Resizing an auto piece makes it manual. */
+function CounterSizePanel({ sel }: { sel: { wallId: string; poly: number } }) {
+  const design = useStore((s) => s.design);
+  const setCounterShape = useStore((s) => s.setCounterShape);
+  const wall = design.walls.find((w) => w.id === sel.wallId);
+  const floor = laneItems(design.items, sel.wallId, 'floor');
+  if (!wall) return null;
+  const runs = planCounterRuns(floor, true);
+  const polys = design.counterShapes?.[wall.id]?.polys ?? autoCounterPolys(design, wall, runs);
+  const poly = polys[sel.poly];
+  if (!poly) return null;
+  const xs = poly.map((p) => p.x);
+  const zs = poly.map((p) => p.z);
+  const w = Math.max(...xs) - Math.min(...xs);
+  const d = Math.max(...zs) - Math.min(...zs);
+  const resize = (newW: number, newD: number) => {
+    const minX = Math.min(...xs);
+    const minZ = Math.min(...zs);
+    const sx = w > 0.01 ? newW / w : 1;
+    const sz = d > 0.01 ? newD / d : 1;
+    const next = polys.map((p, i) =>
+      i !== sel.poly ? p : p.map((q) => ({ x: Math.round((minX + (q.x - minX) * sx) * 2) / 2, z: Math.round((minZ + (q.z - minZ) * sz) * 2) / 2 }))
+    );
+    setCounterShape(wall.id, { polys: next });
+  };
+  return (
+    <span className="tool-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Selected counter piece - overall size. Typing a size scales the piece from its back-left corner.">
+      <b>Piece:</b>
+      <NumberField value={Math.round(w * 2) / 2} min={1} max={600} step={0.5} onCommit={(v: number) => resize(v, d)} />
+      x
+      <NumberField value={Math.round(d * 2) / 2} min={1} max={120} step={0.5} onCommit={(v: number) => resize(w, v)} />
+      in ({(w * d / 144).toFixed(1)} sq ft bbox)
+    </span>
+  );
+}
+
 export default function TopView() {
   const pergola = useStore((s) => s.design.pergola);
   const pergolaHidden = useStore((s) => s.pergolaHidden);
@@ -969,6 +1008,10 @@ export default function TopView() {
   const setPergolaSel = useStore((s) => s.setPergolaSelected);
   const selectedPergola = pergola && pergolaSelected && !pergolaHidden ? pergola : null;
   const [tool, setTool] = useState<'select' | 'draw' | 'measure' | 'counter'>('select');
+  const [counterSel, setCounterSel] = useState<{ wallId: string; poly: number } | null>(null);
+  useEffect(() => {
+    if (tool !== 'counter') setCounterSel(null);
+  }, [tool]);
   const [measureTargetText, setMeasureTargetText] = useState('');
   const measureTarget = parseFloat(measureTargetText);
   const applyPreset = useStore((s) => s.applyPreset);
@@ -1001,6 +1044,7 @@ export default function TopView() {
             <button className={tool === 'counter' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('counter')} title="Reshape countertops by hand: drag corners, click a midpoint to add a corner, double-click a corner to remove it. Sizes snap to 1/2 in.">
               ▱ Edit counters
             </button>
+            {tool === 'counter' && counterSel && <CounterSizePanel sel={counterSel} />}
             <button className={tool === 'draw' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('draw')}>
               ✏ Draw wall
             </button>
@@ -1245,7 +1289,7 @@ export default function TopView() {
             )}
           </div>
         )}
-        <TopViewSvg interactive tool={tool} measureTarget={Number.isFinite(measureTarget) ? measureTarget : undefined} onToolDone={() => setTool('select')} />
+        <TopViewSvg interactive tool={tool} measureTarget={Number.isFinite(measureTarget) ? measureTarget : undefined} onToolDone={() => setTool('select')} onCounterSelect={setCounterSel} />
         <p className="plan-hint">
           {tool === 'draw'
             ? 'Click and drag to draw a wall — angles snap to 45°, ends snap to existing walls. Walls shorter than 12″ are discarded. Scroll to zoom.'

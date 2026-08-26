@@ -19,6 +19,7 @@ export default function CounterEditor({
   autoPolys,
   toSvg,
   scale,
+  onSelect,
 }: {
   wallId: string;
   autoPolys: CounterPt[][];
@@ -26,11 +27,17 @@ export default function CounterEditor({
   toSvg: (clientX: number, clientY: number) => { x: number; y: number };
   /** plan units per CSS pixel (for handle sizes) */
   scale: number;
+  /** piece selection (for the toolbar's size panel): polygon index or null */
+  onSelect?: (poly: number | null) => void;
 }) {
   const shape = useStore((s) => s.design.counterShapes?.[wallId]);
   const setCounterShape = useStore((s) => s.setCounterShape);
   const [draft, setDraft] = useState<CounterPt[][] | null>(null);
-  const [sel, setSel] = useState<{ poly: number; pt: number } | null>(null);
+  const [sel, setSelRaw] = useState<{ poly: number; pt: number } | null>(null);
+  const setSel = (v: { poly: number; pt: number } | null) => {
+    setSelRaw(v);
+    onSelect?.(v ? v.poly : null);
+  };
   const polys = draft ?? shape?.polys ?? autoPolys;
   const dragging = useRef(false);
 
@@ -72,6 +79,7 @@ export default function CounterEditor({
     e.stopPropagation();
     e.preventDefault();
     dragging.current = true;
+    onSelect?.(pi);
     const origin = toSvg(e.clientX, e.clientY);
     const base = polys.map((p) => p.map((q) => ({ ...q })));
     let cur = base;
