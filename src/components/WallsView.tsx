@@ -576,6 +576,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
         <span className="space-left">
           Space left: <b>{fmtIn(Math.max(0, left))}</b>
         </span>
+        <span className="wall-sep" />
         <label className="wall-dim-field">
           Length
           <NumberField value={wall.length} min={4} max={600} onCommit={(length) => updateWall(wall.id, { length })} />
@@ -588,6 +589,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
           Thick.
           <NumberField value={wall.thickness} min={0} max={12} step={0.5} round={0.25} disabled={wall.ghost} title="Set to 0 for an island (no wall)" onCommit={(thickness) => updateWall(wall.id, { thickness })} />
         </label>
+        <span className="wall-sep" />
         <label className="wall-dim-field wall-island" title="No physical wall — island/peninsula run">
           <input
             type="checkbox"
@@ -620,6 +622,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
             in
           </label>
         )}
+        <span className="wall-sep" />
         <label className="wall-dim-field" title="Applied end panels and island finished backs run all the way to the ground (no toe-kick reveal)">
           <input type="checkbox" checked={!!wall.panelsToFloor} onChange={(e) => updateWall(wall.id, { panelsToFloor: e.target.checked || undefined })} />
           Panels to floor
@@ -632,6 +635,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
             <button className="seg-btn" onClick={() => updateWall(wall.id, { corbels: Math.min(12, (wall.corbels ?? 0) + 1) })}>+</button>
           </label>
         )}
+        <span className="wall-sep" />
         <div className="zoom-ctl zoom-ctl-inline">
           <button title="Zoom out" onClick={() => setZoom((z) => Math.max(1, Math.round((z / 1.25) * 100) / 100))} disabled={zoom <= 1}>
             −
@@ -641,19 +645,22 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
             +
           </button>
         </div>
-        {design.walls.length > 1 && (
-          <button className="btn-ghost" title="Remove wall" onClick={() => removeWall(wall.id)}>
-            ✕
+        <div className="wall-actions">
+          <button className="btn-ghost" title="Center the cabinets on this wall — equal space at both ends" onClick={() => centerWallItems(wall.id)}>
+            ⇹ Center
           </button>
-        )}
-        <button className="btn-ghost" title="Center the cabinets on this wall — equal space at both ends" onClick={() => centerWallItems(wall.id)}>
-          ⇹ Center
-        </button>
-        <RoughInAdd wallId={wall.id} />
-        <OpeningAdd wallId={wall.id} />
-        <button className="btn-dark" onClick={() => openAdd(wall.id)}>
-          + Add Cabinet
-        </button>
+          {design.walls.length > 1 && (
+            <button className="btn-ghost" title="Remove wall" onClick={() => removeWall(wall.id)}>
+              ✕
+            </button>
+          )}
+          <span className="wall-sep" />
+          <RoughInAdd wallId={wall.id} />
+          <OpeningAdd wallId={wall.id} />
+          <button className="btn-dark" onClick={() => openAdd(wall.id)}>
+            + Add Cabinet
+          </button>
+        </div>
       </div>
       <div className="wall-card-body" style={zoom > 1 ? { overflowX: 'auto' } : undefined}>
         <WallElevationSvg wall={wall} items={design.items} fin={fin} interactive reserve={reserve} zoom={zoom} />

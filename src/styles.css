@@ -533,6 +533,42 @@ button:disabled {
   color: #fff;
 }
 
+/* segmented tool cluster: joined buttons, radius only on the ends */
+.tool-seg {
+  gap: 0;
+}
+.tool-seg .tool-btn {
+  border-radius: 0;
+  margin-left: -1px;
+}
+.tool-seg .tool-btn:first-child {
+  border-radius: 9px 0 0 9px;
+  margin-left: 0;
+}
+.tool-seg .tool-btn:last-child {
+  border-radius: 0 9px 9px 0;
+}
+.tool-seg .tool-btn.active {
+  position: relative;
+  z-index: 1;
+}
+.tool-arrange {
+  margin-left: auto;
+}
+.wall-sep {
+  width: 1px;
+  align-self: stretch;
+  min-height: 22px;
+  background: var(--line);
+  margin: 0 4px;
+}
+.wall-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
 .tool-btn-danger:hover:not(:disabled) {
   border-color: var(--danger);
   color: var(--danger);

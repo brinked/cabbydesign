@@ -1037,7 +1037,7 @@ export default function TopView() {
     <div className="plan-view">
       <div className="plan-card">
         <div className="plan-toolbar">
-          <div className="tool-group">
+          <div className="tool-group tool-seg">
             <button className={tool === 'select' ? 'tool-btn active' : 'tool-btn'} onClick={() => setTool('select')}>
               ▦ Select / Move
             </button>
@@ -1066,7 +1066,7 @@ export default function TopView() {
               </label>
             )}
           </div>
-          <div className="tool-group">
+          <div className="tool-group tool-arrange">
             <span className="tool-label">Auto-arrange:</span>
             <button className="tool-btn" onClick={() => applyPreset('linear')}>
               Galley
