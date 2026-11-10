@@ -84,7 +84,7 @@ export default function Report() {
     <div className="report">
       <div className="report-toolbar no-print">
         <span>
-          {snapshot ? '3D view attached.' : 'Tip: open the 3D tab and click “Save view to report” to include a rendering.'}
+          {snapshot ? '3D view attached.' : 'Tip: open the 3D tab and click “Quick snapshot” to include a rendering.'}
         </span>
         <div>
           {!snapshot && (
@@ -170,7 +170,7 @@ export default function Report() {
             Countertop: {countertopById(design.counterId).name}, {fmtIn(design.counterThickness)} thick ({counterSqft} sq ft)
           </div>
           <div>Gas: {design.gasType === 'ng' ? 'Natural Gas' : design.gasType === 'lp' ? 'Liquid Propane' : 'Not specified'}</div>
-          <div>Handles: {totalHandles}</div>
+          {brand.integratedHandles ? <div>Handles: included with the cabinets</div> : <div>Handles: {totalHandles}</div>}
         </div>
         {snapshot && <img className="cover-render" src={snapshot} alt="3D rendering" />}
         <p className="cover-foot">{showPricing ? <>Design Report — plan, elevations &amp; estimate</> : 'Design Report — plan & elevations'}</p>

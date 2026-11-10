@@ -461,7 +461,10 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
     // is the same brushed metal as the body, not raw white HDPE board.
     carcass: metal
       ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), ...metal })
-      : new THREE.MeshPhysicalMaterial({ color: 0xeceef0, roughness: 0.55, clearcoat: 0.05, clearcoatRoughness: 0.6, ...hdpe }),
+      : brandOf(fin.line).factoryFinished
+        ? // powder-coated units are the body colour on every face too
+          new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.body), roughness: 0.7, clearcoat: 0.05, clearcoatRoughness: 0.6 })
+        : new THREE.MeshPhysicalMaterial({ color: 0xeceef0, roughness: 0.55, clearcoat: 0.05, clearcoatRoughness: 0.6, ...hdpe }),
   };
 }
 

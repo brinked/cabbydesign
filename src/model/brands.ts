@@ -4,6 +4,7 @@
 // add its id to ProductLine in types.ts and register it below.
 import type { Brand, CatalogItem, Design, FinishOption, PlacedItem, ProductLine, SkuVariant } from './types';
 import { NEWAGE_BRAND } from './newage';
+import { CHALLENGER_BRAND } from './challenger';
 
 /** EXT Cabinets: made-to-size HDPE (outdoor) and wood (indoor) cabinets priced
  *  by formula. Its finishes and catalog live in catalog.ts (they depend on the
@@ -33,10 +34,11 @@ const EXT_BRAND: Brand = {
 export const BRANDS: Record<ProductLine, Brand> = {
   ext: EXT_BRAND,
   newage: NEWAGE_BRAND,
+  challenger: CHALLENGER_BRAND,
 };
 
 /** Brands in the order they are offered. */
-export const BRAND_LIST: Brand[] = [BRANDS.ext, BRANDS.newage];
+export const BRAND_LIST: Brand[] = [BRANDS.ext, BRANDS.newage, BRANDS.challenger];
 /** Every brand other than EXT (the ones with their own catalog + finishes). */
 export const MODULAR_BRANDS: Brand[] = BRAND_LIST.filter((b) => b.id !== 'ext');
 
@@ -113,4 +115,21 @@ export function skuVariantFor(cat: CatalogItem, finishId: string): SkuVariant | 
 /** Whether the item is offered in the given finish. */
 export function hasFinish(cat: CatalogItem, finishId: string): boolean {
   return !cat.skuPricing || !!cat.skuPricing[finishId];
+}
+
+// ---- Catalog sizes & SKUs of made-to-order units ----
+
+/** The allowed size nearest to `v` (ties go to the smaller); `max` caps it to
+ *  what fits. Returns null when no allowed size fits. */
+export function snapToSizes(sizes: number[], v: number, max = Infinity): number | null {
+  const ok = sizes.filter((s) => s <= max + 0.001);
+  if (!ok.length) return null;
+  return ok.reduce((best, s) => (Math.abs(s - v) < Math.abs(best - v) ? s : best), ok[0]);
+}
+
+/** The manufacturer SKU of a placed made-to-order unit ('' when it has none). */
+export function skuFor(cat: CatalogItem, it: Pick<PlacedItem, 'w' | 'd' | 'h'>): string {
+  if (!cat.sku) return '';
+  const n = (v: number) => String(Math.round(v * 100) / 100);
+  return cat.sku.replace('{W}', n(it.w)).replace('{H}', n(it.h)).replace('{D}', n(it.d));
 }

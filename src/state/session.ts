@@ -278,3 +278,9 @@ export const useSession = create<SessionState>()(
 );
 
 export { ApiError };
+
+/** True for guests and homeowner/company accounts. Consumers are never shown
+ *  prices anywhere in the designer — they request a quote instead. */
+export function useIsConsumer(): boolean {
+  return useSession((s) => s.status === 'guest' || isConsumerRole(s.user?.role));
+}

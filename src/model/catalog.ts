@@ -105,7 +105,14 @@ export const DOOR_STYLE_LABELS: Record<DoorStyle, string> = {
   'beadboard': 'Beadboard',
 };
 
-export function doorStylesFor(kitchenType: KitchenType | undefined): DoorStyle[] {
+/** A door style's name for a product line (brands name their own styles). */
+export function doorStyleLabel(style: DoorStyle, line?: ProductLine): string {
+  return brandOf(line).doorStyles?.find((s) => s.id === style)?.label ?? DOOR_STYLE_LABELS[style] ?? style;
+}
+
+export function doorStylesFor(kitchenType: KitchenType | undefined, line?: ProductLine): DoorStyle[] {
+  const own = brandOf(line).doorStyles;
+  if (own) return own.map((s) => s.id);
   return (kitchenType ?? 'outdoor') === 'indoor'
     ? ['shaker-inset', 'shaker-skinny', 'raised', 'beadboard', 'flat']
     : ['flat', 'shaker', 'regal', 'metro', 'miami', 'clove', 'cottage', 'slat', 'tampa'];

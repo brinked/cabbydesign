@@ -3,8 +3,8 @@
 // numbers can be unit-tested and reused (report, order email, quote request).
 import type { CatalogPrefs, DealerPrefs } from '../api/client';
 import type { ApplianceBrands, ApplianceItem, CatalogItem, Design, HandleItem, PanelRates } from './types';
-import { ALL_FINISHES, DOOR_STYLE_LABELS, MAX_PANEL_W, catalogById, handleCount } from './catalog';
-import { brandOf, itemFinishId, skuVariantFor } from './brands';
+import { ALL_FINISHES, MAX_PANEL_W, catalogById, doorStyleLabel as styleLabel, handleCount } from './catalog';
+import { brandOf, itemFinishId, skuFor, skuVariantFor } from './brands';
 import { money } from './pricing';
 import { appliancePrice } from './appliances';
 import { mergedHandles } from './companyCatalog';
@@ -40,7 +40,7 @@ export function computeQuote(input: QuoteInput) {
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
   // Spec summary values for the cover/report.
-  const doorStyleLabel = DOOR_STYLE_LABELS[design.doorStyle] ?? design.doorStyle;
+  const doorStyleLabel = styleLabel(design.doorStyle, design.line);
   const counterSqft = counterAreaSqft(design);
   const totalHandles = design.items.reduce((n, it) => {
     // items with their OWN pull (hidden cabinets) bill on their own handle
@@ -99,7 +99,7 @@ export function computeQuote(input: QuoteInput) {
   // Panel style name on the report: EXT product names for the outdoor HDPE
   // styles, the door-style label itself for indoor wood styles.
   // marketing name only — "Vibe (groove frame)" → "Vibe"
-  const designName = (DOOR_STYLE_LABELS[design.doorStyle] ?? design.doorStyle).split(' (')[0];
+  const designName = styleLabel(design.doorStyle, design.line).split(' (')[0];
   const { applied: rate, finished: finRate } = input.panelRates;
 
   // NewAge designs: item names carry the SKU for the selected finish; the
@@ -113,6 +113,8 @@ export function computeQuote(input: QuoteInput) {
   // NewAge line items: name + the finish actually chosen for that cabinet +
   // its SKU (per-cabinet series/finish overrides included).
   const lineName = (cat: CatalogItem, it: (typeof design.items)[number]) => {
+    // made-to-order catalog units carry the maker's SKU for their size
+    if (cat.sku) return `${cat.name} · ${skuFor(cat, it)}`;
     if (!cat.skuPricing) return cat.name;
     const fid = itemFinishId(design, it, cat);
     const nv = skuVariantFor(cat, fid);

@@ -135,3 +135,76 @@ describe('NewAge catalog additions', () => {
     expect(requiredCabinetWidth({ mode: 'inventory', applianceId: 'na-plat-grill-33-ng', withLiner: true }, list, 4)).toBe(36.09);
   });
 });
+
+describe('Challenger Designs', () => {
+  const ch = BRANDS.challenger;
+
+  it('is a registered outdoor brand with its own catalog, finishes and door styles', async () => {
+    const { doorStylesFor, doorStyleLabel } = await import('./catalog');
+    expect(ch.outdoorOnly).toBe(true);
+    expect(ch.catalog.length).toBeGreaterThanOrEqual(30);
+    expect(finishesForLine('challenger').map((f) => f.name)).toEqual(['Anthracite', 'Cappuccino', 'Textured Gray Glimmer', 'Speckled Walnut', 'Textured White', 'Textured Black', 'Sandy Shore', 'Graphite']);
+    expect(doorStylesFor('outdoor', 'challenger')).toEqual(['flat', 'shaker-inset', 'clove']);
+    expect(doorStyleLabel('clove', 'challenger')).toBe('Ribbed Shaker');
+    expect(doorStyleLabel('clove', 'ext')).toContain('Clove');
+    expect(catalogForDesign('challenger', 'outdoor').every((c) => c.line === 'challenger')).toBe(true);
+  });
+
+  it('never carries a price — the manufacturer publishes none', () => {
+    for (const c of ch.catalog) {
+      expect(c.skuPricing, c.id).toBeUndefined();
+      expect(c.formula, c.id).toBe('0');
+      expect(c.perInch, c.id).toBeUndefined();
+    }
+    const d = design({ line: 'challenger', items: [naItem({ catalogId: 'ch-door2' })] });
+    expect(itemPrice(d, d.items[0], {}).total).toBe(0);
+  });
+
+  it('uses catalog sizes: default widths are offered sizes, SKUs encode W H D', async () => {
+    const { skuFor, snapToSizes } = await import('./brands');
+    for (const c of ch.catalog) {
+      expect(c.widths, c.id).toBeTruthy();
+      expect(c.widths!.includes(c.w), `${c.id} default width`).toBe(true);
+      expect(c.sku, c.id).toBeTruthy();
+    }
+    const door = catalogById('ch-door2');
+    expect(skuFor(door, { w: 30, d: 28, h: 35 })).toBe('ODB-303528');
+    expect(skuFor(catalogById('ch-locker'), { w: 24, d: 29.5, h: 84 })).toBe('OCL-248429.5');
+    expect(skuFor(catalogById('ch-wall1'), { w: 18, d: 12, h: 24 })).toBe('KOC-182412');
+    expect(door.widths).toContain(54);
+    expect(door.widths).not.toContain(51);
+    expect(snapToSizes(door.widths!, 50)).toBe(48);
+    expect(snapToSizes(door.widths!, 60, 40)).toBe(39);
+    expect(snapToSizes(door.widths!, 30, 20)).toBeNull();
+  });
+
+  it('snaps edited sizes to offered sizes and keeps a saved Challenger design', async () => {
+    const { useStore } = await import('../state/store');
+    const s = () => useStore.getState();
+    s().newDesign('outdoor', 'challenger');
+    expect(s().design.finishId).toBe('ch-anthracite');
+    const wall = s().design.walls[0].id;
+    expect(s().addItem(wall, 'ch-door2')).toBe(true);
+    const id = s().design.items[0].id;
+    s().updateItem(id, { w: 35 });
+    expect(s().design.items[0].w).toBe(36);
+    s().updateItem(id, { w: 52 });
+    expect(s().design.items[0].w).toBe(54);
+    // a wall too short for the default takes the largest offered size that fits
+    s().newDesign('outdoor', 'challenger');
+    s().updateWall(s().design.walls[0].id, { length: 29 });
+    expect(s().addItem(s().design.walls[0].id, 'ch-door2')).toBe(true);
+    expect(s().design.items[0].w).toBe(27);
+    const reloaded = normalizeDesign(JSON.parse(JSON.stringify(s().design)));
+    expect(reloaded.line).toBe('challenger');
+    expect(reloaded.items).toHaveLength(1);
+  });
+
+  it('needs no applied panels or separate handles, and stands 35″ high', () => {
+    const cat = catalogById('ch-drawer3');
+    expect(takesAppliedEnds(cat)).toBe(false);
+    expect(handleCount(cat, cat.w)).toBe(0);
+    expect([cat.d, cat.h]).toEqual([28, 35]);
+    expect(ch.baseHeight).toBe(35);
+  });
+});

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BASE_H, CATALOG, COUNTER_T, catalogById, catalogForDesign, categoryLabelsForLine, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { NumberField } from './NumberField';
-import { MODULAR_BRANDS, brandOf, closestFinish, itemFinishId, skuVariantFor, unitFinishes } from '../model/brands';
+import { MODULAR_BRANDS, brandOf, closestFinish, itemFinishId, skuFor, skuVariantFor, unitFinishes } from '../model/brands';
 import { companyFinishes } from '../model/companyCatalog';
 import { money, tryFormula } from '../model/pricing';
 import {
@@ -18,7 +18,7 @@ import {
 import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleItem, KitchenType, PlacedItem, ProductLine } from '../model/types';
 import { effectiveDims, footprintW, itemPrice, laneItems, largestOpening, openingFor, roughInConflict, sideExposed, spaceLeft, uid, useStore, widthPartners } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
-import { useSession } from '../state/session';
+import { useIsConsumer, useSession } from '../state/session';
 import { HANDLE_3D_MODELS, SLIDER_4PANEL_MIN_W } from '../three/models';
 import { CatalogThumb } from './CabinetImage';
 import { useFinish } from './WallsView';
@@ -120,6 +120,7 @@ function FinishBar({ line, kitchenType, finishId, onPick }: { line: ProductLine 
 }
 
 export function AddItemModal() {
+  const isConsumer = useIsConsumer();
   const wallId = useStore((s) => s.addToWallId);
   const openAdd = useStore((s) => s.openAdd);
   const addItem = useStore((s) => s.addItem);
@@ -205,7 +206,7 @@ export function AddItemModal() {
               <span className="cat-size">
                 {fmtIn(c.w)} W × {fmtIn(c.d)} D × {fmtIn(c.h)} H{c.fixed ? ' · set size' : ''}
               </span>
-              {nv && (
+              {nv && !isConsumer && (
                 <span className="cat-size">
                   {money(nv.price)}
                   {nv.msrp > nv.price ? ` (was ${money(nv.msrp)})` : ''}
@@ -225,6 +226,41 @@ export function AddItemModal() {
  * Arrows step by `step` (1″ for widths); the value can also be typed directly
  * and is rounded to the nearest 1/4″ and clamped to [min, max] on commit.
  */
+/** Size picker for catalog-size units: only the sizes the maker offers, with
+ *  the ones that don't fit the space disabled. */
+function SizeSelect({ label, note, value, sizes, max = Infinity, onChange }: { label: string; note?: string; value: number; sizes: number[]; max?: number; onChange: (v: number) => void }) {
+  return (
+    <div className="stepper-row">
+      <span className="stepper-label">
+        {label}
+        {note && <span className="stepper-note">{note}</span>}
+      </span>
+      <select className="select" value={value} onChange={(e) => onChange(Number(e.target.value))} aria-label={label}>
+        {!sizes.includes(value) && <option value={value}>{fmtIn(value)}</option>}
+        {sizes.map((s) => (
+          <option key={s} value={s} disabled={s > max + 0.001 && s !== value}>
+            {fmtIn(s)}
+            {s > max + 0.001 && s !== value ? ' — no room' : ''}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** A dimension the maker fixes for this unit. */
+function FixedSize({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="stepper-row">
+      <span className="stepper-label">
+        {label}
+        <span className="stepper-note">set by the manufacturer</span>
+      </span>
+      <span className="stepper">{fmtIn(value)}</span>
+    </div>
+  );
+}
+
 function Stepper({
   label,
   value,
@@ -316,6 +352,7 @@ function Stepper({
  * is supplying their own. Grills surface their recommended insulated liner.
  */
 function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
+  const isConsumer = useIsConsumer();
   const appliances = useStore((s) => s.appliances);
   const updateItem = useStore((s) => s.updateItem);
   const design = useStore((s) => s.design);
@@ -414,7 +451,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
                   <option key={a.id} value={a.id}>
                     {a.model}
                     {a.name ? ` — ${a.name}` : ''}
-                    {a.msrp > 0 ? ` (${money(a.msrp)})` : ''}
+                    {a.msrp > 0 && !isConsumer ? ` (${money(a.msrp)})` : ''}
                   </option>
                 ))}
               </optgroup>
@@ -455,15 +492,20 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
           )}
           {selected && (
             <div className="price-line" style={{ marginTop: 6 }}>
-              {selected.brand} {selected.model}: <b>{money(selected.msrp)}</b>
+              {selected.brand} {selected.model}
+              {!isConsumer && selected.msrp > 0 && (
+                <>
+                  : <b>{money(selected.msrp)}</b>
+                </>
+              )}
               {sel?.withLiner !== false && liner && (
                 <span className="price-sub">
                   {' '}
                   + liner {liner.model}
-                  {liner.msrp > 0 ? ` ${money(liner.msrp)}` : ''}
+                  {liner.msrp > 0 && !isConsumer ? ` ${money(liner.msrp)}` : ''}
                 </span>
               )}
-              {selected.panelCharge && sel?.withPanel !== false ? <span className="price-sub"> + panel {money(selected.panelCharge)}</span> : null}
+              {selected.panelCharge && sel?.withPanel !== false ? <span className="price-sub"> + panel{isConsumer ? '' : ` ${money(selected.panelCharge)}`}</span> : null}
               {liner?.cutoutW ? <span className="price-sub"> · liner cutout {fmtIn(liner.cutoutW)} W</span> : null}
               {(want === 'fridge' || want === 'icemaker') && it.h < BASE_H - 0.01 ? (
                 <span className="price-sub"> · {fmtIn(BASE_H - it.h)} gap under counter</span>
@@ -504,6 +546,7 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
 }
 
 export function EditItemModal() {
+  const isConsumer = useIsConsumer();
   const editingId = useStore((s) => s.editingId);
   const design = useStore((s) => s.design);
   const openEditor = useStore((s) => s.openEditor);
@@ -739,9 +782,29 @@ export function EditItemModal() {
             </>
           ) : (
             <>
-              <Stepper label="Width" value={it.w} step={1} min={minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
-              <Stepper label="Depth" value={it.d} step={1} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
-              <Stepper label="Height" value={it.h} step={1} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
+              {cat.widths ? (
+                <SizeSelect label="Width" note="sizes this cabinet is made in" value={it.w} sizes={cat.widths} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
+              ) : (
+                <Stepper label="Width" value={it.w} step={1} min={minW} max={maxW} onChange={(w) => updateItem(it.id, { w })} />
+              )}
+              {dimRange.minD === dimRange.maxD ? (
+                <FixedSize label="Depth" value={it.d} />
+              ) : (
+                <Stepper label="Depth" value={it.d} step={1} min={dimRange.minD} max={dimRange.maxD} onChange={(d) => updateItem(it.id, { d })} />
+              )}
+              {cat.heights ? (
+                <SizeSelect label="Height" value={it.h} sizes={cat.heights} onChange={(h) => updateItem(it.id, { h })} />
+              ) : cat.minH !== undefined && cat.minH === cat.maxH ? (
+                <FixedSize label="Height" value={it.h} />
+              ) : (
+                <Stepper label="Height" value={it.h} step={1} min={cat.minH ?? 12} max={cat.maxH ?? 96} onChange={(h) => updateItem(it.id, { h })} />
+              )}
+              {cat.sku && (
+                <div className="stepper-row">
+                  <span className="stepper-label">Model</span>
+                  <span className="stepper">{skuFor(cat, it)}</span>
+                </div>
+              )}
             </>
           )}
           {cat.front === 'filler' ? (
@@ -856,12 +919,19 @@ export function EditItemModal() {
       )}
       {cat.category !== 'appliance' && cat.skuPricing && naV && (
         <div className="price-line">
-          Price: <b>{money(naV.price)}</b>
-          {naV.msrp > naV.price && <span className="price-sub"> (was {money(naV.msrp)})</span>}
-          <span className="price-sub"> · SKU {naV.sku}</span>
+          {isConsumer ? (
+            <>SKU {naV.sku}</>
+          ) : (
+            <>
+              Price: <b>{money(naV.price)}</b>
+              {naV.msrp > naV.price && <span className="price-sub"> (was {money(naV.msrp)})</span>}
+              <span className="price-sub"> · SKU {naV.sku}</span>
+            </>
+          )}
         </div>
       )}
-      {cat.category !== 'appliance' && !cat.skuPricing && (
+      {cat.category !== 'appliance' && cat.sku && !isConsumer && <div className="price-line">Price: by dealer quote — the manufacturer publishes no list price.</div>}
+      {cat.category !== 'appliance' && !cat.skuPricing && !cat.sku && !isConsumer && (
         <div className="price-line">
           Unit price: <b>{price.error ? '—' : money(price.total)}</b>
           {!price.error && (

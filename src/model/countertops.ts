@@ -91,6 +91,14 @@ export const COUNTERTOPS: Countertop[] = [
 
   // ---- Metal (NewAge modular kitchens) ----
   { id: 'na-stainless', name: 'Stainless Steel (NewAge)', category: 'metal', base: '#c7cacd' },
+  // ---- Metal (Challenger Designs: 16-gauge stainless or powder-coated
+  // aluminum tops, 1.25″ thick). Colours sampled from the maker's swatches. ----
+  { id: 'ch-stainless', name: 'Brushed Stainless Steel (Challenger)', category: 'metal', base: '#b3b3b2' },
+  { id: 'ch-copper-vein', name: 'Copper Vein (Challenger)', category: 'metal', base: '#432a1e', matte: true },
+  { id: 'ch-silver-vein', name: 'Silver Vein (Challenger)', category: 'metal', base: '#323232', matte: true },
+  { id: 'ch-white-vein', name: 'White Vein (Challenger)', category: 'metal', base: '#d8dce1', matte: true },
+  { id: 'ch-speckled-walnut', name: 'Speckled Walnut (Challenger)', category: 'metal', base: '#492e21', matte: true },
+  { id: 'ch-textured-black', name: 'Textured Black (Challenger)', category: 'metal', base: '#2c2c2d', matte: true },
 ];
 
 export const COUNTER_CATEGORY_LABELS: Record<CounterCategory, string> = {

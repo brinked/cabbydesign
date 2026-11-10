@@ -7,7 +7,7 @@ export type Lane = 'floor' | 'upper';
  *  cabinets (fixed factory sizes; series & door finish chosen per cabinet).
  *  Every line has a Brand record in model/brands.ts — everything that differs
  *  between brands is read from there, never inferred from "has a line". */
-export type ProductLine = 'ext' | 'newage';
+export type ProductLine = 'ext' | 'newage' | 'challenger';
 
 /** What the user is designing — filters the catalog offered. */
 export type KitchenType = 'indoor' | 'outdoor';
@@ -195,6 +195,14 @@ export interface CatalogItem {
   minW: number;
   maxW: number;
   stepW: number;
+  /** The only widths this unit is made in (catalog sizes). Unset = any width
+   *  from minW to maxW. */
+  widths?: number[];
+  /** The only heights this unit is made in. Unset = minH..maxH. */
+  heights?: number[];
+  /** Manufacturer SKU template for made-to-order catalog units; {W} {H} {D}
+   *  are filled from the placed size (see skuFor in brands.ts). */
+  sku?: string;
   minD?: number;
   maxD?: number;
   /** Allowed height range (inches). Defaults to 12–96 in the editor when unset. */
@@ -570,6 +578,9 @@ export interface Brand {
   cornerFillers: boolean;
   /** Door style (shaker, flat…) is a design-wide choice for this line. */
   hasDoorStyles: boolean;
+  /** The line's own door styles and their names; unset = the standard set for
+   *  the kitchen type. Each maps to the profile it is drawn with. */
+  doorStyles?: Array<{ id: DoorStyle; label: string }>;
   /** A company's own custom colours can be used on this line. */
   companyFinishes: boolean;
   /** How the units are drawn (2D and 3D). */

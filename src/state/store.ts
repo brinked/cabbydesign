@@ -4,7 +4,7 @@ import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, K
 import { FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { polyArea } from '../model/counterShape';
-import { BRAND_ID_MIGRATE, brandForSavedLine, brandOf, itemFinishId, skuVariantFor } from '../model/brands';
+import { BRAND_ID_MIGRATE, brandForSavedLine, brandOf, itemFinishId, skuVariantFor, snapToSizes } from '../model/brands';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
 import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, COOKING_CORNER_FILLER, CORNER_FILLER, isCookingCat, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, squareCorner, wallEndJoined, wallEndpoints, seatOverhang } from '../model/geometry';
@@ -55,6 +55,16 @@ function autoFourDoor(it: PlacedItem): PlacedItem {
   const down = FOUR_DOOR_DOWN[it.catalogId];
   if (down && it.w <= FOUR_DOOR_AT) return { ...it, catalogId: down };
   return it;
+}
+
+/** Catalog-size units (made only in listed widths/heights): pull an edited
+ *  size onto the nearest size the maker offers. Everything else passes. */
+function snapCatalogSizes(it: PlacedItem): PlacedItem {
+  const cat = catalogById(it.catalogId);
+  if (!cat.widths && !cat.heights) return it;
+  const w = cat.widths ? snapToSizes(cat.widths, it.w) ?? it.w : it.w;
+  const h = cat.heights ? snapToSizes(cat.heights, it.h) ?? it.h : it.h;
+  return w === it.w && h === it.h ? it : { ...it, w, h };
 }
 
 /** Effective allowed size range for a cabinet, with user Settings overrides. */
@@ -257,7 +267,7 @@ export function normalizeDesign(raw: Design): Design {
   const lineFins = finishesForLine(line, kitchenType);
   if (!lineFins.some((f) => f.id === finishId)) finishId = lineFins[0].id;
   // door style must be one this kitchen type offers (pre-indoor saves keep working)
-  const styles = doorStylesFor(kitchenType);
+  const styles = doorStylesFor(kitchenType, line);
   const doorStyle = raw.doorStyle && styles.includes(raw.doorStyle) ? raw.doorStyle : styles[0];
   const wallIds = new Set(walls.map((w) => w.id));
   const roughIns = (Array.isArray(raw.roughIns) ? raw.roughIns : []).filter((r) => r && wallIds.has(r.wallId));
@@ -1533,8 +1543,12 @@ export const useStore = create<AppState>()(
         // find the largest opening (handles gaps next to pinned corner cabinets)
         const slot = openingFor(s.design, wallId, cat);
         if (slot.w < minW - 0.001) return false;
-        // use the default width, or shrink to the largest that fits (≥ min)
-        const w = Math.max(minW, Math.min(cat.w, Math.floor(slot.w * 4) / 4));
+        // use the default width, or shrink to the largest that fits (≥ min);
+        // catalog-size units take the nearest size the maker offers that fits
+        const w = cat.widths
+          ? snapToSizes(cat.widths, cat.w, slot.w)
+          : Math.max(minW, Math.min(cat.w, Math.floor(slot.w * 4) / 4));
+        if (w == null) return false;
         // corner cabinets at the wall's far end chamfer toward the other side
         const isCornerCab = isCornerFront(cat);
         const hinge: 'left' | 'right' = isCornerCab && slot.x > 1 ? 'right' : 'left';
@@ -1563,7 +1577,7 @@ export const useStore = create<AppState>()(
 
       updateItem: (id, patch) =>
         set((s) => {
-          const items = s.design.items.map((it) => (it.id === id ? autoFourDoor({ ...it, ...patch }) : it));
+          const items = s.design.items.map((it) => (it.id === id ? snapCatalogSizes(autoFourDoor({ ...it, ...patch })) : it));
           return { design: withPack({ ...s.design, items }) };
         }),
 
@@ -1693,11 +1707,13 @@ export const useStore = create<AppState>()(
           if ((s.design.line ?? 'ext') === line) return s;
           // outdoor-only brands make the kitchen an outdoor one
           const kitchenType = brandOf(line).outdoorOnly ? 'outdoor' : s.design.kitchenType;
+          // keep the door style when the new line offers it
+          const keepStyle = doorStylesFor(kitchenType, line).includes(s.design.doorStyle);
           const d = lineDefaults(line, kitchenType);
           // keep walls, openings & rough-ins; drop cabinets from the old line
           const items = s.design.items.filter((it) => !it.auto && (catalogById(it.catalogId).line ?? 'ext') === line);
           return {
-            design: withPack({ ...s.design, line, kitchenType, finishId: d.finishId, counterId: d.counterId, doorStyle: d.doorStyle, items }),
+            design: withPack({ ...s.design, line, kitchenType, finishId: d.finishId, counterId: d.counterId, doorStyle: keepStyle && line === 'ext' ? s.design.doorStyle : d.doorStyle, items }),
             selectedId: null,
             editingId: null,
           };

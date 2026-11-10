@@ -4,7 +4,7 @@
 // build are homeowners, not dealers: they are picking things they can SEE, so
 // every choice is a swatch or a drawn preview rather than a word in a list, and
 // the trade wording ("bridge gaps", "gas type") is either gone or plain English.
-import { DOOR_STYLE_LABELS, doorStylesFor, finishesForLine } from '../model/catalog';
+import { doorStyleLabel, doorStylesFor, finishesForLine } from '../model/catalog';
 import { COUNTERTOPS, COUNTER_CATEGORY_LABELS, type CounterCategory } from '../model/countertops';
 import { DEFAULT_FLOORING, FLOORING } from '../model/flooring';
 import { companyFinishes, mergedHandles } from '../model/companyCatalog';
@@ -125,7 +125,8 @@ export default function DesignPanel({ onClose }: { onClose: () => void }) {
   ];
   const fin = finishes.find((f) => f.id === design.finishId) ?? finishes[0];
   const handleOptions: HandleItem[] = mergedHandles(handles, catalogPrefs);
-  const doorStyles = doorStylesFor(design.kitchenType);
+  const doorStyles = doorStylesFor(design.kitchenType, line);
+  const styleName = (st: Design['doorStyle']) => doorStyleLabel(st, line);
   const counterCats: CounterCategory[] = ['dekton', 'solid', 'granite', 'quartzite', 'concrete', 'metal'];
   const set = (patch: Partial<Design>) => setDesignMeta(patch);
 
@@ -174,21 +175,23 @@ export default function DesignPanel({ onClose }: { onClose: () => void }) {
           </div>
         </Section>
 
-        <Section title="Door design" hint={DOOR_STYLE_LABELS[design.doorStyle]}>
+        {brand.hasDoorStyles && (
+        <Section title="Door design" hint={styleName(design.doorStyle)}>
           <div className="dp-cards">
             {doorStyles.map((st) => (
               <button
                 key={st}
                 className={design.doorStyle === st ? 'dp-card active' : 'dp-card'}
                 onClick={() => set({ doorStyle: st })}
-                title={DOOR_STYLE_LABELS[st]}
+                title={styleName(st)}
               >
                 {fin && <DoorPreview style={st} fin={fin} />}
-                <span className="dp-card-name">{DOOR_STYLE_LABELS[st].replace(/\s*\(.*\)$/, '')}</span>
+                <span className="dp-card-name">{styleName(st).replace(/\s*\(.*\)$/, '')}</span>
               </button>
             ))}
           </div>
         </Section>
+        )}
 
         {handleOptions.length > 0 && (
           <Section title="Handles" hint="Fitted to every door and drawer">
