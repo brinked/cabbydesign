@@ -48,6 +48,8 @@ interface SessionState {
   setCatalogPrefs: (catalogPrefs: CatalogPrefs) => Promise<void>;
   /** Enter consumer/guest mode — design without an account. */
   continueAsGuest: () => Promise<void>;
+  /** Guest: back to the landing page. The design stays saved in the browser. */
+  exitToStart: () => void;
   logout: () => Promise<void>;
   setScreen: (screen: Screen) => void;
   setPrefs: (prefs: DealerPrefs) => Promise<void>;
@@ -222,6 +224,12 @@ export const useSession = create<SessionState>()(
     if (have.length === 0 || extra.length) useStore.setState({ appliances: [...base, ...extra] });
     localStorage.setItem(GUEST_KEY, '1');
     set({ status: 'guest', user: null, prefs: null, cert: null, screen: 'design' });
+  },
+
+  exitToStart: () => {
+    if (get().status !== 'guest') return;
+    localStorage.removeItem(GUEST_KEY);
+    set({ status: 'anon', screen: 'design' });
   },
 
   logout: async () => {

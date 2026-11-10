@@ -51,6 +51,7 @@ export default function Toolbar() {
   const screen = useSession((s) => s.screen);
   const setScreen = useSession((s) => s.setScreen);
   const logout = useSession((s) => s.logout);
+  const exitToStart = useSession((s) => s.exitToStart);
   const openSaveJob = useSession((s) => s.openSaveJob);
   const setCurrentJob = useSession((s) => s.setCurrentJob);
   const currentJobName = useSession((s) => s.currentJobName);
@@ -73,9 +74,15 @@ export default function Toolbar() {
 
   return (
     <header className="toolbar no-print">
-      <div className="brand" onClick={() => setScreen('design')} style={{ cursor: 'pointer' }}>
+      <button
+        type="button"
+        className="brand"
+        title={isGuest ? 'Back to the start page — your design stays saved' : 'Designer'}
+        onClick={() => (isGuest ? exitToStart() : setScreen('design'))}
+        style={{ cursor: 'pointer', background: 'none', border: 0, padding: 0, fontFamily: 'inherit', color: 'inherit' }}
+      >
         Cab<span>Design</span>
-      </div>
+      </button>
 
       <nav className="tabs screen-nav">
         {navItems
