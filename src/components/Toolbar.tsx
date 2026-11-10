@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Design, KitchenType, ProductLine } from '../model/types';
 import { useStore, type Tab } from '../state/store';
+import { START_OPTIONS } from '../model/brands';
 import { useSession, type Screen } from '../state/session';
 import DesignPanel from './DesignPanel';
 
@@ -209,11 +210,7 @@ function FileMenu({ onSave, onOpen, onNew }: { onSave: () => void; onOpen: () =>
 
 /** New-design chooser: the same three kitchen options as the start screen. */
 function NewDesignModal({ onClose, onCreate }: { onClose: () => void; onCreate: (k: KitchenType, l: ProductLine) => void }) {
-  const options: Array<{ k: KitchenType; l: ProductLine; label: string; sub: string }> = [
-    { k: 'indoor', l: 'ext', label: 'Indoor Kitchen Cabinets', sub: 'Made-to-size cabinets — any width, 12 colors, shaker or flat doors.' },
-    { k: 'outdoor', l: 'ext', label: 'Outdoor Kitchen Cabinets', sub: 'Weatherproof HDPE cabinets made to size around your grill and appliances.' },
-    { k: 'outdoor', l: 'newage', label: 'NewAge Outdoor Kitchen Cabinets', sub: 'Modular 304 stainless or aluminum units at factory sizes.' },
-  ];
+  const options = START_OPTIONS.map((o) => ({ k: o.kitchenType, l: o.line, label: o.label, sub: o.sub }));
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>

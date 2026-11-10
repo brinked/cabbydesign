@@ -6,7 +6,7 @@ import { countertopById } from '../model/countertops';
 import { flooringById } from '../model/flooring';
 import { pergolaColorHex, pergolaColumns, pergolaModelInfo } from '../model/pergola';
 import type { ApplianceItem, Design, FinishOption, ModelAligns, OpeningKind, Pergola, PlacedItem, Wall } from '../model/types';
-import { resolveItemFinish } from '../model/newage';
+import { resolveItemFinish } from '../model/brands';
 import { backsplashSpans, barRiserFor, counterHeightFor, footprintW, laneItems, reservesFor, useStore } from '../state/store';
 import { SLIDER_4PANEL_MIN_W, fitModelBox, hasModel, libTexture, namedHandleKey, onModelsLoaded, requestModel, sliderModelKey } from './models';
 import { CORNER_RETURN, END_PANEL_T, MAX_PANEL_W, box, buildCabinetLocal, canvasTexture, cornerChamfer, createMats, disposeMats, facePattern, grillCutout, isSinkFront, sinkBasin } from './cabinet3d';

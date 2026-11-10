@@ -14,7 +14,7 @@
 // A finish missing from an item's pricing map means NewAge doesn't make that
 // unit in that series/finish.
 
-import type { ApplianceItem, CatalogItem, Design, FinishOption, NaVariant, PlacedItem } from './types';
+import type { ApplianceItem, Brand, CatalogItem, FinishOption, SkuVariant } from './types';
 
 /** NewAge series + door-finish options. `group` is the series label.
  *  Matching the real products: the cabinet BODY is 304 stainless (or
@@ -24,18 +24,18 @@ import type { ApplianceItem, CatalogItem, Design, FinishOption, NaVariant, Place
  *  with adjustable levelers. */
 export const NEWAGE_FINISHES: FinishOption[] = [
   // ---- Classic series (304 stainless steel, flat metal doors) ----
-  { id: 'na-ss-steel', name: 'Stainless Steel', group: 'Classic · 304 Stainless', line: 'newage', metal: 'stainless', naDoor: 'flat', kick: '#17181a', body: '#c9ccd0', panel: '#cdd0d4', inner: '#b2b6bb', counter: '#cfd2d5' },
-  { id: 'na-ss-black', name: 'Matte Black', group: 'Classic · 304 Stainless', line: 'newage', metal: 'stainless', naDoor: 'flat', kick: '#121314', body: '#2b2d2f', panel: '#28292b', inner: '#1e1f21', counter: '#cfd2d5' },
+  { id: 'na-ss-steel', name: 'Stainless Steel', group: 'Classic · 304 Stainless', line: 'newage', metal: 'stainless', doorConstruction: 'flat', kick: '#17181a', body: '#c9ccd0', panel: '#cdd0d4', inner: '#b2b6bb', counter: '#cfd2d5' },
+  { id: 'na-ss-black', name: 'Matte Black', group: 'Classic · 304 Stainless', line: 'newage', metal: 'stainless', doorConstruction: 'flat', kick: '#121314', body: '#2b2d2f', panel: '#28292b', inner: '#1e1f21', counter: '#cfd2d5' },
   // ---- Louvered series (304 stainless body, louvered slat doors) ----
-  { id: 'na-ss-grove', name: 'Grove', group: 'Louvered · 304 Stainless', line: 'newage', metal: 'stainless', naDoor: 'louvered', kick: '#17181a', body: '#c9ccd0', panel: '#8a684c', inner: '#6e5138', counter: '#cfd2d5' },
-  { id: 'na-ss-white', name: 'Louvered White', group: 'Louvered · 304 Stainless', line: 'newage', metal: 'stainless', naDoor: 'louvered', kick: '#17181a', body: '#c9ccd0', panel: '#edefeb', inner: '#cfd2cd', counter: '#cfd2d5' },
+  { id: 'na-ss-grove', name: 'Grove', group: 'Louvered · 304 Stainless', line: 'newage', metal: 'stainless', doorConstruction: 'louvered', kick: '#17181a', body: '#c9ccd0', panel: '#8a684c', inner: '#6e5138', counter: '#cfd2d5' },
+  { id: 'na-ss-white', name: 'Louvered White', group: 'Louvered · 304 Stainless', line: 'newage', metal: 'stainless', doorConstruction: 'louvered', kick: '#17181a', body: '#c9ccd0', panel: '#edefeb', inner: '#cfd2cd', counter: '#cfd2d5' },
   // ---- Aluminum series (tempered-glass doors in the body-colored frame) ----
-  { id: 'na-alu-slate', name: 'Slate Gray', group: 'Aluminum · Tempered Glass', line: 'newage', metal: 'aluminum', naDoor: 'glass', kick: '#141516', body: '#6f7379', panel: '#33373c', inner: '#2b2e33', counter: '#cfd2d5' },
-  { id: 'na-alu-black', name: 'Black', group: 'Aluminum · Tempered Glass', line: 'newage', metal: 'aluminum', naDoor: 'glass', kick: '#101112', body: '#26282a', panel: '#26292d', inner: '#1e2124', counter: '#cfd2d5' },
+  { id: 'na-alu-slate', name: 'Slate Gray', group: 'Aluminum · Tempered Glass', line: 'newage', metal: 'aluminum', doorConstruction: 'glass', kick: '#141516', body: '#6f7379', panel: '#33373c', inner: '#2b2e33', counter: '#cfd2d5' },
+  { id: 'na-alu-black', name: 'Black', group: 'Aluminum · Tempered Glass', line: 'newage', metal: 'aluminum', doorConstruction: 'glass', kick: '#101112', body: '#26282a', panel: '#26292d', inner: '#1e2124', counter: '#cfd2d5' },
 ];
 
 // Shorthand builder for the per-finish pricing maps.
-const v = (sku: string, price: number, msrp: number): NaVariant => ({ sku, price, msrp });
+const v = (sku: string, price: number, msrp: number): SkuVariant => ({ sku, price, msrp });
 
 /** Estimated retail $/sq ft for NewAge stainless countertops (derived from
  *  their fixed-size tops, e.g. 32″ top $329.99 / 5.33 sq ft). Used for the
@@ -76,13 +76,13 @@ const NA_BASE_H = 34.25;
 const NA_TALL_H = 35.5;
 
 /** Every NewAge modular unit — one entry per cabinet; series/finish per unit
- *  via naPricing (finish id → SKU + price). Dimensions identical across series. */
+ *  via skuPricing (finish id → SKU + price). Dimensions identical across series. */
 export const NEWAGE_CATALOG: CatalogItem[] = [
   {
     id: 'na-1door16', name: '16″ 1-Door Cabinet', category: 'base', front: 'door1', lane: 'floor', line: 'newage', fixed: true,
     w: 16, d: 23, h: NA_BASE_H, minW: 16, maxW: 16, stepW: 0, minD: 23, maxD: 23, minH: NA_BASE_H, maxH: NA_BASE_H, counter: true, formula: '0',
     note: 'Adjustable-height shelf, soft-close hinges.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('65621', 659.99, 729.99), 'na-ss-black': v('65811', 759.99, 839.99), 'na-ss-grove': v('65624', 779.99, 859.99),
       'na-alu-slate': v('65627', 459.99, 669.99), 'na-alu-black': v('65592', 459.99, 759.99),
     },
@@ -91,7 +91,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-3drawer16', name: '16″ 3-Drawer Cabinet', category: 'base', front: 'drawers3', lane: 'floor', line: 'newage', fixed: true,
     w: 16, d: 23, h: NA_BASE_H, minW: 16, maxW: 16, stepW: 0, minD: 23, maxD: 23, minH: NA_BASE_H, maxH: NA_BASE_H, counter: true, formula: '0',
     note: 'Full-extension soft-close drawers.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('65623', 949.99, 1059.99), 'na-ss-black': v('65812', 1089.99, 1199.99), 'na-ss-grove': v('65626', 1039.99, 1149.99),
       'na-alu-slate': v('65629', 639.99, 939.99), 'na-alu-black': v('65593', 639.99, 1069.99),
     },
@@ -100,7 +100,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-sink16', name: '16″ Sink Cabinet', category: 'base', front: 'sink1', lane: 'floor', line: 'newage', fixed: true,
     w: 16, d: 24, h: NA_TALL_H, minW: 16, maxW: 16, stepW: 0, minD: 24, maxD: 24, minH: NA_TALL_H, maxH: NA_TALL_H, counter: false, formula: '0',
     note: 'Integrated stainless top with bar sink & faucet included — 35.5″ finished height.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('65622', 1189.99, 1319.99), 'na-ss-black': v('65813', 1369.99, 1519.99), 'na-ss-grove': v('65625', 1249.99, 1389.99),
       'na-alu-slate': v('65628', 799.99, 1179.99), 'na-alu-black': v('65594', 799.99, 1329.99),
     },
@@ -109,7 +109,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-2door', name: '32″ 2-Door Cabinet', category: 'base', front: 'door2', lane: 'floor', line: 'newage', fixed: true,
     w: 32, d: 23, h: NA_BASE_H, minW: 32, maxW: 32, stepW: 0, minD: 23, maxD: 23, minH: NA_BASE_H, maxH: NA_BASE_H, counter: true, formula: '0',
     note: 'Adjustable-height shelf, soft-close hinges.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('70001', 999.99, 1109.99), 'na-ss-black': v('70305', 1139.99, 1269.99), 'na-ss-grove': v('70101', 1109.99, 1239.99), 'na-ss-white': v('70405', 1109.99, 1239.99),
       'na-alu-slate': v('70201', 629.99, 939.99), 'na-alu-black': v('70505', 639.99, 1069.99),
     },
@@ -118,7 +118,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-3drawer', name: '32″ 3-Drawer Cabinet', category: 'base', front: 'drawers3', lane: 'floor', line: 'newage', fixed: true,
     w: 32, d: 23, h: NA_BASE_H, minW: 32, maxW: 32, stepW: 0, minD: 23, maxD: 23, minH: NA_BASE_H, maxH: NA_BASE_H, counter: true, formula: '0',
     note: 'Full-extension soft-close drawers.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('70003', 1359.99, 1519.99), 'na-ss-black': v('70307', 1559.99, 1729.99), 'na-ss-grove': v('70103', 1499.99, 1669.99), 'na-ss-white': v('70407', 1499.99, 1669.99),
       'na-alu-slate': v('70203', 869.99, 1299.99), 'na-alu-black': v('70507', 899.99, 1459.99),
     },
@@ -127,7 +127,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-2door1drawer', name: '32″ 2-Door + Drawer Cabinet', category: 'base', front: 'door2drawer', lane: 'floor', line: 'newage', fixed: true,
     w: 32, d: 23, h: NA_BASE_H, minW: 32, maxW: 32, stepW: 0, minD: 23, maxD: 23, minH: NA_BASE_H, maxH: NA_BASE_H, counter: true, formula: '0',
     note: 'Top drawer over a 2-door compartment. 304 stainless series only.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('70004', 1169.99, 1299.99), 'na-ss-black': v('70308', 1359.99, 1509.99), 'na-ss-grove': v('70104', 1269.99, 1409.99), 'na-ss-white': v('70408', 1269.99, 1409.99),
     },
   },
@@ -135,7 +135,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-bar', name: '32″ Bar Cabinet', category: 'base', front: 'door2drawer', lane: 'floor', line: 'newage', fixed: true,
     w: 32, d: 23, h: NA_BASE_H, minW: 32, maxW: 32, stepW: 0, minD: 23, maxD: 23, minH: NA_BASE_H, maxH: NA_BASE_H, counter: true, formula: '0',
     note: 'Bar prep station — bottle wells, condiment tray & towel bar.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('70005', 1359.99, 1519.99), 'na-ss-black': v('70309', 1559.99, 1729.99), 'na-ss-grove': v('70105', 1499.99, 1669.99), 'na-ss-white': v('70409', 1499.99, 1669.99),
       'na-alu-slate': v('70204', 869.99, 1299.99), 'na-alu-black': v('70508', 899.99, 1459.99),
     },
@@ -144,7 +144,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-sink', name: '32″ Sink Cabinet', category: 'base', front: 'sink2', lane: 'floor', line: 'newage', fixed: true,
     w: 32, d: 24, h: NA_TALL_H, minW: 32, maxW: 32, stepW: 0, minD: 24, maxD: 24, minH: NA_TALL_H, maxH: NA_TALL_H, counter: false, formula: '0',
     note: 'Integrated stainless top with sink & faucet included — 35.5″ finished height.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('70002', 1499.99, 1889.99), 'na-ss-black': v('70306', 1699.99, 2169.99), 'na-ss-grove': v('70102', 1769.99, 1979.99), 'na-ss-white': v('70406', 1769.99, 1979.99),
       'na-alu-slate': v('70202', 1119.99, 1669.99), 'na-alu-black': v('70506', 1139.99, 1899.99),
     },
@@ -153,7 +153,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-corner45', name: '45° Corner Cabinet', category: 'outdoor', front: 'door1', lane: 'floor', line: 'newage', fixed: true,
     w: 22.25, d: 24.125, h: NA_TALL_H, minW: 22.25, maxW: 22.25, stepW: 0, minD: 24.125, maxD: 24.125, minH: NA_TALL_H, maxH: NA_TALL_H, counter: false, formula: '0',
     note: 'Wedge unit joining two runs at a 45° angle — integrated top, 35.5″ finished height.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('65005', 1229.99, 1369.99), 'na-ss-black': v('70302', 1419.99, 1579.99), 'na-ss-grove': v('65605', 1349.99, 1519.99), 'na-ss-white': v('70402', 1349.99, 1519.99),
       'na-alu-slate': v('65205', 779.99, 1169.99), 'na-alu-black': v('70502', 799.99, 1319.99),
     },
@@ -162,7 +162,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-corner90', name: '90° Corner Cabinet', category: 'outdoor', front: 'corner', lane: 'floor', line: 'newage', fixed: true,
     w: 32.5, d: 32.5, h: NA_TALL_H, minW: 32.5, maxW: 32.5, stepW: 0, minD: 32.5, maxD: 32.5, minH: NA_TALL_H, maxH: NA_TALL_H, counter: false, formula: '0',
     note: 'Open corner shelving unit — integrated top, 35.5″ finished height.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('65006', 795.99, 879.99), 'na-ss-black': v('70301', 899.99, 999.99), 'na-ss-grove': v('65606', 849.99, 939.99),
       'na-alu-slate': v('65206', 539.99, 809.99),
     },
@@ -171,7 +171,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-grill33', name: '33″ Gas Grill Cabinet', category: 'outdoor', front: 'grill', lane: 'floor', line: 'newage', fixed: true,
     w: 33, d: 23, h: NA_TALL_H, minW: 33, maxW: 33, stepW: 0, minD: 23, maxD: 23, minH: NA_TALL_H, maxH: NA_TALL_H, counter: false, topGearH: 12, formula: '0', applianceCat: 'grill',
     note: 'Fits insert grills 28–33″ wide. Pull-out propane tray, rear gas ports.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('70007', 999.99, 1109.99), 'na-ss-black': v('70311', 1139.99, 1269.99), 'na-ss-grove': v('70108', 1109.99, 1239.99), 'na-ss-white': v('70412', 1109.99, 1239.99),
       'na-alu-slate': v('70208', 589.99, 879.99), 'na-alu-black': v('70512', 599.99, 999.99),
     },
@@ -180,7 +180,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-grill36', name: '36″ Gas Grill Cabinet', category: 'outdoor', front: 'grill', lane: 'floor', line: 'newage', fixed: true,
     w: 36, d: 23, h: NA_TALL_H, minW: 36, maxW: 36, stepW: 0, minD: 23, maxD: 23, minH: NA_TALL_H, maxH: NA_TALL_H, counter: false, topGearH: 12, formula: '0', applianceCat: 'grill',
     note: 'Fits insert grills 31–36″ wide. Pull-out propane tray, rear gas ports.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('70008', 1069.99, 1179.99), 'na-ss-black': v('70312', 1229.99, 1369.99), 'na-ss-grove': v('70107', 1209.99, 1349.99), 'na-ss-white': v('70411', 1209.99, 1349.99),
       'na-alu-slate': v('70206', 659.99, 969.99), 'na-alu-black': v('70510', 679.99, 1109.99),
     },
@@ -189,7 +189,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-grill40', name: '40″ Gas Grill Cabinet', category: 'outdoor', front: 'grill', lane: 'floor', line: 'newage', fixed: true,
     w: 40, d: 23, h: NA_TALL_H, minW: 40, maxW: 40, stepW: 0, minD: 23, maxD: 23, minH: NA_TALL_H, maxH: NA_TALL_H, counter: false, topGearH: 12, formula: '0', applianceCat: 'grill',
     note: 'Fits insert grills 34.5–40″ wide. Pull-out propane tray, rear gas ports.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('70009', 1169.99, 1299.99), 'na-ss-black': v('70313', 1349.99, 1499.99), 'na-ss-grove': v('70109', 1299.99, 1449.99), 'na-ss-white': v('70413', 1299.99, 1449.99),
       'na-alu-slate': v('70207', 739.99, 1089.99), 'na-alu-black': v('70511', 759.99, 1269.99),
     },
@@ -198,7 +198,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-kamado', name: 'Kamado Cabinet', category: 'outdoor', front: 'kamadoinsert', lane: 'floor', line: 'newage', fixed: true,
     w: 28, d: 24, h: 34.9, minW: 28, maxW: 28, stepW: 0, minD: 24, maxD: 24, minH: 34.9, maxH: 34.9, counter: false, topGearH: 14, formula: '0', applianceCat: 'kamado',
     note: 'The kamado (sold separately) drops into the top cutout — open storage shelf below.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('70006', 1359.99, 1519.99), 'na-ss-black': v('70310', 1559.99, 1729.99), 'na-ss-grove': v('70106', 1499.99, 1669.99), 'na-ss-white': v('70410', 1499.99, 1669.99),
       'na-alu-slate': v('70205', 869.99, 1299.99), 'na-alu-black': v('70509', 899.99, 1459.99),
     },
@@ -207,7 +207,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-wall', name: 'Wall Cabinet', category: 'wall', front: 'flipup', lane: 'upper', line: 'newage', fixed: true,
     w: 32, d: 14.75, h: 20, minW: 32, maxW: 32, stepW: 0, minD: 14.75, maxD: 14.75, minH: 20, maxH: 20, counter: false, formula: '0', mount: 54,
     note: 'Gas-assist flip-up door — weather-sealed upper storage.',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('65013', 929.99, 1039.99), 'na-ss-black': v('70303', 1059.99, 1169.99), 'na-ss-grove': v('65613', 1039.99, 1169.99), 'na-ss-white': v('70403', 1039.99, 1169.99),
       'na-alu-slate': v('65213', 589.99, 879.99), 'na-alu-black': v('70503', 599.99, 1009.99),
     },
@@ -216,7 +216,7 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-fridge24', name: '24″ Fridge Bracket', category: 'outdoor', front: 'fridge', lane: 'floor', line: 'newage', fixed: true,
     w: 24, d: 23, h: NA_BASE_H, minW: 24, maxW: 24, stepW: 0, minD: 23, maxD: 23, minH: NA_BASE_H, maxH: NA_BASE_H, counter: true, formula: '0', applianceCat: 'fridge',
     note: 'Back panel + front bracket kit for a 24″ outdoor fridge (fridge sold separately).',
-    naPricing: {
+    skuPricing: {
       'na-ss-steel': v('67702', 109.99, 129.99), 'na-ss-black': v('70539', 129.99, 149.99), 'na-ss-grove': v('67701', 109.99, 129.99),
       'na-alu-slate': v('67703', 99.99, 119.99),
     },
@@ -225,25 +225,25 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
     id: 'na-grillcart33', name: '33″ Grill Cart', category: 'outdoor', front: 'cartgrill', lane: 'floor', line: 'newage', fixed: true,
     w: 60.56, d: 25.26, h: 35.44, minW: 60.56, maxW: 60.56, stepW: 0, minD: 25.26, maxD: 25.26, minH: 35.44, maxH: 35.44, counter: false, formula: '0',
     note: 'Freestanding cart for a 33″ insert grill — side shelves & casters. Classic stainless only.',
-    naPricing: { 'na-ss-steel': v('66958', 749.99, 1039.99) },
+    skuPricing: { 'na-ss-steel': v('66958', 749.99, 1039.99) },
   },
   {
     id: 'na-grillcart36', name: '36″ Grill Cart', category: 'outdoor', front: 'cartgrill', lane: 'floor', line: 'newage', fixed: true,
     w: 63.56, d: 25.26, h: 35.44, minW: 63.56, maxW: 63.56, stepW: 0, minD: 25.26, maxD: 25.26, minH: 35.44, maxH: 35.44, counter: false, formula: '0',
     note: 'Freestanding cart for a 36″ insert grill — side shelves & casters. Classic stainless only.',
-    naPricing: { 'na-ss-steel': v('66959', 799.99, 1089.99) },
+    skuPricing: { 'na-ss-steel': v('66959', 799.99, 1089.99) },
   },
   {
     id: 'na-grillcart40', name: '40″ Grill Cart', category: 'outdoor', front: 'cartgrill', lane: 'floor', line: 'newage', fixed: true,
     w: 67.56, d: 25.26, h: 35.44, minW: 67.56, maxW: 67.56, stepW: 0, minD: 25.26, maxD: 25.26, minH: 35.44, maxH: 35.44, counter: false, formula: '0',
     note: 'Freestanding cart for a 40″ insert grill — side shelves & casters. Classic stainless only.',
-    naPricing: { 'na-ss-steel': v('66960', 849.99, 1129.99) },
+    skuPricing: { 'na-ss-steel': v('66960', 849.99, 1129.99) },
   },
   {
     id: 'na-burnercart', name: 'Side Burner Cart', category: 'outdoor', front: 'burner', lane: 'floor', line: 'newage', fixed: true,
     w: 16, d: 23.82, h: 34.19, minW: 16, maxW: 16, stepW: 0, minD: 23.82, maxD: 23.82, minH: 34.19, maxH: 34.19, counter: false, topGearH: 6, formula: '0', applianceCat: 'sideburner',
     note: 'Freestanding cart for a drop-in side burner. Classic stainless only.',
-    naPricing: { 'na-ss-steel': v('66961', 449.99, 669.99) },
+    skuPricing: { 'na-ss-steel': v('66961', 449.99, 669.99) },
   },
 ];
 
@@ -258,12 +258,6 @@ export const NEWAGE_DEFAULT_APPLIANCES: ApplianceItem[] = [
   { id: 'na-perf-grill-40-ng', category: 'grill', brand: 'NewAge', model: '66982', name: 'Performance Grill 40″ (Natural Gas)', msrp: 1699.99, cutoutW: 40, cutoutD: 25.02, cutoutH: 23.04 },
   { id: 'na-perf-grill-40-lp', category: 'grill', brand: 'NewAge', model: '66992', name: 'Performance Grill 40″ (Liquid Propane)', msrp: 1699.99, cutoutW: 40, cutoutD: 25.02, cutoutH: 23.04 },
 ];
-
-/** Display names for the product lines. */
-export const LINE_LABELS: Record<string, string> = {
-  ext: 'EXT Cabinets — Custom HDPE',
-  newage: 'NewAge Products — Modular Outdoor',
-};
 
 /** Legacy catalog-id / line migrations (pre-merge saves used per-line ids). */
 export const NEWAGE_ID_MIGRATE: Record<string, string> = {
@@ -287,40 +281,30 @@ export const NEWAGE_ID_MIGRATE: Record<string, string> = {
   'na-ss-burnercart': 'na-burnercart',
 };
 
-/** The finish a unit is actually made in, closest to the one requested: the
- *  requested finish when offered, else another finish in the SAME series
- *  (e.g. Louvered White → Grove for the Grove-only 16″ units), else the first
- *  offered. Keeps previews/pricing honest for units with fewer finishes. */
-export function naClosestFinish(cat: CatalogItem, finishId: string): string {
-  if (!cat.naPricing) return finishId;
-  if (cat.naPricing[finishId]) return finishId;
-  const group = NEWAGE_FINISHES.find((f) => f.id === finishId)?.group;
-  const sameSeries = NEWAGE_FINISHES.find((f) => f.group === group && cat.naPricing![f.id]);
-  return sameSeries?.id ?? Object.keys(cat.naPricing)[0];
-}
-
-/** The effective finish id a placed item renders/prices in: its own override
- *  when the unit is offered in it, else the given default — mapped to the
- *  closest finish the unit is actually made in. */
-export function resolveItemFinish(defaultFinishId: string, it: Pick<PlacedItem, 'finish'>, cat: CatalogItem): string {
-  if (!cat.naPricing) return it.finish ?? defaultFinishId;
-  const want = it.finish && cat.naPricing[it.finish] ? it.finish : defaultFinishId;
-  return naClosestFinish(cat, want);
-}
-
-/** resolveItemFinish against the design's default finish. */
-export function itemFinishId(design: Design, it: PlacedItem, cat: CatalogItem): string {
-  return resolveItemFinish(design.finishId, it, cat);
-}
-
-/** The NewAge variant (SKU + price) for an item in the given finish, falling
- *  back to the closest offered finish. */
-export function naVariantFor(cat: CatalogItem, finishId: string): NaVariant | null {
-  if (!cat.naPricing) return null;
-  return cat.naPricing[naClosestFinish(cat, finishId)] ?? null;
-}
-
-/** Whether the item is offered in the given finish. */
-export function naHasFinish(cat: CatalogItem, finishId: string): boolean {
-  return !cat.naPricing || !!cat.naPricing[finishId];
-}
+/** NewAge Products as a brand: modular stainless/aluminum outdoor units. */
+export const NEWAGE_BRAND: Brand = {
+  id: 'newage',
+  label: 'NewAge Products — Modular Outdoor',
+  shortLabel: 'NewAge',
+  startLabel: 'NewAge Outdoor Kitchen Cabinets',
+  startSub: 'Modular 304 stainless or aluminum units at factory sizes.',
+  modular: true,
+  outdoorOnly: true,
+  finishes: NEWAGE_FINISHES,
+  catalog: NEWAGE_CATALOG,
+  categoryLabels: { base: 'Cabinets', outdoor: 'Grill, Corner & Specialty', wall: 'Wall Cabinets' },
+  defaults: { finishId: 'na-ss-steel', counterId: 'na-stainless', doorStyle: 'flat' },
+  factoryFinished: true,
+  integratedHandles: true,
+  cornerFillers: false,
+  hasDoorStyles: false,
+  companyFinishes: false,
+  render: { barPulls: true, openCorner: true, integratedSinkTop: true },
+  baseHeight: NA_BASE_H,
+  counterEstimate: { counterId: 'na-stainless', ratePerSqft: NA_COUNTER_RATE_PER_SQFT },
+  reportNote:
+    "NewAge Products modular units are factory-built at set sizes with integrated handles — prices shown are the per-SKU retail prices for the selected door & finish. Grills, kamados and fridges are sold separately unless selected above. Countertop pricing is an estimate; the final order is assembled from NewAge's fixed-size stainless tops.",
+  defaultAppliances: NEWAGE_DEFAULT_APPLIANCES,
+  idMigrate: NEWAGE_ID_MIGRATE,
+  legacyLineIds: ['newage-ss', 'newage-alu'],
+};

@@ -8,7 +8,7 @@ import { DOOR_STYLE_LABELS, doorStylesFor, finishesForLine } from '../model/cata
 import { COUNTERTOPS, COUNTER_CATEGORY_LABELS, type CounterCategory } from '../model/countertops';
 import { DEFAULT_FLOORING, FLOORING } from '../model/flooring';
 import { companyFinishes, mergedHandles } from '../model/companyCatalog';
-import { LINE_LABELS } from '../model/newage';
+import { BRAND_LIST, brandOf } from '../model/brands';
 import type { Design, DoorStyle, FinishOption, FlooringKind, HandleItem, ProductLine } from '../model/types';
 import { useStore } from '../state/store';
 import { useSession } from '../state/session';
@@ -117,11 +117,11 @@ export default function DesignPanel({ onClose }: { onClose: () => void }) {
   const catalogPrefs = useSession((s) => s.catalogPrefs);
 
   const line: ProductLine = design.line ?? 'ext';
-  const isNewAge = line === 'newage';
+  const brand = brandOf(line);
   const hiddenFinishes = new Set(catalogPrefs?.hiddenFinishes ?? []);
   const finishes = [
     ...finishesForLine(line, design.kitchenType).filter((f) => !hiddenFinishes.has(f.id)),
-    ...(isNewAge ? [] : companyFinishes(catalogPrefs)),
+    ...(brand.companyFinishes ? companyFinishes(catalogPrefs) : []),
   ];
   const fin = finishes.find((f) => f.id === design.finishId) ?? finishes[0];
   const handleOptions: HandleItem[] = mergedHandles(handles, catalogPrefs);
@@ -135,7 +135,7 @@ export default function DesignPanel({ onClose }: { onClose: () => void }) {
         {/* ---- cabinets ---- */}
         <Section title="Cabinet style" hint="The range your cabinets come from">
           <div className="dp-seg">
-            {(['ext', 'newage'] as ProductLine[]).map((l) => (
+            {BRAND_LIST.map(({ id: l, label }) => (
               <button
                 key={l}
                 className={line === l ? 'dp-seg-btn active' : 'dp-seg-btn'}
@@ -144,13 +144,13 @@ export default function DesignPanel({ onClose }: { onClose: () => void }) {
                   const dropped = design.items.filter((it) => !it.auto).length;
                   if (
                     dropped === 0 ||
-                    confirm(`Switch to ${LINE_LABELS[l]}? The ${dropped} cabinet(s) you've placed belong to the current range and will be removed. Your walls, windows and doors stay.`)
+                    confirm(`Switch to ${label}? The ${dropped} cabinet(s) you've placed belong to the current range and will be removed. Your walls, windows and doors stay.`)
                   ) {
                     setLine(l);
                   }
                 }}
               >
-                {LINE_LABELS[l]}
+                {label}
               </button>
             ))}
           </div>

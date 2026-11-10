@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, MAX_PANEL_W, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, takesAppliedEnds } from '../model/catalog';
+import { brandOf } from '../model/brands';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide, ModelAlign } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
 import { applianceModelInfo, fitModel, fitModelBox, handleFor, hasModel, hdpeNormalMap, libTexture, namedHandle, requestModel } from './models';
@@ -346,11 +347,15 @@ export interface CabMats {
   egg: THREE.Material;
   carcass: THREE.Material;
   /** NewAge door construction (louvered slats / tempered glass); unset = slab. */
-  naDoor?: 'flat' | 'louvered' | 'glass';
+  doorConstruction?: 'flat' | 'louvered' | 'glass';
   /** Tinted tempered-glass pane material (NewAge aluminum doors). */
   glassPane?: THREE.Material;
-  /** True for NewAge finishes — draws their long stainless bar pulls. */
+  /** Brand draws long stainless bar pulls (not the chosen handle model). */
   naBar?: boolean;
+  /** Brand's 90° corner unit is an open frame. */
+  openCorner?: boolean;
+  /** Brand's sink units carry a built-in top, basin and faucet. */
+  integratedSinkTop?: boolean;
 }
 
 export function createMats(fin: FinishOption, ct: Countertop = countertopById(DEFAULT_COUNTERTOP)): CabMats {
@@ -403,7 +408,7 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
   const wgFlag = tl ? { userData: { wgUV: true }, ...wgPbr } : {};
   // NewAge door faces: louvered slats are wood-look (Grove) or painted (White)
   // — not bare metal; glass doors get a tinted pane inside the metal frame.
-  const louvered = fin.naDoor === 'louvered';
+  const louvered = fin.doorConstruction === 'louvered';
   // Real scanned HDPE grain for the molded-poly (outdoor) line only — metal and
   // stained-wood finishes carry their own surface. Null until models.ts has
   // loaded the map; the scene rebuilds when it arrives.
@@ -436,10 +441,12 @@ export function createMats(fin: FinishOption, ct: Countertop = countertopById(DE
       ? new THREE.MeshPhysicalMaterial({ color: 0xb9b3ac, map: grain, roughness: 0.55, side: THREE.DoubleSide, ...wgFlag })
       : new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel).multiplyScalar(0.6), roughness: 0.55, clearcoat: 0.05, clearcoatRoughness: 0.6, side: THREE.DoubleSide, ...hdpe }),
     kick: new THREE.MeshStandardMaterial({ color: new THREE.Color(fin.kick ?? fin.body), roughness: 0.75, metalness: fin.kick ? 0.35 : metal ? metal.metalness : 0, ...hdpe, ...(tl ? { map: tl, color: 0xdddddd, userData: { wgUV: true } } : {}) }),
-    naDoor: fin.naDoor,
-    naBar: !!fin.line,
+    doorConstruction: fin.doorConstruction,
+    naBar: brandOf(fin.line).render.barPulls,
+    openCorner: brandOf(fin.line).render.openCorner,
+    integratedSinkTop: brandOf(fin.line).render.integratedSinkTop,
     glassPane:
-      fin.naDoor === 'glass'
+      fin.doorConstruction === 'glass'
         ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(fin.panel), metalness: 0.1, roughness: 0.12, clearcoat: 0.8, clearcoatRoughness: 0.15, transparent: true, opacity: 0.88 })
         : undefined,
     counterTex,
@@ -886,7 +893,7 @@ function doorFace(w: number, h: number, style: DoorStyle, mats: CabMats): THREE.
   const g = new THREE.Group();
   // Louvered slat door — matches NewAge's Louvered series: angled horizontal
   // slats over a dark backing, in a slim frame of the same finish.
-  if (mats.naDoor === 'louvered' && h >= 5.5 && w >= 8) {
+  if (mats.doorConstruction === 'louvered' && h >= 5.5 && w >= 8) {
     const FR = 1.1; // frame width
     g.add(box(w, h, 0.4, mats.inner)); // dark backing the slats sit over
     // frame: stiles + rails in the door finish
@@ -909,7 +916,7 @@ function doorFace(w: number, h: number, style: DoorStyle, mats: CabMats): THREE.
     return g;
   }
   // Tempered-glass door — NewAge Aluminum series: metal frame + tinted pane.
-  if (mats.naDoor === 'glass' && mats.glassPane && h >= 5.5 && w >= 8) {
+  if (mats.doorConstruction === 'glass' && mats.glassPane && h >= 5.5 && w >= 8) {
     const FR = 1.6; // aluminum frame width
     g.add(boxAt(w, FR, 0.7, 0, h / 2 - FR / 2, 0, mats.body));
     g.add(boxAt(w, FR, 0.7, 0, -h / 2 + FR / 2, 0, mats.body));
@@ -1303,7 +1310,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
   // the hinge toggle only moves the (single) handle.
   const cornerSide: 1 | -1 = dims.cornerSide ?? (hinge === 'right' ? -1 : 1);
   const legRet = cornerReturn(cat); // 24" base / 12" wall
-  if (isCorner && mats.naBar) {
+  if (isCorner && mats.openCorner) {
     // NewAge 90° corner: an OPEN pentagon frame (chamfered front corner) —
     // corner posts, base + mid shelf, integrated stainless top, panels only
     // on the two wall sides. Matches the real product (open shelving).
@@ -1795,7 +1802,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
         // take slim horizontal top/bottom-edge pulls; Classic (flat metal)
         // doors ALSO use horizontal pulls at the door's top corner, while
         // Louvered and Aluminum glass doors keep a vertical edge bar.
-        const naTopPull = mats.naBar && isV && mats.naDoor === 'flat';
+        const naTopPull = mats.naBar && isV && mats.doorConstruction === 'flat';
         if (naTopPull) isV = false;
         const len = mats.naBar
           ? isV
@@ -1886,7 +1893,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
 
     // lazy-susan corner cabinet: door flush on the 45° chamfer face
     // (NewAge 90° corners are open frames — no door)
-    if (cat.front === 'corner' && !mats.naBar) {
+    if (cat.front === 'corner' && !mats.openCorner) {
       const c = cornerChamfer(d, legRet);
       const span = c * Math.SQRT2 - GAP * 2; // door width along the diagonal
       const door = doorFace(span, fh, style, mats);
@@ -1939,7 +1946,7 @@ export function buildCabinetLocal(cat: CatalogItem, dims: CabDims, mats: CabMats
 
   // NewAge sink cabinets ship with an integrated stainless top (basin + faucet
   // included) — they take no countertop, so build the top into the unit.
-  if (mats.naBar && isSinkFront(cat.front)) {
+  if (mats.integratedSinkTop && isSinkFront(cat.front)) {
     const topT = 1.0;
     const slab = box(w + 0.3, topT, d + 0.5, mats.steelMatte);
     slab.position.set(0, h - topT / 2, d / 2 + 0.15);

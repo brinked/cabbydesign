@@ -1,5 +1,5 @@
 import type { ApplianceCat, CatalogItem, DoorStyle, FinishOption, KitchenType, ProductLine } from './types';
-import { NEWAGE_CATALOG, NEWAGE_FINISHES } from './newage';
+import { MODULAR_BRANDS, brandOf } from './brands';
 
 export const BASE_H = 34.5;
 /** Bar-height feature: the raised back tier steps up this many inches above the
@@ -75,14 +75,14 @@ export const INDOOR_FINISHES: FinishOption[] = [
 ];
 
 /** Every finish across all product lines (EXT HDPE + indoor + NewAge lines). */
-export const ALL_FINISHES: FinishOption[] = [...FINISHES, ...INDOOR_FINISHES, ...NEWAGE_FINISHES];
+export const ALL_FINISHES: FinishOption[] = [...FINISHES, ...INDOOR_FINISHES, ...MODULAR_BRANDS.flatMap((b) => b.finishes)];
 
 /** Finishes offered for a product line (+ kitchen type: indoor EXT kitchens
  *  use the painted/wood palette; outdoor keeps the Starboard HDPE colors). */
 export function finishesForLine(line: ProductLine | undefined, kitchenType?: KitchenType): FinishOption[] {
   const l = line ?? 'ext';
   if (l === 'ext') return kitchenType === 'indoor' ? INDOOR_FINISHES : FINISHES;
-  return NEWAGE_FINISHES.filter((f) => f.line === l);
+  return brandOf(l).finishes;
 }
 
 /** Door styles offered per kitchen type, with display labels. Outdoor kitchens
@@ -206,7 +206,7 @@ const BASE_CATALOG: CatalogItem[] = [
   { id: 'app-pizza', name: 'Pizza Oven Cart', category: 'appliance', front: 'pizza', lane: 'floor', w: 36, d: 30, h: 64, minW: 30, maxW: 42, stepW: 2, counter: false, formula: '0', hideFromAdd: true },
 
   // ---------- NewAge Products modular lines (fixed factory sizes) ----------
-  ...NEWAGE_CATALOG,
+  ...MODULAR_BRANDS.flatMap((b) => b.catalog),
   // Hidden cabinets mount REVERSED on an island: their doors sit flush with
   // the finished back plane, reclaiming a dead corner as storage. Reserve
   // exempt, no counter of their own (the corner fill covers them), and they
@@ -257,13 +257,6 @@ export const CATEGORY_LABELS: Record<string, string> = {
   appliance: 'Appliances',
 };
 
-/** Category tab labels for the NewAge lines (their catalog is smaller). */
-export const NEWAGE_CATEGORY_LABELS: Record<string, string> = {
-  base: 'Cabinets',
-  outdoor: 'Grill, Corner & Specialty',
-  wall: 'Wall Cabinets',
-};
-
 /** Freestanding EXT appliance carts that only make sense outdoors. */
 const OUTDOOR_ONLY_APPLIANCES = new Set(['app-cartgrill', 'app-kamado', 'app-pizza']);
 /** Indoor-kitchen items hidden from outdoor designs. */
@@ -286,7 +279,7 @@ export function catalogForDesign(line: ProductLine | undefined, kitchenType: Kit
 
 /** Category tab labels applicable to a product line. */
 export function categoryLabelsForLine(line: ProductLine | undefined): Record<string, string> {
-  return (line ?? 'ext') === 'ext' ? CATEGORY_LABELS : NEWAGE_CATEGORY_LABELS;
+  return brandOf(line).categoryLabels ?? CATEGORY_LABELS;
 }
 
 /** Widest single applied back panel (inches); wider backs split into equal panels. */
@@ -335,7 +328,7 @@ export function takesAppliedEnds(cat: CatalogItem): boolean {
   if (cat.category === 'appliance') return false;
   // Fillers are bare trim strips — no applied/finished ends (end CAPS do take them).
   if (cat.front === 'filler') return false;
-  if (cat.line) return false; // NewAge metal units are factory-finished on all sides
+  if (brandOf(cat.line).factoryFinished) return false; // metal modular units are finished on all sides
   if (cat.applianceCat && APPLIANCE_OPENING_CATS.includes(cat.applianceCat)) return false;
   return true;
 }
@@ -352,7 +345,7 @@ export function takesWaterfall(cat: CatalogItem): boolean {
  *  fillers, false fronts and appliance openings have none. Two-door fronts use
  *  a single door under 24″ wide. Used for the report hardware count. */
 export function handleCount(cat: CatalogItem, w: number): number {
-  if (cat.line) return 0; // NewAge units ship with integrated handles
+  if (brandOf(cat.line).integratedHandles) return 0; // pulls ship as part of the unit
   const doublable = w >= 24 ? 2 : 1; // wide cabinets get a pair of doors
   switch (cat.front) {
     case 'door1':

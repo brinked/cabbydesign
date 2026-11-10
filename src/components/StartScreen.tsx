@@ -3,14 +3,17 @@ import type { KitchenType, ProductLine } from '../model/types';
 import { listLocalJobs } from '../state/localJobs';
 import { useSession } from '../state/session';
 import { useStore } from '../state/store';
+import { MODULAR_BRANDS } from '../model/brands';
 
-type StartKind = 'indoor' | 'outdoor' | 'newage';
+/** 'indoor' / 'outdoor' start an EXT kitchen; any other value is a brand id
+ *  and starts that brand's outdoor kitchen. */
+type StartKind = 'indoor' | 'outdoor' | ProductLine;
 
-const START_ARGS: Record<StartKind, { kitchenType: KitchenType; line: ProductLine }> = {
-  indoor: { kitchenType: 'indoor', line: 'ext' },
-  outdoor: { kitchenType: 'outdoor', line: 'ext' },
-  newage: { kitchenType: 'outdoor', line: 'newage' },
-};
+function startArgs(kind: StartKind): { kitchenType: KitchenType; line: ProductLine } {
+  if (kind === 'indoor') return { kitchenType: 'indoor', line: 'ext' };
+  if (kind === 'outdoor') return { kitchenType: 'outdoor', line: 'ext' };
+  return { kitchenType: 'outdoor', line: kind };
+}
 
 /* ---------- small inline icons (stroke style) ---------- */
 const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
@@ -135,7 +138,7 @@ export default function StartScreen() {
     if (busy) return;
     setBusy(true);
     try {
-      const a = START_ARGS[kind];
+      const a = startArgs(kind);
       newDesign(a.kitchenType, a.line);
       await continueAsGuest();
     } finally {
@@ -241,9 +244,11 @@ export default function StartScreen() {
                 <button className="landing-btn" onClick={() => start('outdoor')} disabled={busy}>
                   Start Outdoor Design →
                 </button>
-                <button className="landing-link landing-way-alt" onClick={() => start('newage')} disabled={busy}>
-                  or start with NewAge stainless modular cabinets
-                </button>
+                {MODULAR_BRANDS.map((b) => (
+                  <button key={b.id} className="landing-link landing-way-alt" onClick={() => start(b.id)} disabled={busy}>
+                    or start with {b.shortLabel} modular cabinets
+                  </button>
+                ))}
               </div>
             </div>
           </div>

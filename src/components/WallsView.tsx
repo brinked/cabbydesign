@@ -3,7 +3,7 @@ import type { FinishOption, OpeningKind, PlacedItem, RoughInKind, Wall } from '.
 import { ALL_FINISHES, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, bridgesCounter, catalogById } from '../model/catalog';
 import { companyFinishById } from '../model/companyCatalog';
 import { useSession } from '../state/session';
-import { resolveItemFinish } from '../model/newage';
+import { resolveItemFinish } from '../model/brands';
 import { countertopById } from '../model/countertops';
 import { cornerCounterExtend, isReserveExempt, type CornerReserve } from '../model/geometry';
 import { backsplashSpans, barRiserFor, counterHeightFor, footprintW, laneItems, openingClash, reservesFor, roughInBand, roughInConflict, roughInHost, spaceLeft, useStore } from '../state/store';

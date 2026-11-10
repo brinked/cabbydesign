@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { rectPoly, type CounterPt } from '../model/counterShape';
 import CounterEditor from './CounterEditor';
 import { ALL_FINISHES, COUNTER_OVERHANG, catalogById, frontExtraD } from '../model/catalog';
-import { resolveItemFinish } from '../model/newage';
+import { resolveItemFinish } from '../model/brands';
 import { PERGOLA_COLORS, PERGOLA_MODELS, defaultPergola, pergolaAreaSqft, pergolaColorHex, pergolaColumns, pergolaModelInfo, pergolaRateFor, snapPergolaToWalls } from '../model/pergola';
 import { CORNER_EPS, WALL_T, cornerCounterExtend, cornerNeedsFlip, counterMiter, frameForWall, isCornerFront, isFenceStyle, isReserveExempt, planBounds, wallEndpoints, wallSlabPolygonLocal, wallSnapPoints, wallStyleOf, seatOverhang } from '../model/geometry';
 import type { Design, MeasureEnd, Measurement, PergolaAttach, PlacedItem, Wall, WallStyle } from '../model/types';

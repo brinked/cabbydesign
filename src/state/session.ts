@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { api, ApiError, type AccountType, type ApiUser, type CatalogPrefs, type CertInfo, type DealerPrefs } from '../api/client';
 import { deleteLocalJob, listLocalJobs } from './localJobs';
-import { NEWAGE_DEFAULT_APPLIANCES } from '../model/newage';
+import { MODULAR_BRANDS } from '../model/brands';
 import { DEFAULT_GRILL_APPLIANCES } from '../model/defaultAppliances';
 import { useStore } from './store';
 
@@ -214,7 +214,7 @@ export const useSession = create<SessionState>()(
     // (with real 3D models) + the NewAge insert grills so every grill cabinet
     // has real options to choose from.
     if (useStore.getState().appliances.length === 0) {
-      useStore.setState({ appliances: [...DEFAULT_GRILL_APPLIANCES, ...NEWAGE_DEFAULT_APPLIANCES] });
+      useStore.setState({ appliances: [...DEFAULT_GRILL_APPLIANCES, ...MODULAR_BRANDS.flatMap((b) => b.defaultAppliances)] });
     }
     localStorage.setItem(GUEST_KEY, '1');
     set({ status: 'guest', user: null, prefs: null, cert: null, screen: 'design' });

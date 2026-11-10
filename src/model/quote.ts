@@ -4,7 +4,7 @@
 import type { CatalogPrefs, DealerPrefs } from '../api/client';
 import type { ApplianceBrands, ApplianceItem, CatalogItem, Design, HandleItem, PanelRates } from './types';
 import { ALL_FINISHES, DOOR_STYLE_LABELS, MAX_PANEL_W, catalogById, handleCount } from './catalog';
-import { NA_COUNTER_RATE_PER_SQFT, itemFinishId, naVariantFor } from './newage';
+import { brandOf, itemFinishId, skuVariantFor } from './brands';
 import { money } from './pricing';
 import { appliancePrice } from './appliances';
 import { mergedHandles } from './companyCatalog';
@@ -78,7 +78,7 @@ export function computeQuote(input: QuoteInput) {
   /** Final displayed cabinet line price (box + trays) for the current account. */
   const cabinetDisplayed = (it: (typeof design.items)[number], costP: ReturnType<typeof itemPrice>): number => {
     // NewAge units carry fixed retail (SKU) pricing — no markup/discount applies.
-    if (catalogById(it.catalogId).naPricing) return costP.cabinet;
+    if (catalogById(it.catalogId).skuPricing) return costP.cabinet;
     const trays = costP.trays;
     if (isContractor && isMarkedUp) {
       const box =
@@ -106,14 +106,16 @@ export function computeQuote(input: QuoteInput) {
   // stainless countertop gets an area-based estimate (final order uses
   // NewAge's fixed-size top SKUs).
   const line = design.line ?? 'ext';
-  const isNewAge = line !== 'ext';
-  const naCounterEstimate = isNewAge && design.counterId === 'na-stainless' ? round2(counterSqft * NA_COUNTER_RATE_PER_SQFT) : 0;
+  const brand = brandOf(line);
+  // brands whose countertop is sold as fixed-size tops get an area estimate
+  const est = brand.counterEstimate;
+  const naCounterEstimate = est && design.counterId === est.counterId ? round2(counterSqft * est.ratePerSqft) : 0;
   // NewAge line items: name + the finish actually chosen for that cabinet +
   // its SKU (per-cabinet series/finish overrides included).
   const lineName = (cat: CatalogItem, it: (typeof design.items)[number]) => {
-    if (!cat.naPricing) return cat.name;
+    if (!cat.skuPricing) return cat.name;
     const fid = itemFinishId(design, it, cat);
-    const nv = naVariantFor(cat, fid);
+    const nv = skuVariantFor(cat, fid);
     const f = ALL_FINISHES.find((x) => x.id === fid);
     return nv ? `${cat.name} · ${f?.name ?? fid} · SKU ${nv.sku}` : cat.name;
   };
@@ -166,10 +168,10 @@ export function computeQuote(input: QuoteInput) {
   let backArea = 0;
   for (const it of design.items) {
     const cat = catalogById(it.catalogId);
-    // NewAge metal units are finished on all sides — no applied back panels.
-    // A hidden cabinet's doors ARE the island back there, so no panel either
-    // (matches itemPrice).
-    if (cat.category === 'appliance' || cat.line || cat.hidden || !itemOnIsland(design, it)) continue;
+    // Factory-finished metal units need no applied back panels. A hidden
+    // cabinet's doors ARE the island back there, so no panel either (matches
+    // itemPrice).
+    if (cat.category === 'appliance' || brandOf(cat.line).factoryFinished || cat.hidden || !itemOnIsland(design, it)) continue;
     backCount += Math.ceil(it.w / MAX_PANEL_W);
     backArea += it.w * panelH(it);
   }
@@ -238,7 +240,7 @@ export function computeQuote(input: QuoteInput) {
     rate,
     finRate,
     line,
-    isNewAge,
+    brand,
     naCounterEstimate,
     lineName,
     lines,

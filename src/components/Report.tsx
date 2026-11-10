@@ -4,7 +4,6 @@ import type { CatalogItem } from '../model/types';
 import SubmitOrderModal from './SubmitOrderModal';
 import RequestQuoteModal from './RequestQuoteModal';
 import { ALL_FINISHES, BAR_RISE, DOOR_STYLE_LABELS, MAX_PANEL_W, TOEKICK_H, catalogById, handleCount } from '../model/catalog';
-import { LINE_LABELS, NA_COUNTER_RATE_PER_SQFT, itemFinishId, naVariantFor } from '../model/newage';
 import { money } from '../model/pricing';
 import { computeQuote } from '../model/quote';
 import { appliancePrice } from '../model/appliances';
@@ -53,7 +52,7 @@ export default function Report() {
   );
 
   const {
-    round2, doorStyleLabel, counterSqft, totalHandles, ownPulls, showPricing, priceMode, isMarkedUp, isContractor, taxExempt, factor, flatPerCab, panelMk, date, designName, rate, finRate, line, isNewAge, naCounterEstimate, lineName, lines, cabinetSubtotal, cabinetSubtotalDisplayed, hasErrors, endRows, endSubtotal, backCount, backArea, backSubtotal, applianceLines, applianceUnit, applianceSubtotal, handle, handleUnit, handleSubtotal, cabinetSubtotalMk, panelSubtotalMk, pergolaObj, pergolaSqft, pergolaRate, pergolaCols, pergolaColRate, pergolaTotal, subtotalMk, taxAmount, grandTotal,
+    round2, doorStyleLabel, counterSqft, totalHandles, ownPulls, showPricing, priceMode, isMarkedUp, isContractor, taxExempt, factor, flatPerCab, panelMk, date, designName, rate, finRate, line, brand, naCounterEstimate, lineName, lines, cabinetSubtotal, cabinetSubtotalDisplayed, hasErrors, endRows, endSubtotal, backCount, backArea, backSubtotal, applianceLines, applianceUnit, applianceSubtotal, handle, handleUnit, handleSubtotal, cabinetSubtotalMk, panelSubtotalMk, pergolaObj, pergolaSqft, pergolaRate, pergolaCols, pergolaColRate, pergolaTotal, subtotalMk, taxAmount, grandTotal,
   } = computeQuote({
     design, pricing, retailPricing, appliances, applianceBrands, handles, pergolaRates,
     panelRates: useStore((s) => s.panelRates),
@@ -159,14 +158,14 @@ export default function Report() {
         </p>
         <div className="cover-meta">
           <div>
-            Cabinet line: {LINE_LABELS[line]}
+            Cabinet line: {brand.label}
             {design.kitchenType === 'indoor' ? ' · Indoor kitchen' : ' · Outdoor kitchen'}
           </div>
           <div>
             Finish: {fin.group ? `${fin.group} · ` : ''}
             {fin.name}
           </div>
-          {!isNewAge && <div>Door style: {doorStyleLabel}</div>}
+          {brand.hasDoorStyles && <div>Door style: {doorStyleLabel}</div>}
           <div>
             Countertop: {countertopById(design.counterId).name}, {fmtIn(design.counterThickness)} thick ({counterSqft} sq ft)
           </div>
@@ -468,7 +467,7 @@ export default function Report() {
           </table>
         )}
 
-        {showPricing && !isNewAge && (
+        {showPricing && !brand.reportNote && (
           <p className="report-note">
             Applied end and back panels bill at {money(rate * factor)}/sq ft (panel height excludes the 4″ toe kick) in the{' '}
             {designName} ({doorStyleLabel.toLowerCase()}) design; island cabinets receive finished back
@@ -476,14 +475,7 @@ export default function Report() {
             priced.
           </p>
         )}
-        {showPricing && isNewAge && (
-          <p className="report-note">
-            NewAge Products modular units are factory-built at set sizes with integrated handles — prices shown are the
-            per-SKU retail prices for the selected door &amp; finish. Grills, kamados and fridges are sold separately unless
-            selected above. Countertop pricing is an estimate; the final order is assembled from NewAge's fixed-size
-            stainless tops.
-          </p>
-        )}
+        {showPricing && brand.reportNote && <p className="report-note">{brand.reportNote}</p>}
 
         {(() => {
           const wf = lines

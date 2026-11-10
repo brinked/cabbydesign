@@ -1,5 +1,6 @@
 import type { CatalogItem, FinishOption, HingeSide, OpeningKind, RoughInKind } from '../model/types';
 import { COUNTER_T, TOEKICK_H } from '../model/catalog';
+import { brandOf } from '../model/brands';
 import { SLIDER_4PANEL_MIN_W } from '../three/models';
 
 // All SVG drawing is done in inch coordinates; the parent <svg> sets a
@@ -101,7 +102,7 @@ function Shaker({ x, y, w, h, fin }: { x: number; y: number; w: number; h: numbe
   const iw = Math.max(0.5, w - inset * 2);
   const ih = Math.max(0.5, h - inset * 2);
   // NewAge louvered door: horizontal slats in the door finish over a dark backing
-  if (fin.naDoor === 'louvered' && h >= 8) {
+  if (fin.doorConstruction === 'louvered' && h >= 8) {
     const fr = 1.1;
     const pitch = 2.1;
     const n = Math.max(3, Math.floor((h - fr * 2) / pitch));
@@ -119,7 +120,7 @@ function Shaker({ x, y, w, h, fin }: { x: number; y: number; w: number; h: numbe
     );
   }
   // NewAge tempered-glass door: metal frame + tinted reflective pane
-  if (fin.naDoor === 'glass' && h >= 8) {
+  if (fin.doorConstruction === 'glass' && h >= 8) {
     const fr = 1.6;
     return (
       <g filter="url(#f-door)">
@@ -137,7 +138,7 @@ function Shaker({ x, y, w, h, fin }: { x: number; y: number; w: number; h: numbe
     );
   }
   // NewAge flat metal door (Classic series): plain slab, no shaker recess
-  if (fin.naDoor === 'flat') {
+  if (fin.doorConstruction === 'flat') {
     return (
       <g filter="url(#f-door)">
         <rect x={x} y={y} width={w} height={h} rx={0.35} fill={fin.panel} />
@@ -375,8 +376,8 @@ export function CabinetFront({ cat, w, h, fin, hinge = 'left' }: FrontProps) {
   // Single doors: handle goes opposite the hinge. NewAge handles follow the
   // real products: Classic (flat metal) doors take horizontal pulls at the
   // top corner; Louvered/Aluminum doors take a vertical edge bar.
-  const naBar = !!fin.line;
-  const naTopPull = naBar && fin.naDoor === 'flat';
+  const naBar = brandOf(fin.line).render.barPulls;
+  const naTopPull = naBar && fin.doorConstruction === 'flat';
   const doors = (n: number, y = 0, dh = fh) => {
     const dw = (w - gap * (n + 1)) / n;
     const handleLen = naBar ? Math.min(14, dh * 0.5) : Math.min(7, dh * 0.4);

@@ -2,18 +2,19 @@
 
 export type Lane = 'floor' | 'upper';
 
-/** Cabinet product line. 'ext' = EXT Cabinets custom HDPE (made-to-size);
- *  'newage' = NewAge Products Classic Series modular outdoor cabinets (fixed
- *  factory sizes; series & door finish — stainless Classic/Louvered or
- *  aluminum tempered-glass — are chosen per cabinet). */
+/** Cabinet product line (brand). 'ext' = EXT Cabinets custom HDPE
+ *  (made-to-size); 'newage' = NewAge Products Classic Series modular outdoor
+ *  cabinets (fixed factory sizes; series & door finish chosen per cabinet).
+ *  Every line has a Brand record in model/brands.ts — everything that differs
+ *  between brands is read from there, never inferred from "has a line". */
 export type ProductLine = 'ext' | 'newage';
 
 /** What the user is designing — filters the catalog offered. */
 export type KitchenType = 'indoor' | 'outdoor';
 
-/** One purchasable NewAge variant: the SKU + retail pricing for a catalog item
- *  in a specific finish. `msrp` is the compare-at price (shown struck through). */
-export interface NaVariant {
+/** One purchasable variant of a modular unit: the SKU + retail pricing for a
+ *  catalog item in a specific finish. `msrp` is the compare-at price (shown struck through). */
+export interface SkuVariant {
   sku: string;
   price: number;
   msrp: number;
@@ -228,7 +229,7 @@ export interface CatalogItem {
   fixed?: boolean;
   /** NewAge retail pricing per finish id (finish → SKU + price). A finish
    *  missing from the map means the unit isn't made in that finish. */
-  naPricing?: Record<string, NaVariant>;
+  skuPricing?: Record<string, SkuVariant>;
   /** Not offered in the Add-cabinet picker (e.g. the 4-door grill/griddle,
    *  which the 2-door version auto-converts into when widened past 41″). */
   hideFromAdd?: boolean;
@@ -402,7 +403,7 @@ export interface FinishOption {
   group?: string;
   /** NewAge door construction: flat metal slab, horizontal louvered slats, or
    *  tempered glass in a metal frame. Drives 2D/3D door detailing. */
-  naDoor?: 'flat' | 'louvered' | 'glass';
+  doorConstruction?: 'flat' | 'louvered' | 'glass';
   /** Toe-kick/base color override (NewAge bases are black with levelers). */
   kick?: string;
 }
@@ -537,4 +538,59 @@ export interface PricedLine {
   price: number;
   formula: string;
   error?: string;
+}
+
+/** Everything that differs between cabinet brands (product lines). */
+export interface Brand {
+  id: ProductLine;
+  /** Full name, e.g. on the report cover. */
+  label: string;
+  /** Short name for buttons and notes. */
+  shortLabel: string;
+  /** New-design / start-screen card. */
+  startLabel: string;
+  startSub: string;
+  /** Modular line: factory-fixed units sold by SKU (vs made-to-size by formula). */
+  modular: boolean;
+  /** Outdoor products only — switching to this line makes the kitchen outdoor. */
+  outdoorOnly: boolean;
+  /** The line's own finishes ([] for EXT, whose palettes live in catalog.ts). */
+  finishes: FinishOption[];
+  /** The line's own catalog ([] for EXT). */
+  catalog: CatalogItem[];
+  /** Category tab labels in the Add dialog; unset = the standard set. */
+  categoryLabels?: Record<string, string>;
+  /** Finish / countertop / door style a new design starts with; unset = EXT defaults. */
+  defaults?: { finishId: string; counterId: string; doorStyle: DoorStyle };
+  /** Units are finished on every side: no applied end or island back panels. */
+  factoryFinished: boolean;
+  /** Pulls are part of the unit: nothing is added to the hardware count. */
+  integratedHandles: boolean;
+  /** Dead corners between runs are closed with auto filler strips. */
+  cornerFillers: boolean;
+  /** Door style (shaker, flat…) is a design-wide choice for this line. */
+  hasDoorStyles: boolean;
+  /** A company's own custom colours can be used on this line. */
+  companyFinishes: boolean;
+  /** How the units are drawn (2D and 3D). */
+  render: {
+    /** Long bar pulls instead of the EXT pull / chosen handle model. */
+    barPulls: boolean;
+    /** 90° corner unit is an open frame rather than a doored box. */
+    openCorner: boolean;
+    /** Sink units carry their own built-in top, basin and faucet. */
+    integratedSinkTop: boolean;
+  };
+  /** Standard base-cabinet height (inches): the height a counter runs at. */
+  baseHeight: number;
+  /** Countertop priced as an area estimate when this countertop id is chosen. */
+  counterEstimate?: { counterId: string; ratePerSqft: number };
+  /** Note under the report estimate; unset = the EXT panel-pricing note. */
+  reportNote?: string;
+  /** Appliances offered when no server inventory is available (guest mode). */
+  defaultAppliances: ApplianceItem[];
+  /** Renamed/retired catalog ids → current ids, applied on load. */
+  idMigrate: Record<string, string>;
+  /** Older saved values of Design.line that mean this brand. */
+  legacyLineIds: string[];
 }

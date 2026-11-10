@@ -4,7 +4,7 @@ import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, K
 import { FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { polyArea } from '../model/counterShape';
-import { NEWAGE_ID_MIGRATE, itemFinishId, naVariantFor } from '../model/newage';
+import { BRAND_ID_MIGRATE, brandForSavedLine, brandOf, itemFinishId, skuVariantFor } from '../model/brands';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
 import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, COOKING_CORNER_FILLER, CORNER_FILLER, isCookingCat, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, squareCorner, wallEndJoined, wallEndpoints, seatOverhang } from '../model/geometry';
@@ -26,7 +26,7 @@ const CATALOG_MIGRATE: Record<string, string> = {
   'base-doordrawer': 'base-1door1drawer',
   'base-blind': 'base-blindr',
   'app-icemaker': 'out-icemaker',
-  ...NEWAGE_ID_MIGRATE,
+  ...BRAND_ID_MIGRATE,
 };
 const VALID_IDS = new Set(CATALOG.map((c) => c.id));
 
@@ -84,7 +84,8 @@ export function uid(prefix: string): string {
 
 /** Per-line defaults when starting a design. */
 export function lineDefaults(line: ProductLine, kitchenType?: KitchenType): { finishId: string; counterId: string; doorStyle: Design['doorStyle'] } {
-  if (line === 'newage') return { finishId: 'na-ss-steel', counterId: 'na-stainless', doorStyle: 'flat' };
+  const own = brandOf(line).defaults;
+  if (own) return own;
   // Indoor EXT kitchens: painted/wood palette + real inset-panel shaker.
   if (kitchenType === 'indoor') return { finishId: 'in-white', counterId: DEFAULT_COUNTERTOP, doorStyle: 'shaker-inset' };
   return { finishId: 'indigo', counterId: DEFAULT_COUNTERTOP, doorStyle: 'shaker' };
@@ -247,14 +248,10 @@ export function normalizeDesign(raw: Design): Design {
   // infer from placed items for pre-line saves; keep the finish within the
   // line's palette.
   const rawLine = raw.line as string | undefined;
+  // a saved line (current or legacy id) wins; pre-line saves take the brand
+  // of the first branded cabinet placed
   const line: ProductLine =
-    rawLine === 'newage' || rawLine === 'newage-ss' || rawLine === 'newage-alu'
-      ? 'newage'
-      : rawLine === 'ext'
-        ? 'ext'
-        : items.some((it) => catalogById(it.catalogId).line)
-          ? 'newage'
-          : 'ext';
+    brandForSavedLine(rawLine)?.id ?? items.map((it) => catalogById(it.catalogId).line).find((l) => l) ?? 'ext';
   const kitchenType: KitchenType = raw.kitchenType ?? 'outdoor';
   let finishId = FINISH_MIGRATE[raw.finishId] ?? raw.finishId;
   const lineFins = finishesForLine(line, kitchenType);
@@ -498,7 +495,9 @@ export function itemOnIsland(design: Design, it: PlacedItem): boolean {
 export function counterHeightFor(it: PlacedItem): number {
   const cat = catalogById(it.catalogId);
   const opening = cat.applianceCat === 'fridge' || cat.applianceCat === 'icemaker';
-  return opening && it.h <= BASE_H + 0.01 ? BASE_H : it.h;
+  // the brand's own base height: NewAge bases stand at 34.25″, not EXT's 34.5″
+  const std = brandOf(cat.line).baseHeight;
+  return opening && it.h <= std + 0.01 ? std : it.h;
 }
 
 /** Height of an applied end/back panel on this cabinet: its height (plus the
@@ -539,8 +538,8 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
   if (cat.category === 'appliance') return ZERO_PRICE;
   // NewAge modular units: fixed retail price for the cabinet's series/finish
   // (its own override, else the design default) — no trays, panels or formulas.
-  if (cat.naPricing) {
-    const nv = naVariantFor(cat, itemFinishId(design, it, cat));
+  if (cat.skuPricing) {
+    const nv = skuVariantFor(cat, itemFinishId(design, it, cat));
     const p = round2(nv?.price ?? 0);
     return { ...ZERO_PRICE, cabinet: p, total: p };
   }
@@ -909,9 +908,9 @@ function autoCornerFillers(design: Design): void {
           const nO = nearest(O, eO);
           // W's own cabinet must be plain (a corner unit fills the corner itself).
           if (!nW || nW.corner) continue;
-          // NewAge modular kitchens don't use HDPE fillers — their corner
+          // Modular metal kitchens don't use HDPE fillers — their corner
           // cabinets close the corner instead.
-          if (catalogById(nW.it.catalogId).line || (nO && catalogById(nO.it.catalogId).line)) continue;
+          if (!brandOf(catalogById(nW.it.catalogId).line).cornerFillers || (nO && !brandOf(catalogById(nO.it.catalogId).line).cornerFillers)) continue;
           // per-corner override: custom filler width, or removed entirely.
           // Beside a cooking cabinet the default widens: its head protrudes
           // past the face, so the neighbouring run's doors/drawers need more
@@ -1692,8 +1691,8 @@ export const useStore = create<AppState>()(
       setLine: (line) =>
         set((s) => {
           if ((s.design.line ?? 'ext') === line) return s;
-          // NewAge modular lines are outdoor products
-          const kitchenType = line === 'ext' ? s.design.kitchenType : 'outdoor';
+          // outdoor-only brands make the kitchen an outdoor one
+          const kitchenType = brandOf(line).outdoorOnly ? 'outdoor' : s.design.kitchenType;
           const d = lineDefaults(line, kitchenType);
           // keep walls, openings & rough-ins; drop cabinets from the old line
           const items = s.design.items.filter((it) => !it.auto && (catalogById(it.catalogId).line ?? 'ext') === line);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BASE_H, CATALOG, COUNTER_T, catalogById, catalogForDesign, categoryLabelsForLine, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { NumberField } from './NumberField';
-import { NEWAGE_FINISHES, itemFinishId, naClosestFinish, naVariantFor } from '../model/newage';
+import { MODULAR_BRANDS, brandOf, closestFinish, itemFinishId, skuVariantFor, unitFinishes } from '../model/brands';
 import { companyFinishes } from '../model/companyCatalog';
 import { money, tryFormula } from '../model/pricing';
 import {
@@ -169,8 +169,8 @@ export function AddItemModal() {
       <FinishBar line={design.line} kitchenType={design.kitchenType} finishId={design.finishId} onPick={(finishId) => setDesignMeta({ finishId })} />
       {(design.line ?? 'ext') === 'ext' && (design.kitchenType ?? 'outdoor') === 'outdoor' && (
         <p className="modal-sub" style={{ margin: '6px 0 10px' }}>
-          Looking for NewAge Products modular cabinets (stainless steel / aluminum)? Switch the cabinet line under ⚙ Settings →
-          Cabinet line.
+          Looking for {MODULAR_BRANDS.map((b) => b.shortLabel).join(' or ')} modular cabinets? Switch the range under ✨ Design →
+          Cabinet style.
         </p>
       )}
       {warn && <div className="warn">{warn}</div>}
@@ -182,13 +182,14 @@ export function AddItemModal() {
           // Preview & price in the closest finish the unit is actually made in
           // — some units skip a finish (e.g. the 16″ louvered units come in
           // Grove only, not Louvered White). Label the substitution honestly.
-          const effId = c.naPricing ? naClosestFinish(c, design.finishId) : design.finishId;
-          const substituted = c.naPricing && effId !== design.finishId;
-          const effName = NEWAGE_FINISHES.find((f) => f.id === effId)?.name ?? effId;
-          const nv = naVariantFor(c, effId);
+          const effId = c.skuPricing ? closestFinish(c, design.finishId) : design.finishId;
+          const substituted = c.skuPricing && effId !== design.finishId;
+          const effName = brandOf(c.line).finishes.find((f) => f.id === effId)?.name ?? effId;
+          const nv = skuVariantFor(c, effId);
           return (
             <button
               key={c.id}
+              data-catalog-id={c.id}
               className={`cat-card ${fits ? '' : 'cat-card-dim'}`}
               onClick={() => {
                 if (addItem(wallId, c.id)) {
@@ -600,9 +601,9 @@ export function EditItemModal() {
   // NewAge units: series & door finish are per-cabinet options (like the
   // manufacturer's own product page). Effective finish = the cabinet's own
   // choice, else the kitchen default.
-  const effFinishId = cat.naPricing ? itemFinishId(design, it, cat) : design.finishId;
-  const naV = naVariantFor(cat, effFinishId);
-  const naFins = cat.naPricing ? NEWAGE_FINISHES.filter((f) => cat.naPricing![f.id]) : [];
+  const effFinishId = cat.skuPricing ? itemFinishId(design, it, cat) : design.finishId;
+  const naV = skuVariantFor(cat, effFinishId);
+  const naFins = unitFinishes(cat);
   const naGroups = [...new Set(naFins.map((f) => f.group!))];
   const effGroup = naFins.find((f) => f.id === effFinishId)?.group;
 
@@ -843,14 +844,14 @@ export function EditItemModal() {
           On island — finished back panel applied automatically.
         </div>
       )}
-      {cat.category !== 'appliance' && cat.naPricing && naV && (
+      {cat.category !== 'appliance' && cat.skuPricing && naV && (
         <div className="price-line">
           Price: <b>{money(naV.price)}</b>
           {naV.msrp > naV.price && <span className="price-sub"> (was {money(naV.msrp)})</span>}
           <span className="price-sub"> · SKU {naV.sku}</span>
         </div>
       )}
-      {cat.category !== 'appliance' && !cat.naPricing && (
+      {cat.category !== 'appliance' && !cat.skuPricing && (
         <div className="price-line">
           Unit price: <b>{price.error ? '—' : money(price.total)}</b>
           {!price.error && (
