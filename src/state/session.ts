@@ -59,15 +59,25 @@ interface SessionState {
   refreshGlobals: () => Promise<void>;
 }
 
+/** Cost data (base/retail formulas, brand discounts) is served to trade
+ *  accounts only. Guests and homeowners get a 401/403 — they never see prices,
+ *  so an empty value is correct for them. */
+function tradeOnly<T>(req: Promise<T>, empty: T): Promise<T> {
+  return req.catch((err) => {
+    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) return empty;
+    throw err;
+  });
+}
+
 async function pullGlobals(set: (partial: Partial<SessionState>) => void) {
   const [{ dims }, { pricing }, { retailPricing }, { rate }, { appliances }, { brands }, { handles }, { clearance }, { modelAligns }, { rates }, { rates: pergolaRates }] =
     await Promise.all([
       api.getCabinetDims(),
-      api.getPricing(),
-      api.getRetailPricing(),
+      tradeOnly(api.getPricing(), { pricing: {} }),
+      tradeOnly(api.getRetailPricing(), { retailPricing: {} }),
       api.getTaxRate(),
       api.getAppliances(),
-      api.getApplianceBrands(),
+      tradeOnly(api.getApplianceBrands(), { brands: {} }),
       api.getHandles(),
       api.getLinerClearance(),
       api.getModelAligns(),

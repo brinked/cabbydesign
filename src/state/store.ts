@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, Pergola, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
 import { FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
@@ -196,18 +196,28 @@ export function roughInConflict(design: Design, r: RoughIn): boolean {
 /** Renames from the pre-Starboard finish palette. */
 const FINISH_MIGRATE: Record<string, string> = { gray: 'slate', navy: 'indigo', teak: 'nutmeg' };
 
-/** Fill in fields added since older saves: wall placement, hinge, ends, door style. */
+/** Version stamped on every design this build writes. Bump when the saved
+ *  shape changes in a way normalizeDesign has to repair. */
+export const DESIGN_SCHEMA_VERSION = 1;
+
+/** Fill in fields added since older saves: wall placement, hinge, ends, door style.
+ *  Runs on EVERY load path (rehydrate, open job, import) and never throws on
+ *  retired catalog ids — those items are dropped. */
 export function normalizeDesign(raw: Design): Design {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('That file is not a cabinet design.');
   const layout: LayoutKind = raw.layout ?? 'linear';
-  let walls = raw.walls ?? [];
+  let walls = (Array.isArray(raw.walls) ? raw.walls : []).filter((w) => w && typeof w === 'object' && typeof w.id === 'string');
   if (walls.some((w) => typeof (w as Partial<Wall>).x !== 'number')) {
     const placements = presetPlacements(layout, walls);
     walls = walls.map((w, i) => ({ ...w, ...placements[i] }));
   }
   walls = walls.map((w) => ({ ...w, thickness: w.thickness ?? 5, ghost: w.ghost ?? false }));
-  const items = (raw.items ?? [])
+  const wallIdSet = new Set(walls.map((w) => w.id));
+  const items = (Array.isArray(raw.items) ? raw.items : [])
+    .filter((it) => it && typeof it === 'object')
     .map((it) => ({ ...it, catalogId: CATALOG_MIGRATE[it.catalogId] ?? it.catalogId }))
-    .filter((it) => VALID_IDS.has(it.catalogId))
+    // retired catalog ids and cabinets left on a deleted wall can't be drawn
+    .filter((it) => VALID_IDS.has(it.catalogId) && wallIdSet.has(it.wallId))
     .map((it) => {
       // Appliances and appliance openings (fridges, ice makers) can't take
       // applied ends or waterfalls — strip stale flags so they don't render
@@ -253,12 +263,12 @@ export function normalizeDesign(raw: Design): Design {
   const styles = doorStylesFor(kitchenType);
   const doorStyle = raw.doorStyle && styles.includes(raw.doorStyle) ? raw.doorStyle : styles[0];
   const wallIds = new Set(walls.map((w) => w.id));
-  const roughIns = (raw.roughIns ?? []).filter((r) => wallIds.has(r.wallId));
-  const openings = (raw.openings ?? []).filter((o) => wallIds.has(o.wallId));
+  const roughIns = (Array.isArray(raw.roughIns) ? raw.roughIns : []).filter((r) => r && wallIds.has(r.wallId));
+  const openings = (Array.isArray(raw.openings) ? raw.openings : []).filter((o) => o && wallIds.has(o.wallId));
   const counterThickness = raw.counterThickness && raw.counterThickness > 0 ? Math.min(5, raw.counterThickness) : COUNTER_T;
   const counterId = raw.counterId ?? DEFAULT_COUNTERTOP;
   const backsplashHeight = raw.backsplashHeight && raw.backsplashHeight > 0 ? raw.backsplashHeight : 0;
-  const result = { ...defaultDesign(), ...raw, kitchenType, line, finishId, doorStyle, counterThickness, counterId, backsplashHeight, dimFrom: raw.dimFrom ?? 'left', walls, items, roughIns, openings };
+  const result = { ...defaultDesign(), ...raw, schemaVersion: DESIGN_SCHEMA_VERSION, kitchenType, line, finishId, doorStyle, counterThickness, counterId, backsplashHeight, dimFrom: raw.dimFrom ?? 'left', walls, items, roughIns, openings };
   autoCornerFillers(result);
   alignFillers(result);
   return result;
@@ -491,6 +501,17 @@ export function counterHeightFor(it: PlacedItem): number {
   return opening && it.h <= BASE_H + 0.01 ? BASE_H : it.h;
 }
 
+/** Height of an applied end/back panel on this cabinet: its height (plus the
+ *  raised bar column on bar-height units) less the toe kick — unless the wall
+ *  runs its panels to the floor. The ONE definition, shared by the editor
+ *  price and the report. */
+export function panelHeight(design: Design, it: PlacedItem): number {
+  const cat = catalogById(it.catalogId);
+  const wall = design.walls.find((w) => w.id === it.wallId);
+  const kickOff = cat.lane === 'floor' && !wall?.panelsToFloor ? TOEKICK_H : 0;
+  return Math.max(0, it.h + (cat.barHeight ? BAR_RISE : 0) - kickOff);
+}
+
 export interface ItemPrice {
   /** Box price from the formula (drawers/add-ons baked in) or filler per-inch. */
   cabinet: number;
@@ -531,11 +552,7 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
   const formula = pricing[cat.id] ?? cat.formula;
   const { price, error } = tryFormula(formula, { W: it.w, D: it.d, H: it.h });
   if (error) return { ...ZERO_PRICE, error };
-  const hasKick = cat.lane === 'floor';
-  // bar-height cabinets: end/back panels wrap the raised bar column too
-  const wallOfIt = design.walls.find((w) => w.id === it.wallId);
-  const kickOff = hasKick && !wallOfIt?.panelsToFloor ? TOEKICK_H : 0;
-  const panelH = Math.max(0, it.h + (cat.barHeight ? BAR_RISE : 0) - kickOff);
+  const panelH = panelHeight(design, it);
   const sqft = (wIn: number) => (wIn * panelH) / 144;
   const trays = (it.trays ?? 0) * DEFAULT_RATES.tray;
   const rates = panelRates();
@@ -553,7 +570,9 @@ export function itemPrice(design: Design, it: PlacedItem, pricing: Record<string
       : 0;
   const total = price + wg + trays + ends + back;
   return {
-    cabinet: round2(price),
+    // the woodgrain upcharge is part of the box: the report bills cabinet +
+    // trays, so leaving it out here dropped it from every report total
+    cabinet: round2(price + wg),
     trays: round2(trays),
     ends: round2(ends),
     back: round2(back),
@@ -1117,7 +1136,7 @@ function autoFridgeOutset(design: Design): void {
 // stepper scrub lands as a single step instead of dozens.
 const HISTORY_MAX = 50;
 let historyRestoring = false;
-let historyTimer: number | null = null;
+let historyTimer: ReturnType<typeof setTimeout> | null = null;
 let historyBase: Design | null = null; // design as it was before the current burst
 
 /** Commit the pending burst's pre-edit snapshot onto the undo stack. */
@@ -1130,6 +1149,110 @@ function flushHistoryCapture(): void {
   historyBase = null;
   if (!snap) return;
   useStore.setState((s) => ({ undoStack: [...s.undoStack, snap].slice(-HISTORY_MAX), redoStack: [] }));
+}
+
+/** Drop any pending burst so the next change starts a clean history. */
+function dropPendingHistory(): void {
+  if (historyTimer !== null) {
+    clearTimeout(historyTimer);
+    historyTimer = null;
+  }
+  historyBase = null;
+}
+
+// ---- Persistence ----
+const PERSIST_KEY = 'cabbydesign-v1';
+/** Key used before this app had its own — shared with the dealer tool. */
+const LEGACY_PERSIST_KEY = 'cabdesign-v1';
+/** Where a design that failed to load is parked, so nothing is ever lost. */
+export const RECOVERY_KEY = 'cabbydesign-recovery';
+
+function browserStorage(): Storage | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage : null;
+  } catch {
+    return null; // storage blocked (private mode / site data disabled)
+  }
+}
+
+/** Autosave storage: the design changes on every pointer move during a drag,
+ *  so writes are coalesced (one write per quiet 250ms, flushed when the page
+ *  hides) and a full/blocked storage never throws into the app. */
+let pendingSave: { name: string; value: StorageValue<unknown> } | null = null;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let saveFailed = false;
+function flushSave(): void {
+  if (saveTimer !== null) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  const p = pendingSave;
+  pendingSave = null;
+  if (!p) return;
+  try {
+    browserStorage()?.setItem(p.name, JSON.stringify(p.value));
+    saveFailed = false;
+  } catch {
+    saveFailed = true; // quota exceeded — the design stays in memory
+  }
+}
+/** True when the last autosave could not be written (storage full/blocked). */
+export const autosaveFailed = (): boolean => saveFailed;
+/** Write any pending autosave now (call before reloading the page). */
+export const flushAutosave = flushSave;
+
+const designStorage: PersistStorage<unknown> = {
+  getItem: (name) => {
+    const ls = browserStorage();
+    if (!ls) return null;
+    try {
+      // one-time move off the key the dealer tool also uses
+      const raw = ls.getItem(name) ?? ls.getItem(LEGACY_PERSIST_KEY);
+      return raw ? (JSON.parse(raw) as StorageValue<unknown>) : null;
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name, value) => {
+    pendingSave = { name, value };
+    if (saveTimer === null) saveTimer = setTimeout(flushSave, 250);
+  },
+  removeItem: (name) => {
+    pendingSave = null;
+    try {
+      browserStorage()?.removeItem(name);
+    } catch {
+      /* ignore */
+    }
+  },
+};
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  window.addEventListener('pagehide', flushSave);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushSave();
+  });
+}
+
+/** Park a design that could not be loaded so it can be sent in / recovered. */
+export function stashForRecovery(design: unknown, reason: unknown): void {
+  try {
+    browserStorage()?.setItem(RECOVERY_KEY, JSON.stringify({ at: new Date().toISOString(), reason: String(reason), design }));
+  } catch {
+    /* nothing more we can do */
+  }
+}
+
+/** Normalize + pack a design from storage; a design that can't be repaired is
+ *  parked under RECOVERY_KEY and replaced by a fresh one instead of crashing
+ *  the app on every reload. */
+function safeLoad(raw: Design): Design {
+  try {
+    return withPack(normalizeDesign(raw));
+  } catch (err) {
+    console.error('Saved design could not be loaded — starting fresh', err);
+    stashForRecovery(raw, err);
+    return defaultDesign();
+  }
 }
 
 export const useStore = create<AppState>()(
@@ -1556,8 +1679,15 @@ export const useStore = create<AppState>()(
           return { retailPricing };
         }),
       setSnapshot: (dataUrl) => set({ snapshot3d: dataUrl }),
-      newDesign: (kitchenType, line) =>
-        set({ design: defaultDesign(kitchenType, line), selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null }),
+      // Starting or opening a design is not an edit: clear the history so
+      // Undo can't swap the previous design back in under the newly opened
+      // job (a later Save would then overwrite that job with the wrong design).
+      newDesign: (kitchenType, line) => {
+        dropPendingHistory();
+        historyRestoring = true;
+        set({ undoStack: [], redoStack: [], design: defaultDesign(kitchenType, line), selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null });
+        historyRestoring = false;
+      },
 
       setLine: (line) =>
         set((s) => {
@@ -1573,20 +1703,27 @@ export const useStore = create<AppState>()(
             editingId: null,
           };
         }),
-      loadDesign: (design) =>
+      loadDesign: (design) => {
         // Pack on open, exactly like the rehydrate path does: without it a job
-        // carries stale auto end-panels until the first edit reflows.
-        set({ design: withPack(normalizeDesign(design)), selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null }),
+        // carries stale auto end-panels until the first edit reflows. Throws
+        // (before touching the current design) when the file isn't a design.
+        const next = withPack(normalizeDesign(design));
+        dropPendingHistory();
+        historyRestoring = true;
+        set({ undoStack: [], redoStack: [], design: next, selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null });
+        historyRestoring = false;
+      },
     }),
     {
-      name: 'cabdesign-v1',
+      name: PERSIST_KEY,
+      storage: designStorage,
       // v3: NewAge lines merged into one ('newage') with per-item finish;
       // legacy na-ss-*/na-alu-* catalog ids remap in normalizeDesign.
       // v4: grill cabinets merged (out-grill4 → out-grill, doors from width).
       version: 4,
       migrate: (state) => {
         const s = state as { design?: Design } | undefined;
-        if (s?.design) return { ...s, design: normalizeDesign(s.design) };
+        if (s?.design) return { ...s, design: safeLoad(s.design) };
         return state;
       },
       partialize: (s) => ({ design: s.design, pricing: s.pricing, dims: s.dims }),
@@ -1594,14 +1731,9 @@ export const useStore = create<AppState>()(
       // the save (e.g. roughIns) and re-pack so derived layout (corner reserves,
       // filler auto-outset) reflects the loaded design.
       onRehydrateStorage: () => (state) => {
-        if (state?.design) {
-          if (!Array.isArray(state.design.roughIns)) state.design.roughIns = [];
-          if (!Array.isArray(state.design.openings)) state.design.openings = [];
-          // backfill fields added since the save (product line, kitchen type)
-          if (!state.design.line) state.design.line = 'ext';
-          if (!state.design.kitchenType) state.design.kitchenType = 'outdoor';
-          state.design = withPack(state.design);
-        }
+        // Always normalize: a catalog id retired without a version bump used
+        // to throw here and blank the app on every reload.
+        if (state?.design) state.design = safeLoad(state.design);
       },
     }
   )
@@ -1617,5 +1749,29 @@ useStore.subscribe((s, prev) => {
   }
   if (historyBase === null) historyBase = prev.design;
   if (historyTimer !== null) clearTimeout(historyTimer);
-  historyTimer = window.setTimeout(flushHistoryCapture, 400);
+  historyTimer = setTimeout(flushHistoryCapture, 400);
 });
+
+/** Crash-screen escape hatch: park the saved design under RECOVERY_KEY, then
+ *  clear the autosave so the next load starts from a fresh design. */
+export function resetSavedDesign(reason?: unknown): void {
+  pendingSave = null;
+  if (saveTimer !== null) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  let design: unknown = null;
+  try {
+    design = useStore.getState().design;
+  } catch {
+    /* store itself failed — fall through with what storage holds */
+  }
+  stashForRecovery(design, reason ?? 'reset from crash screen');
+  const ls = browserStorage();
+  try {
+    ls?.removeItem(PERSIST_KEY);
+    ls?.removeItem(LEGACY_PERSIST_KEY);
+  } catch {
+    /* ignore */
+  }
+}

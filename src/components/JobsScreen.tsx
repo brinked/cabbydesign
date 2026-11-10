@@ -56,7 +56,12 @@ export default function JobsScreen() {
         setError('Could not open that job.');
         return;
       }
-      loadDesign(job.design);
+      try {
+        loadDesign(job.design);
+      } catch {
+        setError('That job could not be opened — its design data is damaged.');
+        return;
+      }
       setCurrentJob(job.id, job.name);
       setScreen('design');
       return;
@@ -67,7 +72,7 @@ export default function JobsScreen() {
       setCurrentJob(job.id, job.name);
       setScreen('design');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not open job.');
+      setError(err instanceof ApiError ? err.message : 'That job could not be opened — its design data may be damaged.');
     }
   }
 

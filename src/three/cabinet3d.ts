@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, takesAppliedEnds } from '../model/catalog';
+import { BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, MAX_PANEL_W, COUNTER_OVERHANG, COUNTER_T, TOEKICK_H, takesAppliedEnds } from '../model/catalog';
 import type { CatalogItem, DoorStyle, FinishOption, HingeSide, ModelAlign } from '../model/types';
 import { countertopById, DEFAULT_COUNTERTOP, type Countertop } from '../model/countertops';
 import { applianceModelInfo, fitModel, fitModelBox, handleFor, hasModel, hdpeNormalMap, libTexture, namedHandle, requestModel } from './models';
@@ -534,7 +534,7 @@ function applyModelAlign(model: THREE.Object3D, a?: ModelAlign): void {
 }
 
 /** Max width of one applied panel; wider runs are split into multiple panels. */
-export const MAX_PANEL_W = 48;
+export { MAX_PANEL_W };
 
 /** Reveal per cabinet side — adjacent cabinets read with the same 1/8″ gap as a door pair. */
 const REVEAL = 0.0625;

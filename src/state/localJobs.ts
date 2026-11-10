@@ -23,7 +23,13 @@ function readAll(): LocalJob[] {
 }
 
 function writeAll(jobs: LocalJob[]) {
-  localStorage.setItem(KEY, JSON.stringify(jobs));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(jobs));
+  } catch (err) {
+    // storage full or blocked — surface a readable error to the caller
+    console.error(err);
+    throw new Error('This browser is out of storage space for saved designs.');
+  }
 }
 
 /** Newest first. */

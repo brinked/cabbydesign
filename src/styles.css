@@ -3021,3 +3021,41 @@ button:disabled {
 .live-preview-body { flex: 1 1 auto; min-height: 0; position: relative; }
 .live-preview-body .view3d { position: absolute; inset: 0; }
 .live-preview-body .view3d-canvas { position: absolute; inset: 0; }
+
+/* ---- Crash screen (ErrorBoundary) ---- */
+.crash-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--bg);
+}
+.crash-card {
+  max-width: 460px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 28px;
+}
+.crash-card h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.crash-card p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 10px;
+}
+.crash-note {
+  font-size: 13px;
+}
+.crash-card pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+}

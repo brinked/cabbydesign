@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.ts';
 import { loadSession } from './auth.ts';
+import { rateLimit } from './rateLimit.ts';
 import './db.ts'; // ensure schema is applied at boot
 import { bootstrapAdmin, bootstrapAppliances, bootstrapDealers } from './bootstrap.ts';
 import { authRouter } from './routes/auth.ts';
@@ -19,8 +20,17 @@ import { quotesRouter } from './routes/quotes.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+// Behind the host's proxy (Render) every request arrives from the proxy's
+// address; trust its X-Forwarded-For so req.ip is the real visitor and the
+// rate limits apply per visitor rather than to the whole site at once.
+app.set('trust proxy', 1);
 
-app.use(express.json({ limit: '25mb' })); // designs + quote report PDFs can be large
+// Quote/order submissions carry a design + a report PDF, so they alone get the
+// large body limit; everything else is small JSON.
+const bigJson = express.json({ limit: '25mb' });
+const smallJson = express.json({ limit: '2mb' });
+const BIG_BODY = ['/api/quotes', '/api/orders', '/api/jobs', '/api/profile', '/api/settings'];
+app.use((req, res, next) => (BIG_BODY.some((p) => req.path.startsWith(p)) ? bigJson : smallJson)(req, res, next));
 app.use(cookieParser());
 
 // Dev: allow the Vite origin to send/receive the session cookie. (In prod the
@@ -42,8 +52,20 @@ app.use((req, res, next) => {
 
 app.use(loadSession);
 
+// Slow down password guessing and signup/reset-email flooding: 30 write
+// requests per visitor per 15 minutes across the auth endpoints.
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
+const authRateLimit: express.RequestHandler = (req, res, next) => {
+  if (req.method !== 'POST' || req.path === '/logout') return next();
+  if (authLimiter(req.ip ?? 'unknown')) {
+    res.status(429).json({ error: 'Too many attempts — please wait a few minutes and try again.' });
+    return;
+  }
+  next();
+};
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
-app.use('/api/auth', authRouter);
+app.use('/api/auth', authRateLimit, authRouter);
 app.use('/api/dealers', dealersRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/profile', profileRouter);

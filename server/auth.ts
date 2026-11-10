@@ -3,11 +3,11 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { NextFunction, Request, Response } from 'express';
 import { config, COOKIE_NAME } from './config.ts';
-import { db, type UserRow } from './db.ts';
+import { db, type Role, type UserRow } from './db.ts';
 
 export interface SessionUser {
   id: number;
-  role: 'admin' | 'dealer' | 'contractor';
+  role: Role;
 }
 
 /** Password every new dealer account starts with (they change it after login). */
@@ -72,6 +72,21 @@ export function loadSession(req: Request, _res: Response, next: NextFunction): v
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
     res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+  next();
+}
+
+/** Require a trade account (admin, dealer or contractor). Cost formulas and
+ *  brand discounts are theirs alone — never sent to guests or homeowners. */
+export function requireTrade(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+  const role = req.user.role as string;
+  if (role !== 'admin' && role !== 'dealer' && role !== 'contractor') {
+    res.status(403).json({ error: 'Trade accounts only' });
     return;
   }
   next();

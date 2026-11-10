@@ -4,7 +4,11 @@ import puppeteer from 'puppeteer-core';
 
 const BASE = 'http://localhost:5173';
 const EMAIL = process.env.SMOKE_EMAIL ?? 'extcabinets@gmail.com';
-const PASSWORD = process.env.SMOKE_PASSWORD ?? 'Test1234!';
+const PASSWORD = process.env.SMOKE_PASSWORD;
+if (!PASSWORD) {
+  console.error('Set SMOKE_PASSWORD (and optionally SMOKE_EMAIL) to run the smoke test.');
+  process.exit(1);
+}
 
 const browser = await puppeteer.launch({
   executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',

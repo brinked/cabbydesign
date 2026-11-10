@@ -289,13 +289,24 @@ export function categoryLabelsForLine(line: ProductLine | undefined): Record<str
   return (line ?? 'ext') === 'ext' ? CATEGORY_LABELS : NEWAGE_CATEGORY_LABELS;
 }
 
+/** Widest single applied back panel (inches); wider backs split into equal panels. */
+export const MAX_PANEL_W = 48;
+
 /** Per-item option costs. (Drawer costs are baked into the box formulas.) */
 export const DEFAULT_RATES = {
   tray: 159,
 };
 
+const CATALOG_INDEX = new Map(CATALOG.map((c) => [c.id, c]));
+
+/** Catalog entry for an id, or undefined when it isn't in the catalog. Use on
+ *  load/import paths, where a saved design may reference a retired id. */
+export function findCatalog(id: string): CatalogItem | undefined {
+  return CATALOG_INDEX.get(id);
+}
+
 export function catalogById(id: string): CatalogItem {
-  const c = CATALOG.find((c) => c.id === id);
+  const c = CATALOG_INDEX.get(id);
   if (!c) throw new Error(`Unknown catalog id ${id}`);
   return c;
 }

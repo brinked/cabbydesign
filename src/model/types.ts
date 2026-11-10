@@ -486,6 +486,8 @@ export interface Measurement {
 }
 
 export interface Design {
+  /** Saved-shape version (see DESIGN_SCHEMA_VERSION). Absent on older saves. */
+  schemaVersion?: number;
   name: string;
   client: string;
   layout: LayoutKind;

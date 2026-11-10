@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db.ts';
-import { requireAdmin } from '../auth.ts';
+import { requireAdmin, requireTrade } from '../auth.ts';
 import { hiddenBrandsFor, ownAppliancesFor } from '../shape.ts';
 
 export const settingsRouter = Router();
@@ -74,7 +74,7 @@ settingsRouter.put('/cabinet-dims', requireAdmin, (req, res) => {
 // This is the dealer's COST basis; dealers mark it up with their margin.
 const pricingSchema = z.record(z.string(), z.string().max(200));
 
-settingsRouter.get('/pricing', (_req, res) => {
+settingsRouter.get('/pricing', requireTrade, (_req, res) => {
   res.json({ pricing: readJson(PRICING_KEY) });
 });
 
@@ -93,7 +93,7 @@ settingsRouter.put('/pricing', requireAdmin, (req, res) => {
 });
 
 // ---- Retail price formulas (the basis for contractor "% off retail"). ----
-settingsRouter.get('/retail-pricing', (_req, res) => {
+settingsRouter.get('/retail-pricing', requireTrade, (_req, res) => {
   res.json({ retailPricing: readJson(RETAIL_PRICING_KEY) });
 });
 
@@ -274,7 +274,7 @@ settingsRouter.put('/appliances', requireAdmin, (req, res) => {
 // Per-brand manufacturer discount (the dealer automatically gets half).
 const brandsSchema = z.record(z.string(), z.object({ discountPct: z.number().min(0).max(100) }));
 
-settingsRouter.get('/appliance-brands', (_req, res) => {
+settingsRouter.get('/appliance-brands', requireTrade, (_req, res) => {
   res.json({ brands: readJson(APPLIANCE_BRANDS_KEY) });
 });
 

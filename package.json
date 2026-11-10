@@ -11,7 +11,9 @@
     "import-dealers": "tsx server/import-dealers.ts",
     "set-password": "tsx server/set-password.ts",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc -b && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -44,6 +46,7 @@
     "concurrently": "^10.0.3",
     "puppeteer-core": "^25.1.0",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^2.1.9"
   }
 }

@@ -107,7 +107,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new ApiError(res.status || 502, res.ok ? 'The server sent an unreadable reply.' : `The server is unavailable (${res.status}). Please try again.`);
+  }
   if (!res.ok) {
     throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`);
   }

@@ -4,6 +4,13 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
+const isProd = process.env.NODE_ENV === 'production';
+// A guessable signing secret lets anyone mint an admin session — never fall
+// back to the dev value in production.
+if (isProd && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET must be set in production.');
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 4000),
   // SQLite database file. Defaults to server/data/cabdesign.db (gitignored).
