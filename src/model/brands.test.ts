@@ -100,3 +100,38 @@ describe('NewAge behaves as before', () => {
     expect(counterHeightFor(d.items[0])).toBe(34.5);
   });
 });
+
+describe('NewAge catalog additions', () => {
+  it('has the Universal Grill Cabinet 2.0 in three widths and all six finishes', async () => {
+    for (const [w, sku] of [[33, '67002'], [36, '67003'], [40, '67004']] as const) {
+      const cat = catalogById(`na-ugrill${w}`);
+      expect([cat.w, cat.d, cat.h]).toEqual([w, 24, 35.5]);
+      expect(cat.fixed).toBe(true);
+      expect(Object.keys(cat.skuPricing!)).toHaveLength(6);
+      expect(skuVariantFor(cat, 'na-ss-steel')?.sku).toBe(sku);
+    }
+  });
+
+  it('every NewAge appliance links to a jacket that exists, with unique ids and models', async () => {
+    const { NEWAGE_DEFAULT_APPLIANCES: list } = await import('./newage');
+    const ids = new Set(list.map((a) => a.id));
+    expect(ids.size).toBe(list.length);
+    expect(new Set(list.map((a) => a.model)).size).toBe(list.length);
+    for (const a of list) if (a.linerId) expect(ids.has(a.linerId), a.id).toBe(true);
+    expect(list.filter((a) => a.name.startsWith('Platinum')).length).toBe(15);
+  });
+
+  it('a NewAge grill fits the NewAge grill cabinet of its own size, with no false width warning', async () => {
+    const { NEWAGE_DEFAULT_APPLIANCES: list } = await import('./newage');
+    const { requiredCabinetWidth } = await import('./appliances');
+    for (const size of [33, 36, 40]) {
+      for (const id of [`na-perf-grill-${size}-ng`, `na-plat-grill-${size}-lp`]) {
+        const need = requiredCabinetWidth({ mode: 'inventory', applianceId: id, withLiner: true }, list, 0);
+        expect(need, id).toBeGreaterThan(0);
+        expect(need, id).toBeLessThanOrEqual(size);
+      }
+    }
+    // made-to-size cabinets still add the frame clearance around the jacket
+    expect(requiredCabinetWidth({ mode: 'inventory', applianceId: 'na-plat-grill-33-ng', withLiner: true }, list, 4)).toBe(36.09);
+  });
+});

@@ -194,6 +194,38 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
       'na-alu-slate': v('70207', 739.99, 1089.99), 'na-alu-black': v('70511', 759.99, 1269.99),
     },
   },
+  // ---- Universal Gas Grill Cabinet 2.0 ("Grill Ready") ----
+  // Published size: 33/36/40 in. W x 24 in. D x 35.5 in. H (legs adjust to
+  // 36.5 in.). NewAge sells it as fitting NewAge grills, griddles and pizza
+  // ovens and most major grill brands — fit is confirmed per grill with
+  // NewAge's own compatibility checker, so no width range is claimed here.
+  {
+    id: 'na-ugrill33', name: '33″ Universal Grill Cabinet 2.0', category: 'outdoor', front: 'grill', lane: 'floor', line: 'newage', fixed: true,
+    w: 33, d: 24, h: NA_TALL_H, minW: 33, maxW: 33, stepW: 0, minD: 24, maxD: 24, minH: NA_TALL_H, maxH: NA_TALL_H, counter: false, topGearH: 12, formula: '0', applianceCat: 'grill',
+    note: 'Grill-ready universal insert cabinet for most major grill brands. Check your grill with NewAge\'s compatibility tool.',
+    skuPricing: {
+      'na-ss-steel': v('67002', 999.99, 1109.99), 'na-ss-black': v('67005', 1139.99, 1269.99), 'na-ss-grove': v('67008', 1169.99, 1239.99), 'na-ss-white': v('67011', 1109.99, 1239.99),
+      'na-alu-slate': v('67014', 589.99, 879.99), 'na-alu-black': v('67017', 589.99, 999.99),
+    },
+  },
+  {
+    id: 'na-ugrill36', name: '36″ Universal Grill Cabinet 2.0', category: 'outdoor', front: 'grill', lane: 'floor', line: 'newage', fixed: true,
+    w: 36, d: 24, h: NA_TALL_H, minW: 36, maxW: 36, stepW: 0, minD: 24, maxD: 24, minH: NA_TALL_H, maxH: NA_TALL_H, counter: false, topGearH: 12, formula: '0', applianceCat: 'grill',
+    note: 'Grill-ready universal insert cabinet for most major grill brands. Check your grill with NewAge\'s compatibility tool.',
+    skuPricing: {
+      'na-ss-steel': v('67003', 1069.99, 1179.99), 'na-ss-black': v('67006', 1229.99, 1369.99), 'na-ss-grove': v('67009', 1279.99, 1349.99), 'na-ss-white': v('67012', 1209.99, 1349.99),
+      'na-alu-slate': v('67015', 659.99, 969.99), 'na-alu-black': v('67018', 659.99, 1109.99),
+    },
+  },
+  {
+    id: 'na-ugrill40', name: '40″ Universal Grill Cabinet 2.0', category: 'outdoor', front: 'grill', lane: 'floor', line: 'newage', fixed: true,
+    w: 40, d: 24, h: NA_TALL_H, minW: 40, maxW: 40, stepW: 0, minD: 24, maxD: 24, minH: NA_TALL_H, maxH: NA_TALL_H, counter: false, topGearH: 12, formula: '0', applianceCat: 'grill',
+    note: 'Grill-ready universal insert cabinet for most major grill brands. Check your grill with NewAge\'s compatibility tool.',
+    skuPricing: {
+      'na-ss-steel': v('67004', 1169.99, 1299.99), 'na-ss-black': v('67007', 1349.99, 1499.99), 'na-ss-grove': v('67010', 1369.99, 1449.99), 'na-ss-white': v('67013', 1299.99, 1449.99),
+      'na-alu-slate': v('67016', 739.99, 1089.99), 'na-alu-black': v('67019', 739.99, 1269.99),
+    },
+  },
   {
     id: 'na-kamado', name: 'Kamado Cabinet', category: 'outdoor', front: 'kamadoinsert', lane: 'floor', line: 'newage', fixed: true,
     w: 28, d: 24, h: 34.9, minW: 28, maxW: 28, stepW: 0, minD: 24, maxD: 24, minH: 34.9, maxH: 34.9, counter: false, topGearH: 14, formula: '0', applianceCat: 'kamado',
@@ -247,16 +279,55 @@ export const NEWAGE_CATALOG: CatalogItem[] = [
   },
 ];
 
-/** NewAge insert grills offered for the grill cabinets — seeded as the default
- *  appliance inventory in consumer/guest mode (an admin-managed inventory from
- *  the server replaces this when available). Prices are NewAge retail. */
+/** NewAge appliances offered in consumer/guest mode alongside the server's
+ *  inventory (an admin entry with the same model number wins).
+ *
+ *  Dimensions are from NewAge's "Custom Built Cabinet Cut-Out Dimensions —
+ *  Appliances" sheet, rev 1.0 (2026-05-27). Following the existing convention,
+ *  an appliance's cutoutW/D/H hold its OVERALL size (drives the 3D model); the
+ *  insulation jacket it links to holds the real cutout opening, which is what
+ *  the cabinet-width rule uses.
+ *
+ *  Prices: only the Performance grills carry a retail price (newageproducts.com).
+ *  msrp 0 = price not on file — set it in Admin → Appliances.
+ *
+ *  Two things in the sheet look odd and are kept exactly as published — confirm
+ *  with NewAge before relying on them: the 40″ jacket cutout is 35.55″ wide
+ *  (narrower than the 40″ grill's own 38.89″ cutout), and the 33″ griddle is
+ *  listed with the 36″ jacket. */
 export const NEWAGE_DEFAULT_APPLIANCES: ApplianceItem[] = [
-  { id: 'na-perf-grill-33-ng', category: 'grill', brand: 'NewAge', model: '66980', name: 'Performance Grill 33″ (Natural Gas)', msrp: 1399.99, cutoutW: 33, cutoutD: 25.02, cutoutH: 23.04 },
-  { id: 'na-perf-grill-33-lp', category: 'grill', brand: 'NewAge', model: '66990', name: 'Performance Grill 33″ (Liquid Propane)', msrp: 1399.99, cutoutW: 33, cutoutD: 25.02, cutoutH: 23.04 },
-  { id: 'na-perf-grill-36-ng', category: 'grill', brand: 'NewAge', model: '66981', name: 'Performance Grill 36″ (Natural Gas)', msrp: 1549.99, cutoutW: 36, cutoutD: 25.02, cutoutH: 23.04 },
-  { id: 'na-perf-grill-36-lp', category: 'grill', brand: 'NewAge', model: '66991', name: 'Performance Grill 36″ (Liquid Propane)', msrp: 1549.99, cutoutW: 36, cutoutD: 25.02, cutoutH: 23.04 },
-  { id: 'na-perf-grill-40-ng', category: 'grill', brand: 'NewAge', model: '66982', name: 'Performance Grill 40″ (Natural Gas)', msrp: 1699.99, cutoutW: 40, cutoutD: 25.02, cutoutH: 23.04 },
-  { id: 'na-perf-grill-40-lp', category: 'grill', brand: 'NewAge', model: '66992', name: 'Performance Grill 40″ (Liquid Propane)', msrp: 1699.99, cutoutW: 40, cutoutD: 25.02, cutoutH: 23.04 },
+  // ---- Insulation jackets (cutout opening W x D x H) ----
+  { id: 'na-ij-33', category: 'liner', brand: 'NewAge', model: 'NA-IJ-33', name: '33″ Insulation Jacket', msrp: 0, cutoutW: 32.09, cutoutD: 23.19, cutoutH: 12.05 },
+  { id: 'na-ij-36', category: 'liner', brand: 'NewAge', model: 'NA-IJ-36', name: '36″ Insulation Jacket', msrp: 0, cutoutW: 35.08, cutoutD: 23.19, cutoutH: 12.05 },
+  { id: 'na-ij-40', category: 'liner', brand: 'NewAge', model: 'NA-IJ-40', name: '40″ Insulation Jacket', msrp: 0, cutoutW: 35.55, cutoutD: 23.19, cutoutH: 12.05 },
+  { id: 'na-ij-sb', category: 'liner', brand: 'NewAge', model: 'NA-IJ-SB', name: 'Side Burner Insulation Jacket', msrp: 0, cutoutW: 15.93, cutoutD: 23.19, cutoutH: 10.83 },
+  // ---- Insert grills ----
+  { id: 'na-perf-grill-33-ng', category: 'grill', brand: 'NewAge', model: '66980', name: 'Performance Grill 33″ (Natural Gas)', msrp: 1399.99, linerId: 'na-ij-33', cutoutW: 33, cutoutD: 25.24, cutoutH: 22.91 },
+  { id: 'na-perf-grill-33-lp', category: 'grill', brand: 'NewAge', model: '66990', name: 'Performance Grill 33″ (Liquid Propane)', msrp: 1399.99, linerId: 'na-ij-33', cutoutW: 33, cutoutD: 25.24, cutoutH: 22.91 },
+  { id: 'na-perf-grill-36-ng', category: 'grill', brand: 'NewAge', model: '66981', name: 'Performance Grill 36″ (Natural Gas)', msrp: 1549.99, linerId: 'na-ij-36', cutoutW: 36, cutoutD: 25.24, cutoutH: 22.91 },
+  { id: 'na-perf-grill-36-lp', category: 'grill', brand: 'NewAge', model: '66991', name: 'Performance Grill 36″ (Liquid Propane)', msrp: 1549.99, linerId: 'na-ij-36', cutoutW: 36, cutoutD: 25.24, cutoutH: 22.91 },
+  { id: 'na-perf-grill-40-ng', category: 'grill', brand: 'NewAge', model: '66982', name: 'Performance Grill 40″ (Natural Gas)', msrp: 1699.99, linerId: 'na-ij-40', cutoutW: 40, cutoutD: 25.24, cutoutH: 22.91 },
+  { id: 'na-perf-grill-40-lp', category: 'grill', brand: 'NewAge', model: '66992', name: 'Performance Grill 40″ (Liquid Propane)', msrp: 1699.99, linerId: 'na-ij-40', cutoutW: 40, cutoutD: 25.24, cutoutH: 22.91 },
+  { id: 'na-plat-grill-33-ng', category: 'grill', brand: 'NewAge', model: '66900', name: 'Platinum Grill 33″ (Natural Gas)', msrp: 0, linerId: 'na-ij-33', cutoutW: 33, cutoutD: 25.19, cutoutH: 25.36 },
+  { id: 'na-plat-grill-33-lp', category: 'grill', brand: 'NewAge', model: '66910', name: 'Platinum Grill 33″ (Liquid Propane)', msrp: 0, linerId: 'na-ij-33', cutoutW: 33, cutoutD: 25.19, cutoutH: 25.36 },
+  { id: 'na-plat-grill-36-ng', category: 'grill', brand: 'NewAge', model: '66903', name: 'Platinum Grill 36″ (Natural Gas)', msrp: 0, linerId: 'na-ij-36', cutoutW: 36, cutoutD: 25.19, cutoutH: 25.36 },
+  { id: 'na-plat-grill-36-lp', category: 'grill', brand: 'NewAge', model: '66913', name: 'Platinum Grill 36″ (Liquid Propane)', msrp: 0, linerId: 'na-ij-36', cutoutW: 36, cutoutD: 25.19, cutoutH: 25.36 },
+  { id: 'na-plat-grill-40-ng', category: 'grill', brand: 'NewAge', model: '66901', name: 'Platinum Grill 40″ (Natural Gas)', msrp: 0, linerId: 'na-ij-40', cutoutW: 40, cutoutD: 25.19, cutoutH: 25.36 },
+  { id: 'na-plat-grill-40-lp', category: 'grill', brand: 'NewAge', model: '66911', name: 'Platinum Grill 40″ (Liquid Propane)', msrp: 0, linerId: 'na-ij-40', cutoutW: 40, cutoutD: 25.19, cutoutH: 25.36 },
+  // ---- Platinum griddles (the 33″ griddle takes the 36″ jacket per NewAge's sheet) ----
+  { id: 'na-plat-griddle-33-ng', category: 'griddle', brand: 'NewAge', model: '66978', name: 'Platinum Griddle 33″ (Natural Gas)', msrp: 0, linerId: 'na-ij-36', cutoutW: 33, cutoutD: 24.87, cutoutH: 16.11 },
+  { id: 'na-plat-griddle-33-lp', category: 'griddle', brand: 'NewAge', model: '66977', name: 'Platinum Griddle 33″ (Liquid Propane)', msrp: 0, linerId: 'na-ij-36', cutoutW: 33, cutoutD: 24.87, cutoutH: 16.11 },
+  { id: 'na-plat-griddle-40-ng', category: 'griddle', brand: 'NewAge', model: '67858', name: 'Platinum Griddle 40″ (Natural Gas)', msrp: 0, linerId: 'na-ij-40', cutoutW: 40, cutoutD: 24.87, cutoutH: 16.11 },
+  { id: 'na-plat-griddle-40-lp', category: 'griddle', brand: 'NewAge', model: '67857', name: 'Platinum Griddle 40″ (Liquid Propane)', msrp: 0, linerId: 'na-ij-40', cutoutW: 40, cutoutD: 24.87, cutoutH: 16.11 },
+  // ---- Side burners ----
+  { id: 'na-plat-sideburner-ng', category: 'sideburner', brand: 'NewAge', model: '66902', name: 'Platinum Dual Side Burner (Natural Gas)', msrp: 0, linerId: 'na-ij-sb', cutoutW: 16, cutoutD: 25.15, cutoutH: 11.42 },
+  { id: 'na-plat-sideburner-lp', category: 'sideburner', brand: 'NewAge', model: '66912', name: 'Platinum Dual Side Burner (Liquid Propane)', msrp: 0, linerId: 'na-ij-sb', cutoutW: 16, cutoutD: 25.15, cutoutH: 11.42 },
+  { id: 'na-perf-sideburner-ng', category: 'sideburner', brand: 'NewAge', model: '66983', name: 'Performance Side Burner (Natural Gas)', msrp: 0, linerId: 'na-ij-sb', cutoutW: 16, cutoutD: 24.99, cutoutH: 11.28 },
+  { id: 'na-perf-sideburner-lp', category: 'sideburner', brand: 'NewAge', model: '66993', name: 'Performance Side Burner (Liquid Propane)', msrp: 0, linerId: 'na-ij-sb', cutoutW: 16, cutoutD: 24.99, cutoutH: 11.28 },
+  // ---- Platinum 22″ kamados (freestanding size: 22 W x 27.48 D x 32.77 H) ----
+  { id: 'na-plat-kamado-black', category: 'kamado', brand: 'NewAge', model: '65996', name: 'Platinum 22″ Kamado Grill — Black', msrp: 0, cutoutW: 22, cutoutD: 27.48, cutoutH: 32.77 },
+  { id: 'na-plat-kamado-blue', category: 'kamado', brand: 'NewAge', model: '65997', name: 'Platinum 22″ Kamado Grill — Blue', msrp: 0, cutoutW: 22, cutoutD: 27.48, cutoutH: 32.77 },
+  { id: 'na-plat-kamado-2tone', category: 'kamado', brand: 'NewAge', model: '65998', name: 'Platinum 22″ Kamado Grill — 2 Tone', msrp: 0, cutoutW: 22, cutoutD: 27.48, cutoutH: 32.77 },
 ];
 
 /** Legacy catalog-id / line migrations (pre-merge saves used per-line ids). */

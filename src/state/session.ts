@@ -213,9 +213,13 @@ export const useSession = create<SessionState>()(
     // No admin appliance inventory? Seed the built-in brand grills/griddles
     // (with real 3D models) + the NewAge insert grills so every grill cabinet
     // has real options to choose from.
-    if (useStore.getState().appliances.length === 0) {
-      useStore.setState({ appliances: [...DEFAULT_GRILL_APPLIANCES, ...MODULAR_BRANDS.flatMap((b) => b.defaultAppliances)] });
-    }
+    const have = useStore.getState().appliances;
+    const base = have.length === 0 ? DEFAULT_GRILL_APPLIANCES : have;
+    // Each brand's own appliances ride along with whatever the server offers;
+    // an inventory entry with the same model number (or id) wins.
+    const taken = new Set(base.flatMap((a) => [a.id, `${a.brand}|${a.model}`.toLowerCase()]));
+    const extra = MODULAR_BRANDS.flatMap((b) => b.defaultAppliances).filter((a) => !taken.has(a.id) && !taken.has(`${a.brand}|${a.model}`.toLowerCase()));
+    if (have.length === 0 || extra.length) useStore.setState({ appliances: [...base, ...extra] });
     localStorage.setItem(GUEST_KEY, '1');
     set({ status: 'guest', user: null, prefs: null, cert: null, screen: 'design' });
   },

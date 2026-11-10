@@ -338,8 +338,11 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
   const mode: 'none' | 'inventory' | 'own' = sel?.mode ?? 'none';
   const selected = sel?.mode === 'inventory' ? options.find((a) => a.id === sel.applianceId) : undefined;
   const liner = selected?.linerId ? appliances.find((a) => a.id === selected.linerId) : undefined;
+  // Made-to-size cabinets need frame clearance around the liner; a factory
+  // cabinet is built for its grill size, so only "wider than the cabinet"
+  // is a real problem there.
   const reqW = usesLinerRule(want)
-    ? requiredCabinetWidth(sel, appliances, linerClearance)
+    ? requiredCabinetWidth(sel, appliances, cat.fixed ? 0 : linerClearance)
     : want === 'fridge' || want === 'icemaker' || want === 'hood'
       ? selectedApplianceWidth(sel, appliances) ?? 0
       : 0;
@@ -410,7 +413,8 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
                 {items.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.model}
-                    {a.name ? ` — ${a.name}` : ''} ({money(a.msrp)})
+                    {a.name ? ` — ${a.name}` : ''}
+                    {a.msrp > 0 ? ` (${money(a.msrp)})` : ''}
                   </option>
                 ))}
               </optgroup>
@@ -455,7 +459,8 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
               {sel?.withLiner !== false && liner && (
                 <span className="price-sub">
                   {' '}
-                  + liner {liner.model} {money(liner.msrp)}
+                  + liner {liner.model}
+                  {liner.msrp > 0 ? ` ${money(liner.msrp)}` : ''}
                 </span>
               )}
               {selected.panelCharge && sel?.withPanel !== false ? <span className="price-sub"> + panel {money(selected.panelCharge)}</span> : null}
@@ -467,7 +472,12 @@ function ApplianceSection({ it, cat }: { it: PlacedItem; cat: CatalogItem }) {
           )}
           {reqW > 0 &&
             it.w + 0.01 < reqW &&
-            (usesLinerRule(want) ? (
+            (usesLinerRule(want) && cat.fixed ? (
+              <div className="warn" style={{ marginTop: 8 }}>
+                ⚠ This {APPLIANCE_CAT_LABELS[want!].toLowerCase()} needs a {fmtIn(reqW)} opening — too wide for this {fmtIn(it.w)} cabinet. Choose
+                the next cabinet size up.
+              </div>
+            ) : usesLinerRule(want) ? (
               <div className="warn" style={{ marginTop: 8 }}>
                 ⚠ This {APPLIANCE_CAT_LABELS[want!].toLowerCase()} needs a cabinet at least {fmtIn(reqW)} wide
                 {liner?.cutoutW ? ` (liner cutout ${fmtIn(liner.cutoutW)} + ${fmtIn(linerClearance)} clearance)` : ''}. Widen the cabinet above to fit it.
@@ -567,7 +577,7 @@ export function EditItemModal() {
   // A grill/griddle/burner's insulated liner needs cabinet width ≥ liner cutout
   // + clearance; a fridge/ice maker needs a cabinet at least as wide as the unit.
   const appMinW = usesLinerRule(cat.applianceCat)
-    ? requiredCabinetWidth(it.appliance, appliances, linerClearance)
+    ? requiredCabinetWidth(it.appliance, appliances, cat.fixed ? 0 : linerClearance)
     : cat.applianceCat === 'fridge' || cat.applianceCat === 'icemaker'
       ? selectedApplianceWidth(it.appliance, appliances) ?? 0
       : 0;
