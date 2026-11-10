@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, Pergola, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
-import { FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
+import { FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, findCatalog, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { polyArea } from '../model/counterShape';
 import { BRAND_ID_MIGRATE, brandForSavedLine, brandOf, itemFinishId, skuVariantFor, snapToSizes } from '../model/brands';
 import { DEFAULT_COUNTERTOP } from '../model/countertops';
 import { tryFormula } from '../model/pricing';
+import { layoutFor, mainWallIndex, recipeFor, wallsForShape, type StartSpec } from '../model/templates';
 import { CORNER_EPS, cornerBlocksRun, cornerCounterExtend, cornerGapFor, cornerNeedsFlip, cornerReserves, COOKING_CORNER_FILLER, CORNER_FILLER, isCookingCat, isBlindFront, isCornerFront, isReserveExempt, presetPlacements, squareCorner, wallEndJoined, wallEndpoints, seatOverhang } from '../model/geometry';
 
 /** Applied panels (ends + island backs) bill at this rate per square foot.
@@ -401,6 +402,11 @@ interface AppState {
    *  cabinets from another line are removed (their catalogs don't overlap). */
   setLine: (line: ProductLine) => void;
   loadDesign: (design: Design) => void;
+  /** Start a fresh design from the guided-start answers (shape, size, starter layout). */
+  startDesign: (spec: StartSpec) => void;
+  /** Fill a wall's free space with cabinets from the brand's starter recipe.
+   *  Returns how many were added. */
+  fillWall: (wallId: string) => number;
 }
 
 /** Items in the same lane on a wall, sorted by x. */
@@ -1160,6 +1166,23 @@ function flushHistoryCapture(): void {
   useStore.setState((s) => ({ undoStack: [...s.undoStack, snap].slice(-HISTORY_MAX), redoStack: [] }));
 }
 
+/** True when any wall's cabinets overlap each other or run past the wall's
+ *  end — i.e. more was placed than fits (per lane). */
+export function anyWallOverfull(design: Design): boolean {
+  for (const wall of design.walls) {
+    for (const lane of ['floor', 'upper'] as const) {
+      const run = design.items.filter((it) => it.wallId === wall.id && catalogById(it.catalogId).lane === lane).sort((a, b) => a.x - b.x);
+      let edge = -Infinity;
+      for (const it of run) {
+        if (it.x < edge - 0.01) return true;
+        edge = it.x + footprintW(it);
+      }
+      if (edge > wall.length + 0.01) return true;
+    }
+  }
+  return false;
+}
+
 /** Drop any pending burst so the next change starts a clean history. */
 function dropPendingHistory(): void {
   if (historyTimer !== null) {
@@ -1726,6 +1749,67 @@ export const useStore = create<AppState>()(
         dropPendingHistory();
         historyRestoring = true;
         set({ undoStack: [], redoStack: [], design: next, selectedId: null, editingId: null, editingRoughInId: null, editingOpeningId: null, snapshot3d: null });
+        historyRestoring = false;
+      },
+
+      fillWall: (wallId) => {
+        const s0 = get();
+        if (!s0.design.walls.some((w) => w.id === wallId)) return 0;
+        const recipe = recipeFor(s0.design.line, s0.design.kitchenType);
+        const cats = s0.design.items.map((it) => catalogById(it.catalogId));
+        const wallEmpty = !s0.design.items.some((it) => it.wallId === wallId && !it.auto && catalogById(it.catalogId).lane === 'floor');
+        const hasCooking = cats.some((c) => c.applianceCat === 'grill' || c.applianceCat === 'griddle' || c.front === 'cooktop' || c.front === 'range');
+        const addedIds: string[] = [];
+        const tryAdd = (id: string): boolean => {
+          if (!findCatalog(id)) return false;
+          const ok = get().addItem(wallId, id);
+          if (ok) addedIds.push(get().selectedId!);
+          return ok;
+        };
+        // an empty wall in a kitchen with nowhere to cook yet gets the full
+        // run (drawers, grill, doors, sink…); otherwise just storage
+        if (wallEmpty && !hasCooking) for (const id of recipe.main) tryAdd(id);
+        for (let n = 0; n < 16; n++) if (!recipe.fill.some(tryAdd)) break;
+        // Cabinets on this wall can claim corner space from a neighbouring
+        // wall that was already full. Never leave any wall overfull: give back
+        // the newest additions until everything fits again.
+        while (addedIds.length && anyWallOverfull(get().design)) get().removeItem(addedIds.pop()!);
+        set({ selectedId: null });
+        return addedIds.length;
+      },
+
+      startDesign: (spec) => {
+        const base = defaultDesign(spec.kitchenType, spec.line);
+        const walls = wallsForShape(spec.shape, spec.lengths, () => uid('wall'));
+        // like newDesign: a fresh start is not an undoable edit
+        dropPendingHistory();
+        historyRestoring = true;
+        set({
+          undoStack: [],
+          redoStack: [],
+          design: withPack({ ...base, layout: layoutFor(spec.shape), walls }),
+          selectedId: null,
+          editingId: null,
+          editingRoughInId: null,
+          editingOpeningId: null,
+          snapshot3d: null,
+          tab: 'design',
+        });
+        if (spec.starter) {
+          const recipe = recipeFor(spec.line, spec.kitchenType);
+          const main = walls[mainWallIndex(spec.shape)];
+          const sides = walls.filter((w) => w !== main);
+          // Corner space is only reserved once BOTH walls of a corner carry
+          // cabinets, so seed each side wall first; the main run then sizes
+          // itself around the corners, and the sides fill what is left.
+          for (const w of sides) recipe.fill.some((id) => !!findCatalog(id) && get().addItem(w.id, id));
+          const placed: string[] = [];
+          for (const id of recipe.main) if (findCatalog(id) && get().addItem(main.id, id)) placed.push(get().selectedId!);
+          while (placed.length && anyWallOverfull(get().design)) get().removeItem(placed.pop()!);
+          for (const w of [main, ...sides]) get().fillWall(w.id);
+          set({ selectedId: null });
+        }
+        dropPendingHistory();
         historyRestoring = false;
       },
     }),

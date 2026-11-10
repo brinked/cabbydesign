@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { removeWallAsk } from './actions';
 import { rectPoly, type CounterPt } from '../model/counterShape';
 import CounterEditor from './CounterEditor';
 import { ALL_FINISHES, COUNTER_OVERHANG, catalogById, frontExtraD } from '../model/catalog';
@@ -1282,7 +1283,7 @@ export default function TopView() {
               <button
                 className="tool-btn tool-btn-danger"
                 title="Remove this wall and its cabinets"
-                onClick={() => removeWall(selectedWall.id)}
+                onClick={() => removeWallAsk(selectedWall.id)}
               >
                 ✕ Remove
               </button>

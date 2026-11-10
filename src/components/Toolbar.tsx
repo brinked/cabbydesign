@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { Design, KitchenType, ProductLine } from '../model/types';
 import { useStore, type Tab } from '../state/store';
 import { START_OPTIONS } from '../model/brands';
+import StartWizard from './StartWizard';
+import { confirmAsk } from './Feedback';
 import { useSession, type Screen } from '../state/session';
 import DesignPanel from './DesignPanel';
 
@@ -19,7 +21,7 @@ export default function Toolbar() {
   const setLiveView = useStore((s) => s.setLiveView);
   const design = useStore((s) => s.design);
   const setDesignMeta = useStore((s) => s.setDesignMeta);
-  const newDesign = useStore((s) => s.newDesign);
+  const startDesign = useStore((s) => s.startDesign);
   const setQuoteOpen = useStore((s) => s.setQuoteOpen);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
@@ -110,10 +112,19 @@ export default function Toolbar() {
           </nav>
 
           <div className="toolbar-right">
-            <button className="btn-ghost" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={undo}>
+            <input
+              className="project-name toolbar-name"
+              value={design.name}
+              onChange={(e) => setDesignMeta({ name: e.target.value })}
+              placeholder="Name your design"
+              aria-label="Design name"
+              title="Design name — shown on your report"
+              maxLength={80}
+            />
+            <button className="btn-ghost" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!canUndo} onClick={undo}>
               ↶
             </button>
-            <button className="btn-ghost" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={redo}>
+            <button className="btn-ghost" title="Redo (Ctrl+Y)" aria-label="Redo" disabled={!canRedo} onClick={redo}>
               ↷
             </button>
             <SettingsMenu isAdmin={isAdmin} />
@@ -121,6 +132,7 @@ export default function Toolbar() {
               onSave={() => (isGuest ? openAuth('Create a free account to save your designs — reopen them anytime, on any device.') : openSaveJob(true))}
               onOpen={() => (isGuest ? openAuth('Sign in to open your saved designs.') : setScreen('jobs'))}
               onNew={() => setNewOpen(true)}
+              onHome={isGuest ? exitToStart : undefined}
             />
             {isGuest && (
               <button
@@ -155,10 +167,21 @@ export default function Toolbar() {
       </div>
 
       {newOpen && (
-        <NewDesignModal
+        <StartWizard
           onClose={() => setNewOpen(false)}
-          onCreate={(kitchenType, line) => {
-            newDesign(kitchenType, line);
+          onCreate={async (spec) => {
+            const placed = design.items.filter((it) => !it.auto).length;
+            if (
+              placed > 0 &&
+              !(await confirmAsk({
+                title: 'Start a new design?',
+                message: `Your current design (${placed} cabinet${placed === 1 ? '' : 's'}) will be replaced. Save it first if you want to keep it.`,
+                confirmLabel: 'Start new design',
+                danger: true,
+              }))
+            )
+              return;
+            startDesign(spec);
             setCurrentJob(null, null);
             setNewOpen(false);
           }}
@@ -169,7 +192,7 @@ export default function Toolbar() {
 }
 
 /** File dropdown: save / open / new — keeps the toolbar to a single row. */
-function FileMenu({ onSave, onOpen, onNew }: { onSave: () => void; onOpen: () => void; onNew: () => void }) {
+function FileMenu({ onSave, onOpen, onNew, onHome }: { onSave: () => void; onOpen: () => void; onNew: () => void; onHome?: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -199,16 +222,23 @@ function FileMenu({ onSave, onOpen, onNew }: { onSave: () => void; onOpen: () =>
       </button>
       {open && (
         <div className="settings-menu file-menu">
+          <button className="settings-menu-item" onClick={() => run(onNew)}>
+            New design…
+          </button>
           <button className="settings-menu-item" onClick={() => run(onSave)}>
-            💾 Save job
+            Save design
           </button>
           <button className="settings-menu-item" onClick={() => run(onOpen)}>
-            📂 Open job…
+            Open a saved design…
           </button>
-          <div className="settings-menu-sep" />
-          <button className="settings-menu-item" onClick={() => run(onNew)}>
-            ✨ New design…
-          </button>
+          {onHome && (
+            <>
+              <div className="settings-menu-sep" />
+              <button className="settings-menu-item" onClick={() => run(onHome)}>
+                Back to start page
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -283,11 +313,13 @@ function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <>
-      <button className="btn-soft" onClick={() => setPanelOpen(true)} title="Colours, doors, worktops, flooring">
-        ✨ Design
+      <button className="btn-soft" onClick={() => setPanelOpen(true)} title="Colors, door styles, countertops and flooring">
+        ✨ Colors &amp; style
       </button>
+      {/* the gear only holds admin catalogue screens — hidden for everyone else */}
+      {isAdmin && (
       <div className="settings-dd" ref={ref}>
-        <button className={open ? 'btn-ghost active' : 'btn-ghost'} onClick={() => setOpen((o) => !o)} title="More settings">
+        <button className={open ? 'btn-ghost active' : 'btn-ghost'} onClick={() => setOpen((o) => !o)} title="Admin settings" aria-label="Admin settings">
           ⚙
         </button>
         {open && (
@@ -315,6 +347,7 @@ function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
           </div>
         )}
       </div>
+      )}
       {panelOpen && <DesignPanel onClose={() => setPanelOpen(false)} />}
     </>
   );

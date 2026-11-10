@@ -4,16 +4,19 @@ import { listLocalJobs } from '../state/localJobs';
 import { useSession } from '../state/session';
 import { useStore } from '../state/store';
 import { MODULAR_BRANDS } from '../model/brands';
+import { finishesForLine } from '../model/catalog';
+import type { StartSpec } from '../model/templates';
+import StartWizard from './StartWizard';
 
-/** 'indoor' / 'outdoor' start an EXT kitchen; any other value is a brand id
- *  and starts that brand's outdoor kitchen. */
-type StartKind = 'indoor' | 'outdoor' | ProductLine;
+type WizardInitial = { kitchenType?: KitchenType; line?: ProductLine };
 
-function startArgs(kind: StartKind): { kitchenType: KitchenType; line: ProductLine } {
-  if (kind === 'indoor') return { kitchenType: 'indoor', line: 'ext' };
-  if (kind === 'outdoor') return { kitchenType: 'outdoor', line: 'ext' };
-  return { kitchenType: 'outdoor', line: kind };
-}
+/** The starting points offered on the landing page: indoor, then one outdoor
+ *  card per cabinet brand. */
+const PICKS: Array<{ key: string; tag: string; title: string; sub: string; img?: string; initial: { kitchenType: KitchenType; line: ProductLine } }> = [
+  { key: 'outdoor-ext', tag: 'Outdoor · Made to size', title: 'EXT Outdoor Kitchen', sub: 'Weatherproof HDPE cabinets built to any width, around your grill and appliances.', img: '/landing/outdoor-3d.jpg', initial: { kitchenType: 'outdoor', line: 'ext' } },
+  ...MODULAR_BRANDS.map((b) => ({ key: `outdoor-${b.id}`, tag: 'Outdoor · Modular', title: b.label.split(' — ')[0], sub: b.startSub, initial: { kitchenType: 'outdoor' as const, line: b.id } })),
+  { key: 'indoor-ext', tag: 'Indoor · Made to size', title: 'Indoor Kitchen', sub: 'Custom indoor cabinets with shaker or flat doors and real-time 3D.', img: '/landing/indoor-plan.jpg', initial: { kitchenType: 'indoor', line: 'ext' } },
+];
 
 /* ---------- small inline icons (stroke style) ---------- */
 const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
@@ -130,16 +133,19 @@ const STEPS = [
 export default function StartScreen() {
   const continueAsGuest = useSession((s) => s.continueAsGuest);
   const setScreen = useSession((s) => s.setScreen);
-  const newDesign = useStore((s) => s.newDesign);
+  const startDesign = useStore((s) => s.startDesign);
   const [busy, setBusy] = useState(false);
   const hasSavedJobs = useMemo(() => listLocalJobs().length > 0, []);
 
-  async function start(kind: StartKind) {
+  /** Guided start: null = closed, {} = from the first question, or with the
+   *  kitchen/brand of the card that was clicked already answered. */
+  const [wizard, setWizard] = useState<WizardInitial | null>(null);
+
+  async function create(spec: StartSpec) {
     if (busy) return;
     setBusy(true);
     try {
-      const a = startArgs(kind);
-      newDesign(a.kitchenType, a.line);
+      startDesign(spec);
       await continueAsGuest();
     } finally {
       setBusy(false);
@@ -178,7 +184,7 @@ export default function StartScreen() {
               Open saved job
             </button>
           )}
-          <button className="landing-btn" onClick={scrollToChoices}>
+          <button className="landing-btn" onClick={() => setWizard({})}>
             Start Designing
           </button>
         </div>
@@ -202,6 +208,14 @@ export default function StartScreen() {
               <IconCheck /> Free to use forever
             </li>
           </ul>
+          <div className="landing-hero-cta">
+            <button className="landing-btn landing-btn-lg" onClick={() => setWizard({})} disabled={busy}>
+              Start designing — it’s free
+            </button>
+            <button className="landing-link" onClick={scrollToChoices}>
+              See the cabinet ranges ↓
+            </button>
+          </div>
         </div>
         <div className="landing-hero-shot">
           <img src="/landing/hero-3d.jpg" alt="CabDesign 3D outdoor kitchen designer" />
@@ -210,48 +224,30 @@ export default function StartScreen() {
 
       {/* ---------- two ways ---------- */}
       <section className="landing-section" id="landing-ways">
-        <h2>Two Ways to Design</h2>
-        <p className="landing-section-sub">Choose your experience and start building your dream kitchen.</p>
-        <div className="landing-ways">
-          <div className="landing-way">
-            <div className="landing-way-shot">
-              <img src="/landing/indoor-plan.jpg" alt="Indoor kitchen floor plan" />
-            </div>
-            <div className="landing-way-body">
-              <span className="landing-way-icon">
-                <IconHouse />
+        <h2>Choose Your Kitchen</h2>
+        <p className="landing-section-sub">Pick a starting point — we’ll ask the shape and size, then lay out a first draft for you.</p>
+        <div className="landing-picks">
+          {PICKS.map((p) => (
+            <button key={p.key} className="landing-pick" onClick={() => setWizard(p.initial)} disabled={busy}>
+              {p.img ? (
+                <img src={p.img} alt="" />
+              ) : (
+                <span className="landing-pick-swatches" aria-hidden>
+                  {finishesForLine(p.initial.line, 'outdoor')
+                    .slice(0, 8)
+                    .map((f) => (
+                      <i key={f.id} style={{ background: f.panel }} />
+                    ))}
+                </span>
+              )}
+              <span className="landing-pick-body">
+                <span className="landing-pick-tag">{p.tag}</span>
+                <b>{p.title}</b>
+                <span>{p.sub}</span>
+                <span className="landing-pick-go">Start designing →</span>
               </span>
-              <div>
-                <h3>Indoor Kitchen Designer</h3>
-                <p>Create custom indoor kitchens with precise layout tools, cabinets, and real-time 3D visualization.</p>
-                <button className="landing-btn" onClick={() => start('indoor')} disabled={busy}>
-                  Start Indoor Design →
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="landing-way">
-            <div className="landing-way-shot">
-              <img src="/landing/outdoor-3d.jpg" alt="Outdoor kitchen in 3D" />
-            </div>
-            <div className="landing-way-body">
-              <span className="landing-way-icon">
-                <IconPalm />
-              </span>
-              <div>
-                <h3>Outdoor Kitchen Designer</h3>
-                <p>Design durable outdoor kitchens with weatherproof cabinets, grills, sinks and more.</p>
-                <button className="landing-btn" onClick={() => start('outdoor')} disabled={busy}>
-                  Start Outdoor Design →
-                </button>
-                {MODULAR_BRANDS.map((b) => (
-                  <button key={b.id} className="landing-link landing-way-alt" onClick={() => start(b.id)} disabled={busy}>
-                    or start with {b.shortLabel} modular cabinets
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+            </button>
+          ))}
         </div>
       </section>
 
@@ -294,19 +290,21 @@ export default function StartScreen() {
         <h2>Ready to design your kitchen?</h2>
         <p className="landing-section-sub">Choose your experience and start designing in minutes.</p>
         <div className="landing-cta-row">
-          <button className="landing-btn" onClick={() => start('indoor')} disabled={busy}>
-            <IconHouse /> Start Indoor Design
+          <button className="landing-btn" onClick={() => setWizard({ kitchenType: 'outdoor' })} disabled={busy}>
+            <IconPalm /> Start Outdoor Design
           </button>
           <span className="landing-cta-or">or</span>
-          <button className="landing-btn landing-btn-outline" onClick={() => start('outdoor')} disabled={busy}>
-            <IconPalm /> Start Outdoor Design
+          <button className="landing-btn landing-btn-outline" onClick={() => setWizard({ kitchenType: 'indoor' })} disabled={busy}>
+            <IconHouse /> Start Indoor Design
           </button>
         </div>
       </section>
 
       <footer className="landing-foot">
-        Free to use — no account needed. Your designs and saved jobs stay in this browser.
+        Free to use — no account needed to design. Your work is kept in this browser as you go; a free account lets you
+        save designs and download plans.
       </footer>
+      {wizard && <StartWizard initial={wizard} onClose={() => setWizard(null)} onCreate={create} busy={busy} />}
     </div>
   );
 }

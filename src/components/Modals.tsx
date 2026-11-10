@@ -19,6 +19,7 @@ import type { ApplianceItem, ApplianceSelection, CatalogItem, FrontKind, HandleI
 import { effectiveDims, footprintW, itemPrice, laneItems, largestOpening, openingFor, roughInConflict, sideExposed, spaceLeft, uid, useStore, widthPartners } from '../state/store';
 import { api, ApiError, type DealerWithPrefs, type RestrictedBrands } from '../api/client';
 import { useIsConsumer, useSession } from '../state/session';
+import { removeItemWithUndo } from './actions';
 import { HANDLE_3D_MODELS, SLIDER_4PANEL_MIN_W } from '../three/models';
 import { CatalogThumb } from './CabinetImage';
 import { useFinish } from './WallsView';
@@ -130,6 +131,7 @@ export function AddItemModal() {
   const catalogPrefs = useSession((s) => s.catalogPrefs);
   const [tab, setTab] = useState<string>('base');
   const [warn, setWarn] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   if (!wallId) return null;
   const wall = design.walls.find((w) => w.id === wallId);
@@ -149,7 +151,11 @@ export function AddItemModal() {
     .filter(([id]) => wall.ghost || id !== 'bar');
   const activeTab = tabEntries.some(([id]) => id === tab) ? tab : tabEntries[0]?.[0] ?? 'base';
 
-  const cats = available.filter((c) => (c.displayCategory ?? c.category) === activeTab);
+  // a search looks across every tab; otherwise show the active tab
+  const q = query.trim().toLowerCase();
+  const cats = q
+    ? available.filter((c) => `${c.name} ${labels[c.displayCategory ?? c.category] ?? ''} ${c.note ?? ''}`.toLowerCase().includes(q))
+    : available.filter((c) => (c.displayCategory ?? c.category) === activeTab);
   const openFloor = largestOpening(design, wallId, 'floor').w;
   const openUpper = largestOpening(design, wallId, 'upper').w;
 
@@ -160,9 +166,25 @@ export function AddItemModal() {
       onClose={() => openAdd(null)}
       wide
     >
+      <input
+        className="cat-search"
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search cabinets — try “drawer”, “sink” or “grill”"
+        aria-label="Search cabinets"
+        autoFocus
+      />
       <div className="cat-tabs">
         {tabEntries.map(([id, label]) => (
-          <button key={id} className={activeTab === id ? 'cat-tab active' : 'cat-tab'} onClick={() => setTab(id)}>
+          <button
+            key={id}
+            className={!q && activeTab === id ? 'cat-tab active' : 'cat-tab'}
+            onClick={() => {
+              setQuery('');
+              setTab(id);
+            }}
+          >
             {label}
           </button>
         ))}
@@ -175,6 +197,7 @@ export function AddItemModal() {
         </p>
       )}
       {warn && <div className="warn">{warn}</div>}
+      {cats.length === 0 && <p className="cat-empty">Nothing matches “{query}”. Try a different word, or pick a tab above.</p>}
       <div className="cat-grid">
         {cats.map((c) => {
           const open = openingFor(design, wallId, c).w;
@@ -947,7 +970,7 @@ export function EditItemModal() {
         </div>
       )}
       <div className="modal-actions">
-        <button className="btn-danger" onClick={() => removeItem(it.id)}>
+        <button className="btn-danger" onClick={() => removeItemWithUndo(it.id)}>
           Remove
         </button>
         <button className="btn-ghost" onClick={() => duplicateItem(it.id)} disabled={left < it.w}>

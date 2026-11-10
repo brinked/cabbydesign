@@ -6,6 +6,8 @@ import View3D from './components/View3D';
 import LivePreview from './components/LivePreview';
 import Report from './components/Report';
 import StartScreen from './components/StartScreen';
+import FeedbackHost from './components/Feedback';
+import { designerKeyHandler } from './components/actions';
 import Login from './components/Login';
 import ResetPassword from './components/ResetPassword';
 import AdminPanel from './components/AdminPanel';
@@ -85,6 +87,14 @@ export default function App() {
     );
   }
 
+  // Designer keyboard shortcuts: Esc closes/deselects, Delete removes the
+  // selected cabinet, arrows nudge it, Enter opens it.
+  useEffect(() => {
+    if (status === 'loading' || status === 'anon' || screen !== 'design') return;
+    window.addEventListener('keydown', designerKeyHandler);
+    return () => window.removeEventListener('keydown', designerKeyHandler);
+  }, [status, screen]);
+
   if (status === 'loading') {
     return (
       <div className="boot-screen">
@@ -109,6 +119,7 @@ export default function App() {
         {banner}
         <StartScreen />
         <AuthModal />
+        <FeedbackHost />
       </>
     );
 
@@ -146,6 +157,7 @@ export default function App() {
       <ApplianceAlignerModal />
       <AuthModal />
       <SaveJobModal />
+      <FeedbackHost />
     </div>
   );
 }

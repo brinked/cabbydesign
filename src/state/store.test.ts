@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Design, PlacedItem } from '../model/types';
 import { computeQuote } from '../model/quote';
-import { DESIGN_SCHEMA_VERSION, DEFAULT_PANEL_RATES, footprintW, itemPrice, normalizeDesign, panelHeight, useStore } from './store';
+import { anyWallOverfull, DESIGN_SCHEMA_VERSION, DEFAULT_PANEL_RATES, footprintW, itemPrice, normalizeDesign, panelHeight, useStore } from './store';
 
 const store = () => useStore.getState();
 const wallId = () => store().design.walls[0].id;
@@ -177,5 +177,70 @@ describe('history', () => {
     store().setDesignMeta({ name: 'Keep me' });
     expect(() => store().loadDesign('nope' as unknown as Design)).toThrow();
     expect(store().design.name).toBe('Keep me');
+  });
+});
+
+describe('guided start', () => {
+  const noOverlap = () => {
+    const d = store().design;
+    for (const w of d.walls) {
+      const run = d.items.filter((i) => i.wallId === w.id).sort((a, b) => a.x - b.x);
+      for (let i = 1; i < run.length; i++) expect(run[i].x).toBeGreaterThanOrEqual(run[i - 1].x + footprintW(run[i - 1]) - 0.01);
+      for (const it0 of run) expect(it0.x + footprintW(it0)).toBeLessThanOrEqual(w.length + 0.01);
+    }
+  };
+
+  it.each([
+    ['ext', 'outdoor', 'out-grill'],
+    ['ext', 'indoor', 'base-cooktop'],
+    ['newage', 'outdoor', 'na-grill36'],
+    ['challenger', 'outdoor', 'ch-grill'],
+  ] as const)('lays out a %s %s starter that fits its wall', (line, kitchenType, cooking) => {
+    store().startDesign({ kitchenType, line, shape: 'straight', lengths: [168], starter: true });
+    const d = store().design;
+    expect(d.line).toBe(line);
+    expect(d.walls).toHaveLength(1);
+    expect(d.walls[0].length).toBe(168);
+    expect(d.items.some((i) => i.catalogId === cooking)).toBe(true);
+    expect(d.items.filter((i) => !i.auto).length).toBeGreaterThanOrEqual(4);
+    noOverlap();
+    expect(store().undoStack).toHaveLength(0);
+  });
+
+  it('builds joined L and U shapes and a freestanding island', () => {
+    store().startDesign({ kitchenType: 'outdoor', line: 'ext', shape: 'u', lengths: [96, 144, 96], starter: true });
+    expect(store().design.walls.map((w) => w.length)).toEqual([96, 144, 96]);
+    expect(store().design.layout).toBe('u');
+    // the cooking run goes on the back wall; one grill only
+    for (const w of store().design.walls) expect(store().design.items.some((i) => i.wallId === w.id && !i.auto), w.name).toBe(true);
+    const grills = store().design.items.filter((i) => i.catalogId === 'out-grill');
+    expect(grills).toHaveLength(1);
+    expect(grills[0].wallId).toBe(store().design.walls[1].id);
+    noOverlap();
+
+    store().startDesign({ kitchenType: 'outdoor', line: 'challenger', shape: 'island', lengths: [120], starter: false });
+    expect(store().design.walls[0].ghost).toBe(true);
+    expect(store().design.items).toHaveLength(0);
+  });
+
+  it.each(['ext', 'newage', 'challenger'] as const)('never overfills an L or U kitchen (%s)', (line) => {
+    for (const [shape, lengths] of [['l', [144, 96]], ['l', [84, 60]], ['u', [96, 144, 96]], ['u', [60, 72, 60]]] as const) {
+      store().startDesign({ kitchenType: 'outdoor', line, shape, lengths: [...lengths], starter: true });
+      expect(anyWallOverfull(store().design), `${line} ${shape} ${lengths}`).toBe(false);
+      // filling again on every wall must not break a wall that is already full
+      for (const w of store().design.walls) store().fillWall(w.id);
+      expect(anyWallOverfull(store().design), `${line} ${shape} ${lengths} refill`).toBe(false);
+    }
+  });
+
+  it('clamps silly sizes and fills only free space on demand', () => {
+    store().startDesign({ kitchenType: 'outdoor', line: 'newage', shape: 'straight', lengths: [5], starter: false });
+    expect(store().design.walls[0].length).toBe(36);
+    store().startDesign({ kitchenType: 'outdoor', line: 'newage', shape: 'straight', lengths: [200], starter: false });
+    const wall = store().design.walls[0].id;
+    const first = store().fillWall(wall);
+    expect(first).toBeGreaterThan(0);
+    expect(store().fillWall(wall)).toBe(0); // already full
+    noOverlap();
   });
 });

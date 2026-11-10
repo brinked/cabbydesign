@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { fillWallNotify, removeWallAsk } from './actions';
 import type { FinishOption, OpeningKind, PlacedItem, RoughInKind, Wall } from '../model/types';
 import { ALL_FINISHES, BAR_RISE, BASE_H, COUNTER_OVERHANG, COUNTER_T, bridgesCounter, catalogById } from '../model/catalog';
 import { companyFinishById } from '../model/companyCatalog';
@@ -650,13 +651,16 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
             ⇹ Center
           </button>
           {design.walls.length > 1 && (
-            <button className="btn-ghost" title="Remove wall" onClick={() => removeWall(wall.id)}>
+            <button className="btn-ghost" title="Remove wall" aria-label={`Remove ${wall.name}`} onClick={() => removeWallAsk(wall.id)}>
               ✕
             </button>
           )}
           <span className="wall-sep" />
           <RoughInAdd wallId={wall.id} />
           <OpeningAdd wallId={wall.id} />
+          <button className="btn-soft" title="Fill the free space on this wall with cabinets — you can change any of them" onClick={() => fillWallNotify(wall.id)}>
+            ✨ Fill wall
+          </button>
           <button className="btn-dark" onClick={() => openAdd(wall.id)}>
             + Add Cabinet
           </button>
