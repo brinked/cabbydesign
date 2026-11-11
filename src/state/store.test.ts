@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Design, PlacedItem } from '../model/types';
 import { computeQuote } from '../model/quote';
 import { recipeFor } from '../model/templates';
+import { catalogById } from '../model/catalog';
 import { anyWallOverfull, DESIGN_SCHEMA_VERSION, DEFAULT_PANEL_RATES, footprintW, itemPrice, normalizeDesign, panelHeight, useStore } from './store';
 
 const store = () => useStore.getState();
@@ -258,6 +259,32 @@ describe('guided start', () => {
     store().fillWall(wall);
     expect(slivers(), `${line} manual`).toEqual([]);
     expect(anyWallOverfull(store().design)).toBe(false);
+  });
+
+  it.each(['ext', 'newage', 'challenger'] as const)('hinges end-of-run single doors to swing away from the run (%s)', (line) => {
+    const single = new Set(['door1', 'doordrawer', 'sink1', 'sink1f', 'propane', 'burner', 'trash']);
+    let checked = 0;
+    for (const [shape, lengths] of [['straight', [220]], ['island', [220]], ['island', [150]], ['l', [150, 110]], ['u', [110, 150, 110]]] as const) {
+      store().startDesign({ kitchenType: 'outdoor', line, shape, lengths: [...lengths], starter: true });
+      for (const w of store().design.walls) store().fillWall(w.id);
+      const d = store().design;
+      for (const w of d.walls) {
+        const run = d.items.filter((i) => i.wallId === w.id && !i.auto).sort((a, b) => a.x - b.x);
+        if (run.length < 2) continue;
+        const first = run[0];
+        const last = run[run.length - 1];
+        const tight = (a: PlacedItem, b: PlacedItem) => Math.abs(b.x - (a.x + footprintW(a))) <= 1.5;
+        if (single.has(catalogById(last.catalogId).front) && tight(run[run.length - 2], last)) {
+          expect(last.hinge, `${line} ${shape} ${w.name} right end`).toBe('right');
+          checked++;
+        }
+        if (single.has(catalogById(first.catalogId).front) && tight(first, run[1])) {
+          expect(first.hinge, `${line} ${shape} ${w.name} left end`).toBe('left');
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
   it('clamps silly sizes and fills only free space on demand', () => {

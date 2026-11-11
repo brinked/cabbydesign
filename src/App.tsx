@@ -87,6 +87,7 @@ export default function App() {
     );
   }
 
+  const editingId = useStore((st) => st.editingId);
   // Designer keyboard shortcuts: Esc closes/deselects, Delete removes the
   // selected cabinet, arrows nudge it, Enter opens it.
   useEffect(() => {
@@ -124,7 +125,7 @@ export default function App() {
     );
 
   return (
-    <div className="app">
+    <div className={editingId && screen === 'design' ? 'app has-dock' : 'app'}>
       {banner}
       <SvgDefs />
       <Toolbar />

@@ -3,6 +3,7 @@ import type { Design, KitchenType, ProductLine } from '../model/types';
 import { useStore, type Tab } from '../state/store';
 import { START_OPTIONS } from '../model/brands';
 import StartWizard from './StartWizard';
+import DesignCheck from './DesignCheck';
 import { confirmAsk } from './Feedback';
 import { useSession, type Screen } from '../state/session';
 import DesignPanel from './DesignPanel';
@@ -62,6 +63,18 @@ export default function Toolbar() {
   const isGuest = status === 'guest';
   const isCompany = user?.role === 'company';
   const [newOpen, setNewOpen] = useState(false);
+  // The docked editor sits directly under the toolbar, whatever its height
+  // (it wraps to two rows on narrower screens).
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const sync = () => document.documentElement.style.setProperty('--toolbar-h', `${el.offsetHeight}px`);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const isConsumerAccount = isCompany || user?.role === 'homeowner';
   const navItems: Array<{ id: Screen; label: string; show: boolean }> = [
@@ -75,7 +88,7 @@ export default function Toolbar() {
   ];
 
   return (
-    <header className="toolbar no-print">
+    <header className="toolbar no-print" ref={headerRef}>
       <button
         type="button"
         className="brand"
@@ -127,6 +140,7 @@ export default function Toolbar() {
             <button className="btn-ghost" title="Redo (Ctrl+Y)" aria-label="Redo" disabled={!canRedo} onClick={redo}>
               ↷
             </button>
+            <DesignCheck />
             <SettingsMenu isAdmin={isAdmin} />
             <FileMenu
               onSave={() => (isGuest ? openAuth('Create a free account to save your designs — reopen them anytime, on any device.') : openSaveJob(true))}

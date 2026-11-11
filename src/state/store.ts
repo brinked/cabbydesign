@@ -1185,6 +1185,28 @@ function snugToLeft(design: Design, id: string): Design {
   return withPack({ ...design, items: design.items.map((i) => (i.id === id ? { ...i, x: edge } : i)) }, id);
 }
 
+/** Single-door fronts whose hinge side is a free choice. */
+const SWING_FRONTS = new Set(['door1', 'doordrawer', 'sink1', 'sink1f', 'propane', 'burner', 'trash']);
+
+/** Hinge the given single-door cabinets so a door at the END of a run swings
+ *  away from the run: hinge on the outer (end) side, handle toward the
+ *  neighbouring cabinets. Doors in the middle of a run are left alone. */
+function hingeAwayFromRun(design: Design, ids: string[]): Design {
+  const want = new Map<string, 'left' | 'right'>();
+  for (const id of ids) {
+    const it = design.items.find((i) => i.id === id);
+    if (!it || !SWING_FRONTS.has(catalogById(it.catalogId).front)) continue;
+    const lane = catalogById(it.catalogId).lane;
+    const others = design.items.filter((o) => o.id !== id && o.wallId === it.wallId && !o.auto && catalogById(o.catalogId).lane === lane);
+    const hasLeft = others.some((o) => Math.abs(it.x - (o.x + footprintW(o))) <= 1.5);
+    const hasRight = others.some((o) => Math.abs(o.x - (it.x + footprintW(it))) <= 1.5);
+    if (hasLeft && !hasRight) want.set(id, 'right'); // right end of the run
+    else if (hasRight && !hasLeft) want.set(id, 'left'); // left end of the run
+  }
+  if (![...want].some(([id, h]) => design.items.find((i) => i.id === id)?.hinge !== h)) return design;
+  return withPack({ ...design, items: design.items.map((i) => (want.has(i.id) ? { ...i, hinge: want.get(i.id)! } : i)) });
+}
+
 /** True when any wall's cabinets overlap each other or run past the wall's
  *  end — i.e. more was placed than fits (per lane). */
 export function anyWallOverfull(design: Design): boolean {
@@ -1794,7 +1816,27 @@ export const useStore = create<AppState>()(
         // wall that was already full. Never leave any wall overfull: give back
         // the newest additions until everything fits again.
         while (addedIds.length && anyWallOverfull(get().design)) get().removeItem(addedIds.pop()!);
-        set({ selectedId: null });
+        // Use up the last few inches: a made-to-size cabinet grows to meet the
+        // end of the run; fixed-size units on an island are centred instead.
+        const leftover = spaceLeft(get().design, wallId, 'floor');
+        if (addedIds.length && leftover > 0.25) {
+          const before = get().design;
+          const grow = [...addedIds].reverse().find((id) => {
+            const it = before.items.find((i) => i.id === id);
+            if (!it) return false;
+            const c = catalogById(it.catalogId);
+            return !c.fixed && !c.widths && !c.applianceCat && it.w + leftover <= effectiveDims(c.id, get().dims).maxW + 0.001;
+          });
+          if (grow) {
+            const it = before.items.find((i) => i.id === grow)!;
+            get().updateItem(grow, { w: Math.floor((it.w + leftover) * 8) / 8 });
+            if (anyWallOverfull(get().design)) set({ design: before });
+          } else if (get().design.walls.find((w) => w.id === wallId)?.ghost) {
+            get().centerWallItems(wallId);
+          }
+        }
+        // end-of-run single doors swing away from the run
+        set({ design: hingeAwayFromRun(get().design, addedIds), selectedId: null });
         return addedIds.length;
       },
 
@@ -1827,7 +1869,8 @@ export const useStore = create<AppState>()(
           for (const id of recipe.main) if (findCatalog(id) && get().addItem(main.id, id)) placed.push(get().selectedId!);
           while (placed.length && anyWallOverfull(get().design)) get().removeItem(placed.pop()!);
           for (const w of [main, ...sides]) get().fillWall(w.id);
-          set({ selectedId: null });
+          // seeds and the main run were placed before their neighbours existed
+          set({ design: hingeAwayFromRun(get().design, get().design.items.map((i) => i.id)), selectedId: null });
         }
         dropPendingHistory();
         historyRestoring = false;

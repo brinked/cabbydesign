@@ -32,7 +32,24 @@ const HINGED_FRONTS: FrontKind[] = ['door1', 'doordrawer', 'burner', 'propane', 
 const LINER_RULE_CATS = ['grill', 'griddle', 'sideburner', 'powerburner'];
 const usesLinerRule = (c?: string) => !!c && LINER_RULE_CATS.includes(c);
 
-export function Modal({ title, sub, onClose, children, wide }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+export function Modal({ title, sub, onClose, children, wide, dock }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; wide?: boolean; dock?: boolean }) {
+  // Docked: a side panel with no backdrop, so the drawing stays visible (and
+  // clickable) while you change the cabinet.
+  if (dock)
+    return (
+      <aside className="side-panel" role="dialog" aria-label={title}>
+        <div className="modal-head">
+          <div>
+            <h2>{title}</h2>
+            {sub && <p className="modal-sub">{sub}</p>}
+          </div>
+          <button className="btn-ghost" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="side-panel-body">{children}</div>
+      </aside>
+    );
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className={`modal ${wide ? 'modal-wide' : ''}`} onClick={(e) => e.stopPropagation()}>
@@ -735,7 +752,7 @@ export function EditItemModal() {
   const hasEndOptions = takesAppliedEnds(cat) || takesWaterfall(cat);
 
   return (
-    <Modal title={cat.fixed ? cat.name : `${fmtIn(it.w)} ${cat.name}`} sub={`Space left: ${fmtIn(Math.max(0, left))}`} onClose={() => openEditor(null)} wide>
+    <Modal title={cat.fixed ? cat.name : `${fmtIn(it.w)} ${cat.name}`} sub={`Changes apply as you make them · space left on this wall: ${fmtIn(Math.max(0, left))}`} onClose={() => openEditor(null)} dock>
       {cat.note && <div className="edit-note">{cat.note}</div>}
       <div className="edit-grid">
         <div className="stepper-list">
@@ -977,7 +994,7 @@ export function EditItemModal() {
           Duplicate
         </button>
         <button className="btn-primary" onClick={() => openEditor(null)}>
-          Save
+          Done
         </button>
       </div>
     </Modal>

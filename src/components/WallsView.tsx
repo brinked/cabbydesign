@@ -566,7 +566,7 @@ function WallCard({ wall, index }: { wall: Wall; index: number }) {
   const [zoom, setZoom] = useState(1);
 
   return (
-    <div className="wall-card">
+    <div className="wall-card" id={`wall-${wall.id}`}>
       <div className="wall-card-head">
         <span className="wall-badge">{index + 1}</span>
         <input
