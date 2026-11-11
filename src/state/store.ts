@@ -1166,6 +1166,25 @@ function flushHistoryCapture(): void {
   useStore.setState((s) => ({ undoStack: [...s.undoStack, snap].slice(-HISTORY_MAX), redoStack: [] }));
 }
 
+/** A new cabinet is placed beside its neighbour's footprint as it was BEFORE
+ *  the add — which still included that neighbour's automatic end panel. Once
+ *  the new cabinet is there the panel goes away, leaving a 3/4″ sliver between
+ *  the two. Close any such sliver (up to 1″) so cabinets sit tight together. */
+function snugToLeft(design: Design, id: string): Design {
+  const it = design.items.find((i) => i.id === id);
+  if (!it) return design;
+  const lane = catalogById(it.catalogId).lane;
+  let edge = -Infinity;
+  for (const o of design.items) {
+    if (o.id === id || o.wallId !== it.wallId || catalogById(o.catalogId).lane !== lane) continue;
+    const e = o.x + footprintW(o);
+    if (e <= it.x + 0.01) edge = Math.max(edge, e);
+  }
+  const gap = it.x - edge;
+  if (!(gap > 0.01 && gap <= 1)) return design;
+  return withPack({ ...design, items: design.items.map((i) => (i.id === id ? { ...i, x: edge } : i)) }, id);
+}
+
 /** True when any wall's cabinets overlap each other or run past the wall's
  *  end — i.e. more was placed than fits (per lane). */
 export function anyWallOverfull(design: Design): boolean {
@@ -1594,7 +1613,8 @@ export const useStore = create<AppState>()(
           item.handleId = 'tab';
           item.doorStyle = 'flat'; // Euro slab reads cleanest on a hidden back door
         }
-        set({ design: withPack({ ...s.design, items: [...s.design.items, item] }), selectedId: item.id });
+        const packed = withPack({ ...s.design, items: [...s.design.items, item] });
+        set({ design: snugToLeft(packed, item.id), selectedId: item.id });
         return true;
       },
 

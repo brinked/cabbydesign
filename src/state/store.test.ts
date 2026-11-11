@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Design, PlacedItem } from '../model/types';
 import { computeQuote } from '../model/quote';
+import { recipeFor } from '../model/templates';
 import { anyWallOverfull, DESIGN_SCHEMA_VERSION, DEFAULT_PANEL_RATES, footprintW, itemPrice, normalizeDesign, panelHeight, useStore } from './store';
 
 const store = () => useStore.getState();
@@ -231,6 +232,32 @@ describe('guided start', () => {
       for (const w of store().design.walls) store().fillWall(w.id);
       expect(anyWallOverfull(store().design), `${line} ${shape} ${lengths} refill`).toBe(false);
     }
+  });
+
+  it.each(['ext', 'newage', 'challenger'] as const)('places filled cabinets tight against each other (%s)', (line) => {
+    const slivers = () => {
+      const d = store().design;
+      const found: string[] = [];
+      for (const w of d.walls) {
+        const run = d.items.filter((i) => i.wallId === w.id).sort((a, b) => a.x - b.x);
+        for (let i = 1; i < run.length; i++) {
+          const gap = run[i].x - (run[i - 1].x + footprintW(run[i - 1]));
+          if (gap > 0.01 && gap <= 1.5) found.push(`${w.name}: ${gap.toFixed(2)} before ${run[i].catalogId}`);
+        }
+      }
+      return found;
+    };
+    for (const [shape, lengths] of [['straight', [168]], ['island', [120]], ['l', [144, 96]], ['u', [96, 144, 96]]] as const) {
+      store().startDesign({ kitchenType: 'outdoor', line, shape, lengths: [...lengths], starter: true });
+      expect(slivers(), `${line} ${shape}`).toEqual([]);
+    }
+    // adding by hand next to an existing cabinet is tight too
+    store().startDesign({ kitchenType: 'outdoor', line, shape: 'straight', lengths: [200], starter: false });
+    const wall = store().design.walls[0].id;
+    for (const id of recipeFor(line, 'outdoor').fill) store().addItem(wall, id);
+    store().fillWall(wall);
+    expect(slivers(), `${line} manual`).toEqual([]);
+    expect(anyWallOverfull(store().design)).toBe(false);
   });
 
   it('clamps silly sizes and fills only free space on demand', () => {
