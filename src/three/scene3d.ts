@@ -767,19 +767,16 @@ export function buildDesignGroup(design: Design, fin: FinishOption, appliances: 
     const wallItems = design.items.filter((it) => it.wallId === f.wall.id);
     const floorItems = laneItems(wallItems, f.wall.id, 'floor');
 
-    // A real toe kick is ONE continuous strip along the run, sitting on the
-    // shallowest cabinet's line — deep fridges and grill cabinets included.
-    // Every member of a contiguous run gets the run's plane; coplanar faces
-    // in the same finish read as a single piece.
+    // Each cabinet's toe kick follows ITS OWN front, 2" behind the face. One
+    // run-wide plane on the shallowest box used to leave a 24" cabinet beside
+    // an 18" one with an 8" recess; where depths match the band still reads as
+    // one continuous strip, and where they step the kick steps with the box.
+    // (Fillers take their neighbour's face depth, so their kick lines up.)
     const kickPlanes = new Map<string, number>();
     {
       const chain: PlacedItem[] = [];
       const flush = () => {
-        const real = chain.filter((o) => catalogById(o.catalogId).front !== 'filler');
-        if (real.length > 1) {
-          const plane = Math.min(...real.map((o) => o.d + o.outset)) - 2;
-          for (const o of chain) kickPlanes.set(o.id, plane - o.outset);
-        }
+        for (const o of chain) kickPlanes.set(o.id, o.d - 2);
         chain.length = 0;
       };
       const kickable = floorItems

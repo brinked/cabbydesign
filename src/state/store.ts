@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware';
 import type { ApplianceBrands, ApplianceItem, Design, DimOverride, HandleItem, KitchenType, LayoutKind, Measurement, ModelAligns, Opening, OpeningKind, PanelRates, Pergola, PlacedItem, ProductLine, RoughIn, RoughInKind, Wall } from '../model/types';
-import { FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, TOEKICK_H, bridgesCounter, catalogById, findCatalog, frontExtraD, doorStylesFor, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
+import { FINISHES, BAR_DEPTH, BAR_NOSE, BAR_OVERHANG, BAR_RISE, BASE_H, CATALOG, COUNTER_OVERHANG, COUNTER_T, DEFAULT_RATES, DRAWER_MIN_D, TOEKICK_H, bridgesCounter, catalogById, findCatalog, frontExtraD, doorStylesFor, finishesForLine, hasStorageDrawer, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { LINER_CABINET_CLEARANCE } from '../model/appliances';
 import { polyArea } from '../model/counterShape';
 import { BRAND_ID_MIGRATE, brandForSavedLine, brandOf, itemFinishId, skuVariantFor, snapToSizes } from '../model/brands';
@@ -77,10 +77,12 @@ export function effectiveDims(
   // Factory-fixed sizes (NewAge modular) — no overrides apply.
   if (cat.fixed) return { minW: cat.w, maxW: cat.w, minD: cat.d, maxD: cat.d };
   const o = dims[catId] ?? {};
+  const minD = o.minD ?? cat.minD ?? 12;
   return {
     minW: o.minW ?? cat.minW,
     maxW: o.maxW ?? cat.maxW,
-    minD: o.minD ?? cat.minD ?? 12,
+    // drawer / pull-out boxes can't go shallower than the slide allows
+    minD: hasStorageDrawer(cat.front) ? Math.max(DRAWER_MIN_D, minD) : minD,
     maxD: o.maxD ?? cat.maxD ?? 36,
   };
 }
@@ -1508,12 +1510,36 @@ export const useStore = create<AppState>()(
             if (patch.length !== undefined && Math.abs(patch.length - w.length) > 0.001) {
               const startJoined = wallEndJoined(w, s.design.walls, 'start');
               const endJoined = wallEndJoined(w, s.design.walls, 'end');
-              if (endJoined && !startJoined) {
-                const delta = patch.length - w.length;
+              const delta = patch.length - w.length;
+              const originMoves = endJoined && !startJoined;
+              if (originMoves) {
                 const rad = (w.angle * Math.PI) / 180;
                 next.x = Math.round((w.x - Math.cos(rad) * delta) * 100) / 100;
                 next.y = Math.round((w.y - Math.sin(rad) * delta) * 100) / 100;
-                items = items.map((it) => (it.wallId === id ? { ...it, x: Math.max(0, it.x + delta) } : it));
+              }
+              if (delta < 0) {
+                // Shrinking: take the lost length out of the EMPTY space on
+                // the run — the far end's gap first, then the start's — and
+                // slide each lane's row as ONE piece. Clamping cabinets one by
+                // one to x=0 piled several onto the same spot, and the next
+                // pack (sorted by centre) shuffled their order.
+                for (const lane of ['floor', 'upper'] as const) {
+                  const row = items.filter((it) => it.wallId === id && !it.auto && catalogById(it.catalogId).lane === lane);
+                  if (!row.length) continue;
+                  const minX = Math.min(...row.map((it) => it.x));
+                  const maxEnd = Math.max(...row.map((it) => it.x + footprintW(it)));
+                  const gapEnd = Math.max(0, w.length - maxEnd);
+                  // what the far end can't absorb comes off the start gap; if
+                  // even that runs out, the row lands at 0 and the pack sweeps
+                  // compress it in order against the new end
+                  const shift = Math.min(minX, Math.max(0, -delta - gapEnd));
+                  if (shift <= 0) continue;
+                  const ids = new Set(row.map((it) => it.id));
+                  items = items.map((it) => (ids.has(it.id) ? { ...it, x: Math.round((it.x - shift) * 100) / 100 } : it));
+                }
+              } else if (originMoves) {
+                // Growing at the origin: cabinets keep their spot in the plan.
+                items = items.map((it) => (it.wallId === id ? { ...it, x: it.x + delta } : it));
               }
             }
             // thickness 0 ⟹ island; un-islanding restores a default thickness

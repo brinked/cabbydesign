@@ -135,14 +135,27 @@ const WALLBOX = '((W*D*1) + 900) * (H/34)';
 /** Shown on every sink cabinet so the box is sized correctly for the basin. */
 const SINK_NOTE = 'Sink cabinet should be 3" wider than the sink.';
 
+/** Floor on the box depth of any cabinet riding on drawer slides (drawers,
+ *  trash / propane pull-outs — and pull-out trays, applied per item): the
+ *  shallowest slide the shop stocks is 14", which needs a 16" box. */
+export const DRAWER_MIN_D = 16;
+
+const STORAGE_DRAWER_FRONTS: string[] = ['drawers3', 'drawers4', 'doordrawer', 'door2drawer', 'trash', 'trashdrawer', 'propanedrawer', 'grilldrawer', 'sinkdrawer', 'coolerdrawer'];
+
+/** Whether a front carries a storage drawer or pull-out (so DRAWER_MIN_D
+ *  applies). Appliance drawers (fridge drawers) are the unit's own. */
+export function hasStorageDrawer(front: CatalogItem['front']): boolean {
+  return STORAGE_DRAWER_FRONTS.includes(front);
+}
+
 const BASE_CATALOG: CatalogItem[] = [
   // ---------- Standard base cabinets ----------
   { id: 'base-1door', name: '1-Door Base', category: 'base', front: 'door1', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 9, maxW: 24, stepW: 3, counter: true, formula: BOX, maxTrays: 2 },
   { id: 'base-2door', name: '2-Door Base', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, maxTrays: 2 },
-  { id: 'base-1door1drawer', name: '1-Door 1-Drawer Base', category: 'base', front: 'doordrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 24, stepW: 3, counter: true, formula: DRAWER1, maxTrays: 2 },
-  { id: 'base-2door1drawer', name: '2-Door 1-Drawer Base', category: 'base', front: 'door2drawer', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: DRAWER1, maxTrays: 2 },
-  { id: 'base-drawer3', name: '3-Drawer Base', category: 'base', front: 'drawers3', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 36, stepW: 3, counter: true, formula: DRAWER3 },
-  { id: 'base-drawer4', name: '4-Drawer Base', category: 'base', front: 'drawers4', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 30, stepW: 3, counter: true, formula: DRAWER4 },
+  { id: 'base-1door1drawer', name: '1-Door 1-Drawer Base', category: 'base', front: 'doordrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 24, stepW: 3, minD: DRAWER_MIN_D, counter: true, formula: DRAWER1, maxTrays: 2 },
+  { id: 'base-2door1drawer', name: '2-Door 1-Drawer Base', category: 'base', front: 'door2drawer', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, minD: DRAWER_MIN_D, counter: true, formula: DRAWER1, maxTrays: 2 },
+  { id: 'base-drawer3', name: '3-Drawer Base', category: 'base', front: 'drawers3', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 36, stepW: 3, minD: DRAWER_MIN_D, counter: true, formula: DRAWER3 },
+  { id: 'base-drawer4', name: '4-Drawer Base', category: 'base', front: 'drawers4', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 12, maxW: 30, stepW: 3, minD: DRAWER_MIN_D, counter: true, formula: DRAWER4 },
   { id: 'base-sink', name: '2-Door Sink Base (False Front)', category: 'base', front: 'sink', lane: 'floor', w: 33, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
   { id: 'base-sink2', name: '2-Door Sink Base', category: 'base', front: 'sink2', lane: 'floor', w: 33, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, note: SINK_NOTE },
   { id: 'base-sink-drawers', name: 'Sink Base (2-Drawer)', category: 'base', front: 'sinkdrawer', lane: 'floor', w: 33, d: 24, h: BASE_H, minW: 24, maxW: 42, stepW: 3, counter: true, formula: BOX, note: 'Two stacked drawers aligned with the 2-drawer grill cabinet; the top row is a false front under the basin.' },
@@ -155,8 +168,8 @@ const BASE_CATALOG: CatalogItem[] = [
   { id: 'base-blindr', name: 'Right Blind Corner Base', category: 'base', front: 'blindr', lane: 'floor', w: 42, d: 24, h: BASE_H, minW: 39, maxW: 48, stepW: 3, counter: true, formula: BOX },
   { id: 'base-open', name: 'Open Shelf Base', category: 'base', front: 'open', lane: 'floor', w: 30, d: 24, h: BASE_H, minW: 18, maxW: 42, stepW: 3, counter: true, formula: BOX },
   { id: 'base-pedestal', name: 'Pedestal Cabinet', category: 'base', front: 'door2', lane: 'floor', w: 30, d: 24, h: 20, minW: 18, maxW: 42, stepW: 3, minH: 18, maxH: 34.5, counter: true, formula: WALLBOX, note: 'Short riser base — 20" tall by default (min 18").' },
-  { id: 'base-trash', name: 'Trash Pull-Out', category: 'base', front: 'trash', lane: 'floor', w: 15, d: 24, h: BASE_H, minW: 15, maxW: 18, stepW: 3, counter: true, formula: BOX },
-  { id: 'base-trashdrawer', name: 'Trash Pull-Out + Drawer', category: 'base', front: 'trashdrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 21, stepW: 3, counter: true, formula: DRAWER1 },
+  { id: 'base-trash', name: 'Trash Pull-Out', category: 'base', front: 'trash', lane: 'floor', w: 15, d: 24, h: BASE_H, minW: 15, maxW: 18, stepW: 3, minD: DRAWER_MIN_D, counter: true, formula: BOX },
+  { id: 'base-trashdrawer', name: 'Trash Pull-Out + Drawer', category: 'base', front: 'trashdrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 21, stepW: 3, minD: DRAWER_MIN_D, counter: true, formula: DRAWER1 },
 
   // ---------- Wall cabinets ----------
   { id: 'wall-1door', name: '1-Door Wall', category: 'wall', front: 'door1', lane: 'upper', w: 15, d: 12, h: 30, minW: 9, maxW: 24, stepW: 3, counter: false, formula: WALLBOX, mount: 54 },
@@ -185,7 +198,7 @@ const BASE_CATALOG: CatalogItem[] = [
   { id: 'out-burner', name: 'Side Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 18, d: 27, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, topGearH: 6, formula: BOX, applianceCat: 'sideburner' },
   { id: 'out-power', name: 'Power Burner Cabinet', category: 'outdoor', front: 'burner', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 18, maxW: 30, stepW: 3, counter: true, topGearH: 6, formula: BOX, applianceCat: 'powerburner' },
   { id: 'out-propane', name: 'Propane Pull-Out', category: 'outdoor', front: 'propane', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: BOX },
-  { id: 'out-propanedrawer', name: 'Propane Pull-Out + Drawer', category: 'outdoor', front: 'propanedrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, counter: true, formula: DRAWER1 },
+  { id: 'out-propanedrawer', name: 'Propane Pull-Out + Drawer', category: 'outdoor', front: 'propanedrawer', lane: 'floor', w: 18, d: 24, h: BASE_H, minW: 15, maxW: 24, stepW: 3, minD: DRAWER_MIN_D, counter: true, formula: DRAWER1 },
   // Fridge / ice-maker "openings" are just spaces sized to the appliance — no
   // cabinet box charge (formula '0'); only the selected appliance is priced.
   { id: 'out-fridge', displayCategory: 'appliance', name: 'Refrigerator (1-Door)', category: 'outdoor', front: 'fridge', lane: 'floor', w: 24, d: 27, h: BASE_H, minW: 12, maxW: 48, stepW: 1, counter: true, formula: '0', applianceCat: 'fridge' },

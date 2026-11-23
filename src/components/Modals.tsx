@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BASE_H, CATALOG, COUNTER_T, catalogById, catalogForDesign, categoryLabelsForLine, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
+import { BASE_H, CATALOG, COUNTER_T, DRAWER_MIN_D, catalogById, catalogForDesign, categoryLabelsForLine, finishesForLine, takesAppliedEnds, takesWaterfall } from '../model/catalog';
 import { NumberField } from './NumberField';
 import { MODULAR_BRANDS, brandOf, closestFinish, itemFinishId, skuFor, skuVariantFor, unitFinishes } from '../model/brands';
 import { companyFinishes } from '../model/companyCatalog';
@@ -653,6 +653,8 @@ export function EditItemModal() {
   const ownRange = effectiveDims(it.catalogId, dims);
   const dimRange = {
     ...ownRange,
+    // pull-out trays ride on drawer slides too — same box-depth floor
+    minD: it.trays > 0 ? Math.max(ownRange.minD, DRAWER_MIN_D) : ownRange.minD,
     minW: partners.down ? Math.min(ownRange.minW, effectiveDims(partners.down, dims).minW) : ownRange.minW,
     maxW: partners.up ? Math.max(ownRange.maxW, effectiveDims(partners.up, dims).maxW) : ownRange.maxW,
   };
@@ -861,7 +863,14 @@ export function EditItemModal() {
             <Stepper label="Height off floor" value={it.mount} step={3} min={30} max={84} onChange={(mount) => updateItem(it.id, { mount })} />
           )}
           {maxTrays > 0 && (
-            <Stepper label="Pull-out trays" value={it.trays} step={1} min={0} max={maxTrays} onChange={(trays) => updateItem(it.id, { trays })} />
+            <Stepper
+              label="Pull-out trays"
+              value={it.trays}
+              step={1}
+              min={0}
+              max={maxTrays}
+              onChange={(trays) => updateItem(it.id, trays > 0 && it.d < DRAWER_MIN_D ? { trays, d: DRAWER_MIN_D } : { trays })}
+            />
           )}
           <Stepper
             label={leftEdge > 0.001 ? 'Space left (to neighbor)' : 'Space left (to wall end)'}
